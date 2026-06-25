@@ -896,6 +896,7 @@ function eliminarPorNo(no){
 
 function guardar(){
   var noVal=parseInt(document.getElementById('m-no').value)||0;
+  console.log('GUARDAR: editIdx='+editIdx+' noVal='+noVal+' campo_no='+document.getElementById('m-no').value);
   var esCirug=(tipoActual==='Cirugia');
   var anioActual=String(new Date().getFullYear());
   var remite,resp,fecha,asunto,fact,clave,centro,hospital,monto,diagnostico;
