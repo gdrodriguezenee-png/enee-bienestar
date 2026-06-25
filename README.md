@@ -1,4 +1,4 @@
-[Control_de_Documentos_DBS_1.html](https://github.com/user-attachments/files/29352453/Control_de_Documentos_DBS_1.html)
+[Control_de_Documentos_DBS_2.html](https://github.com/user-attachments/files/29352717/Control_de_Documentos_DBS_2.html)
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -391,6 +391,7 @@ var editIdx = null;
 var sortCol = null;
 var sortAsc = true;
 var reloadTimer = null;
+var guardandoAhora = false;
 
 function showLoad(txt){ document.getElementById('load-txt').textContent = txt||'Procesando...'; document.getElementById('loading').classList.add('show'); }
 function hideLoad(){ document.getElementById('loading').classList.remove('show'); }
@@ -517,7 +518,7 @@ function doLogin(){
     construirTabs();
     var permitidos2=tiposPermitidos();
     if(permitidos2.length>0) cambiarTab(permitidos2[0].id);
-    reloadTimer=setInterval(function(){ try{cargarDatos(true);}catch(e){} },30000);
+    reloadTimer=setInterval(function(){ if(!guardandoAhora){ try{cargarDatos(true);}catch(e){} } },30000);
   });
 }
 
@@ -875,6 +876,7 @@ function guardar(){
   cerrarModal();
   var datos=DB[tipoActual];
   if(editIdx===null){
+    guardandoAhora = true;
     showLoad('Guardando...');
     obtenerSiguienteNo(tipoActual,function(noFinal){
       var esCirugPost=(tipoActual==='Cirugia');
@@ -888,8 +890,8 @@ function guardar(){
           syncStatus('ok','Sincronizado'); toast('Registro N '+noFinal+' guardado');
           registrarBitacora('Agrego', getTipo(tipoActual).label, noFinal, 'Nuevo registro');
           // Recargar desde Sheets para confirmar persistencia
-          setTimeout(function(){ cargarDatos(true); }, 4000);
-        } else { toast('Error al guardar. Verifique conexion.','error'); syncStatus('err','Error al guardar'); }
+          setTimeout(function(){ guardandoAhora=false; cargarDatos(true); }, 5000);
+        } else { guardandoAhora=false; toast('Error al guardar. Verifique conexion.','error'); syncStatus('err','Error al guardar'); }
         hideLoad();
       });
     });
