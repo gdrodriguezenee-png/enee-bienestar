@@ -833,19 +833,14 @@ function abrirModal(idx){
   }
 
   if(m){
-    // EDITAR: poner número original y bloquear cualquier cambio posterior
+    // EDITAR: guardar número en variable global protegida
     var noOriginal = m.no;
+    editNo = noOriginal;
     document.getElementById('m-no').value=noOriginal;
     document.getElementById('btn-guardar').disabled=false;
     syncStatus('ok','Listo');
-    // Proteger el campo contra cambios posteriores
-    setTimeout(function(){
-      document.getElementById('m-no').value=noOriginal;
-    }, 500);
-    setTimeout(function(){
-      document.getElementById('m-no').value=noOriginal;
-    }, 1500);
   } else {
+    editNo = null;
     // NUEVO: calcular siguiente número
     var local=datos.map(function(d){return d.no;}).filter(function(n){return n>0;});
     var noI=local.length?Math.max.apply(null,local)+1:1;
