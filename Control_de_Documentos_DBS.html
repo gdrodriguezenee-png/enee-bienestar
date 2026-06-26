@@ -898,7 +898,7 @@ function abrirModalDirecto(m){
   setTimeout(function(){ editNo=_noEdit; }, 500);
   setTimeout(function(){ editNo=_noEdit; }, 1000);
 }
-function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; editNo=null; }
+function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; }
 function editar(idx){ abrirModal(idx); }
 function editarPorNo(no){
   var datos=DB[tipoActual]||[];
@@ -957,9 +957,9 @@ function guardar(){
         if(!err&&res&&res.ok){
           DB[tipoActual].push({no:noFinal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioActual,nueva:true});
           actualizarTabs(); poblarResp(); render();
+          editNo=null;
           syncStatus('ok','Sincronizado'); toast('Registro N '+noFinal+' guardado');
           registrarBitacora('Agrego', getTipo(tipoActual).label, noFinal, 'Nuevo registro');
-          // Recargar desde Sheets para confirmar persistencia
           setTimeout(function(){ guardandoAhora=false; cargarDatos(true); }, 5000);
         } else { guardandoAhora=false; toast('Error al guardar. Verifique conexion.','error'); syncStatus('err','Error al guardar'); }
         hideLoad();
@@ -976,6 +976,7 @@ function guardar(){
     apiPost(editData,function(err,res){
       if(!err&&res&&res.ok){
         datos[editIdx]={no:noVal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit,nueva:false};
+        editNo=null;
         poblarResp(); render(); syncStatus('ok','Sincronizado'); toast('Registro N '+noVal+' actualizado');
         registrarBitacora('Edito', getTipo(tipoActual).label, noVal, 'Registro modificado');
       } else { toast('Error al actualizar','error'); }
