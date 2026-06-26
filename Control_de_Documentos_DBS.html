@@ -910,8 +910,13 @@ function eliminarPorNo(no){
 }
 
 function guardar(){
-  var noVal=parseInt(document.getElementById('m-no').value)||0;
-  console.log('GUARDAR: editIdx='+editIdx+' noVal='+noVal+' campo_no='+document.getElementById('m-no').value);
+  // En edición usar el número original del objeto, no el campo (que puede ser pisado)
+  var noVal;
+  if(editIdx!==null && DB[tipoActual] && DB[tipoActual][editIdx]){
+    noVal=DB[tipoActual][editIdx].no;
+  } else {
+    noVal=parseInt(document.getElementById('m-no').value)||0;
+  }
   var esCirug=(tipoActual==='Cirugia');
   var anioActual=String(new Date().getFullYear());
   var remite,resp,fecha,asunto,fact,clave,centro,hospital,monto,diagnostico;
