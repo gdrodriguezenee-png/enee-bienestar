@@ -356,7 +356,7 @@ td.asunto{max-width:300px;}
 
 <script>
 
-var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxbVIZseBUkYwPdcdxTf0i7BFKf7LS16BO8P5XUpWJ6jiaNrz-P8l1B188edBhGEAP7/exec';
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw87UzL7xJbPQVdCIbcjv_a_doWhfhb07O35KrG3ZMge5ihwZZkYTvf08RqI9fZ41AN/exec';
 
 var TIPOS = [
   {id:'Memorando', label:'Memorando', icon:'&#x1F4CB;', color:'#003366'},
@@ -966,11 +966,12 @@ function guardar(){
       });
     });
   } else {
-    var orig=datos[editIdx];
-    var anioEdit = orig.anio || anioActual;
+    // Buscar el registro por editNo (más confiable que editIdx)
+    var orig = datos.find(function(d){ return d.no === editNo; }) || datos[editIdx];
+    var anioEdit = orig ? (orig.anio || anioActual) : anioActual;
     showLoad('Actualizando...');
     var esCirugEdit=(tipoActual==='Cirugia');
-    var editData={accion:'editar',tipo:tipoActual,no_original:orig.no,no:noVal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit};
+    var editData={accion:'editar',tipo:tipoActual,no_original:editNo,no:editNo,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit};
     if(esCirugEdit) editData.cols=[noVal,remite,clave,centro,fecha,hospital,monto,diagnostico];
     apiPost(editData,function(err,res){
       if(!err&&res&&res.ok){
