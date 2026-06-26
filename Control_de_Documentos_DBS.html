@@ -387,6 +387,7 @@ var BITACORA = [];
 var usuarioActual = null;
 var tipoActual = 'Memorando';
 var editIdx = null;
+var editNo = null; // Número original del registro en edición
 var sortCol = null;
 var sortAsc = true;
 var reloadTimer = null;
@@ -889,13 +890,14 @@ function abrirModalDirecto(m){
     document.getElementById('m-asunto').value=m.asunto||'';
     document.getElementById('m-fact').value=m.fact||'';
   }
-  // Poner número original y NO llamar obtenerSiguienteNo
+  // Guardar número original en variable global protegida
+  editNo = m.no;
   document.getElementById('m-no').value=m.no;
   document.getElementById('btn-guardar').disabled=false;
   syncStatus('ok','Listo');
   document.getElementById('modal-doc').classList.add('show');
 }
-function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; }
+function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; editNo=null; }
 function editar(idx){ abrirModal(idx); }
 function editarPorNo(no){
   var datos=DB[tipoActual]||[];
@@ -910,10 +912,10 @@ function eliminarPorNo(no){
 }
 
 function guardar(){
-  // En edición usar el número original del objeto, no el campo (que puede ser pisado)
+  // Usar editNo (variable protegida) si estamos editando
   var noVal;
-  if(editIdx!==null && DB[tipoActual] && DB[tipoActual][editIdx]){
-    noVal=DB[tipoActual][editIdx].no;
+  if(editNo!==null){
+    noVal=editNo;
   } else {
     noVal=parseInt(document.getElementById('m-no').value)||0;
   }
