@@ -887,10 +887,16 @@ function abrirModalDirecto(m){
   }
   // Guardar número original en variable global protegida
   editNo = m.no;
+  console.log('abrirModalDirecto: editNo asignado a', editNo);
   document.getElementById('m-no').value=m.no;
   document.getElementById('btn-guardar').disabled=false;
   syncStatus('ok','Listo');
   document.getElementById('modal-doc').classList.add('show');
+  // Re-asignar editNo después de 200ms por si algo lo pisa
+  var _noEdit = m.no;
+  setTimeout(function(){ editNo=_noEdit; console.log('editNo reafirmado:', editNo); }, 200);
+  setTimeout(function(){ editNo=_noEdit; }, 500);
+  setTimeout(function(){ editNo=_noEdit; }, 1000);
 }
 function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; editNo=null; }
 function editar(idx){ abrirModal(idx); }
