@@ -945,7 +945,7 @@ function guardar(){
   if(!noVal){toast('Error en el N de registro','error');return;}
   cerrarModal();
   var datos=DB[tipoActual];
-  if(editIdx===null){
+  if(editNo===null){
     guardandoAhora = true;
     showLoad('Guardando...');
     obtenerSiguienteNo(tipoActual,function(noFinal){
