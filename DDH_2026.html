@@ -443,49 +443,162 @@ let activeStatFilter = null;
 
 // ─── EXPORTAR TABLA A EXCEL ───
 function exportarTabla() {
-  // Columnas a exportar en orden
   const cols = [
-    ['FECHA DE INGRESO',     'Fecha de Ingreso'],
-    ['ORIGEN',               'Origen'],
-    ['NUMERO DE DOCUMENTO',  'N° Documento'],
-    ['Dirigido a:',          'Dirigido a'],
-    ['ASUNTO',               'Asunto'],
-    ['DESCRIPCIÓN',          'Descripción (Acción)'],
-    ['RESPONSABLE',          'Responsable'],
-    ['PRIORIDAD',            'Prioridad'],
-    ['ESTADO',               'Estado'],
-    ['FECHA DE ENTREGA',     'Fecha de Entrega'],
-    ['HOJA DE INSTRUCCIÓN',  'Hoja de Instrucción'],
-    ['MEMORANDO',            'Memorando'],
-    ['DESCRIPCIÓN.1',        'Descripción (Resolución)'],
-    ['EXTERNO',              'Externo'],
-    ['OBSERVACIONES',        'Observaciones'],
+    ['FECHA DE INGRESO',    'Fecha de Ingreso'],
+    ['ORIGEN',              'Origen'],
+    ['NUMERO DE DOCUMENTO', 'N° Documento'],
+    ['Dirigido a:',         'Dirigido a'],
+    ['ASUNTO',              'Asunto'],
+    ['DESCRIPCIÓN',         'Descripción (Acción)'],
+    ['RESPONSABLE',         'Responsable'],
+    ['PRIORIDAD',           'Prioridad'],
+    ['ESTADO',              'Estado'],
+    ['FECHA DE ENTREGA',    'Fecha de Entrega'],
+    ['HOJA DE INSTRUCCIÓN', 'Hoja de Instrucción'],
+    ['MEMORANDO',           'Memorando'],
+    ['DESCRIPCIÓN.1',       'Descripción (Resolución)'],
+    ['EXTERNO',             'Externo'],
+    ['OBSERVACIONES',       'Observaciones'],
   ];
 
-  // Encabezados
-  const headers = cols.map(c => c[1]);
+  const xmlEsc = s => String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-  // Filas (usa filteredData para respetar filtros activos)
-  const rows = filteredData.map(r =>
-    cols.map(([k]) => {
+  // Colores
+  const colorHead  = '003366'; // azul oscuro encabezado
+  const colorFin   = 'D0F0D0'; // verde claro finalizado
+  const colorPen   = 'FFF3CC'; // amarillo pendiente
+  const colorEsp   = 'E0E0FF'; // lila esperando
+  const colorAlta  = 'FFE0DC'; // rojo suave alta
+  const colorMedia = 'FFF8DC'; // crema media
+  const colorBaja  = 'E8F5E8'; // verde muy suave baja
+
+  function rowColor(r) {
+    const est = (r.ESTADO||'').toUpperCase();
+    if(est.includes('FINALIZ')) return colorFin;
+    if(est.includes('ESPERANDO')) return colorEsp;
+    if(est.includes('PENDIENTE')) return colorPen;
+    return 'FFFFFF';
+  }
+
+  // Construir XML de Excel (SpreadsheetML)
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:x="urn:schemas-microsoft-com:office:excel">
+ <Styles>
+  <Style ss:ID="header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="10" ss:FontName="Calibri"/>
+   <Interior ss:Color="#${colorHead}" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#CCCCCC"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="cell">
+   <Font ss:Size="9" ss:FontName="Calibri"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="fin">
+   <Font ss:Size="9" ss:FontName="Calibri"/>
+   <Interior ss:Color="#${colorFin}" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#C0DCC0"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#C0DCC0"/></Borders>
+  </Style>
+  <Style ss:ID="pen">
+   <Font ss:Size="9" ss:FontName="Calibri"/>
+   <Interior ss:Color="#${colorPen}" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDD0A0"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DDD0A0"/></Borders>
+  </Style>
+  <Style ss:ID="esp">
+   <Font ss:Size="9" ss:FontName="Calibri"/>
+   <Interior ss:Color="#${colorEsp}" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0B0DD"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B0B0DD"/></Borders>
+  </Style>
+  <Style ss:ID="palta">
+   <Font ss:Size="9" ss:Bold="1" ss:Color="#880000" ss:FontName="Calibri"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/></Borders>
+  </Style>
+  <Style ss:ID="pmedia">
+   <Font ss:Size="9" ss:Color="#7A4800" ss:FontName="Calibri"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/></Borders>
+  </Style>
+  <Style ss:ID="pbaja">
+   <Font ss:Size="9" ss:Color="#1A5A1A" ss:FontName="Calibri"/>
+   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/>
+   <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E0E0E0"/></Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Documentos DDH">
+  <Table>`;
+
+  // Anchos de columna
+  const widths = [70,200,100,150,300,150,100,60,90,70,100,100,200,80,200];
+  widths.forEach(w => { xml += `\n   <Column ss:Width="${w}"/>`; });
+
+  // Fila encabezado
+  xml += `\n   <Row ss:Height="30">`;
+  cols.forEach(([,label]) => {
+    xml += `\n    <Cell ss:StyleID="header"><Data ss:Type="String">${xmlEsc(label)}</Data></Cell>`;
+  });
+  xml += `\n   </Row>`;
+
+  // Filas de datos
+  filteredData.forEach(r => {
+    const est = (r.ESTADO||'').toUpperCase();
+    const prio = (r.PRIORIDAD||'').toUpperCase().trim();
+    let rowStyle = 'cell';
+    if(est.includes('FINALIZ')) rowStyle = 'fin';
+    else if(est.includes('ESPERANDO')) rowStyle = 'esp';
+    else if(est.includes('PENDIENTE')) rowStyle = 'pen';
+
+    xml += `\n   <Row ss:AutoFitHeight="1">`;
+    cols.forEach(([k], ci) => {
       let v = r[k] || '';
-      // Mostrar fechas en formato D/M/YYYY
-      if(k === 'FECHA DE INGRESO' || k === 'FECHA DE ENTREGA') v = fmtDate(v) === '—' ? '' : fmtDate(v);
-      return v;
-    })
-  );
+      if(k==='FECHA DE INGRESO'||k==='FECHA DE ENTREGA') { const f=fmtDate(v); v = f==='—'?'':f; }
 
-  // Construir CSV con BOM para que Excel reconozca UTF-8
-  const sep = '\t'; // tabulación → Excel lo interpreta como columnas al pegar
-  const csvRows = [headers, ...rows].map(row =>
-    row.map(cell => {
-      const s = String(cell).replace(/"/g, '""');
-      return s.includes(sep) || s.includes('\n') || s.includes('"') ? `"${s}"` : s;
-    }).join(sep)
-  );
+      // Columna PRIORIDAD con estilo especial
+      let cellStyle = rowStyle;
+      if(k==='PRIORIDAD') {
+        if(prio==='ALTA') cellStyle='palta';
+        else if(prio==='MEDIA') cellStyle='pmedia';
+        else if(prio==='BAJA') cellStyle='pbaja';
+      }
 
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/tab-separated-values;charset=utf-8' });
+      xml += `\n    <Cell ss:StyleID="${cellStyle}"><Data ss:Type="String">${xmlEsc(v)}</Data></Cell>`;
+    });
+    xml += `\n   </Row>`;
+  });
+
+  xml += `\n  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>1</SplitHorizontal>
+   <TopRowBottomPane>1</TopRowBottomPane>
+   <ActivePane>2</ActivePane>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>`;
+
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   const fecha = todayDMY().replace(/\//g,'-');
@@ -494,7 +607,6 @@ function exportarTabla() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
-
   addLog('edit', `Exportó tabla (${filteredData.length} registros) a Excel`);
 }
 
