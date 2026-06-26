@@ -826,10 +826,18 @@ function abrirModal(idx){
   }
 
   if(m){
-    // EDITAR: mantener el número original, nunca cambiarlo
-    document.getElementById('m-no').value=m.no;
+    // EDITAR: poner número original y bloquear cualquier cambio posterior
+    var noOriginal = m.no;
+    document.getElementById('m-no').value=noOriginal;
     document.getElementById('btn-guardar').disabled=false;
     syncStatus('ok','Listo');
+    // Proteger el campo contra cambios posteriores
+    setTimeout(function(){
+      document.getElementById('m-no').value=noOriginal;
+    }, 500);
+    setTimeout(function(){
+      document.getElementById('m-no').value=noOriginal;
+    }, 1500);
   } else {
     // NUEVO: calcular siguiente número
     var local=datos.map(function(d){return d.no;}).filter(function(n){return n>0;});
@@ -838,7 +846,8 @@ function abrirModal(idx){
     document.getElementById('btn-guardar').disabled=false;
     syncStatus('load','Verificando N...');
     obtenerSiguienteNo(tipoActual,function(n){
-      if(n>=noI){ document.getElementById('m-no').value=n; }
+      // Solo actualizar si seguimos en modo NUEVO (editIdx===null)
+      if(editIdx===null && n>=noI){ document.getElementById('m-no').value=n; }
       syncStatus('ok','Sincronizado');
     });
   }
