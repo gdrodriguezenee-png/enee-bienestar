@@ -300,6 +300,7 @@
           <option value="">Todos los responsables</option>
         </select>
         <button class="btn btn-warn" onclick="clearFilters()">✕ Limpiar</button>
+        <button class="btn btn-primary" onclick="exportarTabla()">⬇ Exportar Excel</button>
         <button class="btn btn-success" id="btnAgregar" onclick="openAdd()" style="display:none">＋ Agregar</button>
       </div>
       <div class="table-wrap">
@@ -439,6 +440,63 @@ let sortAsc = false;
 let page = 1;
 const PER_PAGE = 25;
 let activeStatFilter = null;
+
+// ─── EXPORTAR TABLA A EXCEL ───
+function exportarTabla() {
+  // Columnas a exportar en orden
+  const cols = [
+    ['FECHA DE INGRESO',     'Fecha de Ingreso'],
+    ['ORIGEN',               'Origen'],
+    ['NUMERO DE DOCUMENTO',  'N° Documento'],
+    ['Dirigido a:',          'Dirigido a'],
+    ['ASUNTO',               'Asunto'],
+    ['DESCRIPCIÓN',          'Descripción (Acción)'],
+    ['RESPONSABLE',          'Responsable'],
+    ['PRIORIDAD',            'Prioridad'],
+    ['ESTADO',               'Estado'],
+    ['FECHA DE ENTREGA',     'Fecha de Entrega'],
+    ['HOJA DE INSTRUCCIÓN',  'Hoja de Instrucción'],
+    ['MEMORANDO',            'Memorando'],
+    ['DESCRIPCIÓN.1',        'Descripción (Resolución)'],
+    ['EXTERNO',              'Externo'],
+    ['OBSERVACIONES',        'Observaciones'],
+  ];
+
+  // Encabezados
+  const headers = cols.map(c => c[1]);
+
+  // Filas (usa filteredData para respetar filtros activos)
+  const rows = filteredData.map(r =>
+    cols.map(([k]) => {
+      let v = r[k] || '';
+      // Mostrar fechas en formato D/M/YYYY
+      if(k === 'FECHA DE INGRESO' || k === 'FECHA DE ENTREGA') v = fmtDate(v) === '—' ? '' : fmtDate(v);
+      return v;
+    })
+  );
+
+  // Construir CSV con BOM para que Excel reconozca UTF-8
+  const sep = '\t'; // tabulación → Excel lo interpreta como columnas al pegar
+  const csvRows = [headers, ...rows].map(row =>
+    row.map(cell => {
+      const s = String(cell).replace(/"/g, '""');
+      return s.includes(sep) || s.includes('\n') || s.includes('"') ? `"${s}"` : s;
+    }).join(sep)
+  );
+
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csvRows.join('\n')], { type: 'text/tab-separated-values;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const fecha = todayDMY().replace(/\//g,'-');
+  a.download = `DDH_Documentos_${fecha}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+
+  addLog('edit', `Exportó tabla (${filteredData.length} registros) a Excel`);
+}
 
 // ─── BITÁCORA EN localStorage ───
 function getBitacora() {
