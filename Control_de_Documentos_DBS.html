@@ -615,12 +615,7 @@ function cargarTipo(tipo, cb){
   syncStatus('load','Sincronizando...');
   apiGet(tipo,function(err,rows){
     if(!err&&Array.isArray(rows)&&!guardandoAhora){
-      DB[tipo]=rows.filter(function(r){
-        if(!r[0]) return false;
-        var v=String(r[0]).trim().toLowerCase();
-        if(v===''||v==='no'||v==='n'||v==='n°'||isNaN(Number(r[0]))) return false;
-        return true;
-      }).map(tipo==='Cirugia'?filaAObjCirug:filaAObj);
+      DB[tipo]=filtrarFilas(rows, tipo);
       syncStatus('ok','Sincronizado');
     } else if(err){
       syncStatus('err','Sin conexion');
@@ -681,22 +676,60 @@ function filaAObjCirug(f){
   };
 }
 
+// Peticion JSONP a leerTodo: trae los 6 tipos en una sola llamada
+function apiGetTodo(cb){
+  var cbName='_gst_'+Date.now();
+  var s=document.createElement('script');
+  var done=false;
+  var t=setTimeout(function(){if(!done){done=true;cb(new Error('Timeout'));}delete window[cbName];if(s.parentNode)s.parentNode.removeChild(s);},20000);
+  window[cbName]=function(data){if(!done){done=true;clearTimeout(t);cb(null,data);}delete window[cbName];if(s.parentNode)s.parentNode.removeChild(s);};
+  s.onerror=function(){if(!done){done=true;clearTimeout(t);cb(new Error('Error'));}delete window[cbName];};
+  s.src=SCRIPT_URL+'?accion=leerTodo&callback='+cbName+'&_='+Date.now();
+  document.head.appendChild(s);
+}
+
+function filtrarFilas(rows, tipo){
+  return rows.filter(function(r){
+    if(!r[0]) return false;
+    var v=String(r[0]).trim().toLowerCase();
+    if(v===''||v==='no'||v==='n'||v==='n°'||isNaN(Number(r[0]))) return false;
+    return true;
+  }).map(tipo==='Cirugia'?filaAObjCirug:filaAObj);
+}
+
 function cargarDatos(silencioso){
   if(cargandoAhora){ return; } // evitar recargas solapadas
   cargandoAhora = true;
   if(!silencioso) showLoad('Cargando datos...');
   syncStatus('load','Sincronizando...');
+  // Intentar leerTodo (1 sola peticion para los 6 tipos)
+  apiGetTodo(function(err, data){
+    if(!err && data && !data.error && typeof data==='object' && !Array.isArray(data)){
+      if(!guardandoAhora){
+        for(var i=0;i<TIPOS.length;i++){
+          var tid=TIPOS[i].id;
+          if(Array.isArray(data[tid])) DB[tid]=filtrarFilas(data[tid], tid);
+        }
+      }
+      cargandoAhora = false;
+      syncStatus('ok','Sincronizado');
+      actualizarTabs(); poblarResp(); render();
+      if(!silencioso) hideLoad();
+    } else {
+      // Respaldo: metodo anterior de 6 peticiones (por si el Apps Script
+      // desplegado aun no tiene la accion leerTodo)
+      cargarDatosIndividual(silencioso);
+    }
+  });
+}
+
+function cargarDatosIndividual(silencioso){
   var pending=TIPOS.length, errs=0;
   for(var i=0;i<TIPOS.length;i++){
     (function(t){
       apiGet(t.id,function(err,rows){
         if(!err&&Array.isArray(rows)&&!guardandoAhora){
-          DB[t.id]=rows.filter(function(r){
-            if(!r[0]) return false;
-            var v=String(r[0]).trim().toLowerCase();
-            if(v===''||v==='no'||v==='n'||v==='n°'||isNaN(Number(r[0]))) return false;
-            return true;
-          }).map(t.id==='Cirugia'?filaAObjCirug:filaAObj);
+          DB[t.id]=filtrarFilas(rows, t.id);
         } else if(err) errs++;
         pending--;
         if(pending===0){
