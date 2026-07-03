@@ -392,6 +392,7 @@ var sortCol = null;
 var sortAsc = true;
 var reloadTimer = null;
 var guardandoAhora = false;
+var cargandoAhora = false;
 
 function showLoad(txt){ document.getElementById('load-txt').textContent = txt||'Procesando...'; document.getElementById('loading').classList.add('show'); }
 function hideLoad(){ document.getElementById('loading').classList.remove('show'); }
@@ -499,13 +500,24 @@ function doLogin(){
   if(!pass){ err.textContent='Ingrese su contrasena.'; err.style.display='block'; return; }
   document.getElementById('btn-ingresar').disabled=true;
   err.style.display='none';
-  cargarUsuarios(function(){
-    var u=null;
+  function buscarUsuario(){
     for(var i=0;i<USUARIOS.length;i++){
-      if(USUARIOS[i].id===uid && USUARIOS[i].pass===pass.trim()){ u=USUARIOS[i]; break; }
+      if(USUARIOS[i].id===uid && USUARIOS[i].pass===pass.trim()) return USUARIOS[i];
     }
+    return null;
+  }
+  // Validar primero contra la lista ya cargada (instantaneo).
+  // Solo consultar Sheets de nuevo si la validacion falla (por si cambiaron la clave).
+  var u=buscarUsuario();
+  if(u){ completarLogin(u); return; }
+  cargarUsuarios(function(){
+    var u2=buscarUsuario();
     document.getElementById('btn-ingresar').disabled=false;
-    if(!u){ err.textContent='Usuario o contrasena incorrectos.'; err.style.display='block'; return; }
+    if(!u2){ err.textContent='Usuario o contrasena incorrectos.'; err.style.display='block'; return; }
+    completarLogin(u2);
+  });
+  function completarLogin(u){
+    document.getElementById('btn-ingresar').disabled=false;
     err.style.display='none';
     usuarioActual=u;
     document.getElementById('hdr-nombre').textContent=u.nombre;
@@ -517,9 +529,12 @@ function doLogin(){
     document.getElementById('app').style.display='block';
     construirTabs();
     var permitidos2=tiposPermitidos();
-    if(permitidos2.length>0) cambiarTab(permitidos2[0].id);
-    reloadTimer=setInterval(function(){ if(!guardandoAhora){ try{cargarDatos(true);}catch(e){} } },30000);
-  });
+    if(permitidos2.length>0) cambiarTab(permitidos2[0].id, true);
+    // Carga completa UNA sola vez al entrar
+    cargarDatos(false);
+    clearInterval(reloadTimer);
+    reloadTimer=setInterval(function(){ if(!guardandoAhora && !cargandoAhora){ try{cargarDatos(true);}catch(e){} } },30000);
+  }
 }
 
 function doLogout(){
@@ -582,7 +597,7 @@ function actualizarCabeceras(){
   th.innerHTML=r+'</tr>';
 }
 
-function cambiarTab(tipo){
+function cambiarTab(tipo, sinRecarga){
   tipoActual=tipo; sortCol=null; sortAsc=true;
   document.getElementById('buscar').value='';
   document.getElementById('filtro-clausula').value='';
@@ -591,7 +606,31 @@ function cambiarTab(tipo){
   var t=getTipo(tipo);
   document.getElementById('tipo-label').innerHTML='<span class="tipo-badge" style="background:'+t.color+'">'+t.icon+' '+t.label+'</span>';
   actualizarCabeceras(); actualizarTabs(); poblarResp(); render();
-  setTimeout(function(){ try{cargarDatos(true);}catch(e){} },100);
+  // Recargar SOLO el tipo activo (1 peticion), no los 6 tipos
+  if(!sinRecarga) setTimeout(function(){ try{cargarTipo(tipo);}catch(e){} },100);
+}
+
+// Recarga un solo tipo de documento (mucho mas rapido que cargarDatos)
+function cargarTipo(tipo, cb){
+  syncStatus('load','Sincronizando...');
+  apiGet(tipo,function(err,rows){
+    if(!err&&Array.isArray(rows)&&!guardandoAhora){
+      DB[tipo]=rows.filter(function(r){
+        if(!r[0]) return false;
+        var v=String(r[0]).trim().toLowerCase();
+        if(v===''||v==='no'||v==='n'||v==='n°'||isNaN(Number(r[0]))) return false;
+        return true;
+      }).map(tipo==='Cirugia'?filaAObjCirug:filaAObj);
+      syncStatus('ok','Sincronizado');
+    } else if(err){
+      syncStatus('err','Sin conexion');
+    } else {
+      syncStatus('ok','Sincronizado');
+    }
+    if(tipo===tipoActual){ actualizarTabs(); poblarResp(); render(); }
+    else actualizarTabs();
+    if(cb) cb(err);
+  });
 }
 
 function limpiarFecha(v){
@@ -643,22 +682,25 @@ function filaAObjCirug(f){
 }
 
 function cargarDatos(silencioso){
+  if(cargandoAhora){ return; } // evitar recargas solapadas
+  cargandoAhora = true;
   if(!silencioso) showLoad('Cargando datos...');
   syncStatus('load','Sincronizando...');
   var pending=TIPOS.length, errs=0;
   for(var i=0;i<TIPOS.length;i++){
     (function(t){
       apiGet(t.id,function(err,rows){
-        if(!err&&Array.isArray(rows)){
+        if(!err&&Array.isArray(rows)&&!guardandoAhora){
           DB[t.id]=rows.filter(function(r){
             if(!r[0]) return false;
             var v=String(r[0]).trim().toLowerCase();
             if(v===''||v==='no'||v==='n'||v==='n°'||isNaN(Number(r[0]))) return false;
             return true;
           }).map(t.id==='Cirugia'?filaAObjCirug:filaAObj);
-        } else errs++;
+        } else if(err) errs++;
         pending--;
         if(pending===0){
+          cargandoAhora = false;
           syncStatus(errs===0?'ok':'err',errs===0?'Sincronizado':'Sin conexion');
           actualizarTabs(); poblarResp(); render();
           if(!silencioso) hideLoad();
@@ -671,14 +713,10 @@ function cargarDatos(silencioso){
 function recargar(){ cargarDatos(false); toast('Datos actualizados'); }
 
 function obtenerSiguienteNo(tipo,cb){
-  // Solo ejecutar si estamos en modo NUEVO (no edicion)
-  if(editIdx!==null){return;}
   var anioActual=String(new Date().getFullYear());
   var local=DB[tipo]?DB[tipo].filter(function(d){return (!d.anio||d.anio===anioActual)&&d.no>0;}).map(function(d){return d.no;}):[];
   var noLocal=local.length?Math.max.apply(null,local)+1:1;
   apiGet(tipo,function(err,rows){
-    // Verificar de nuevo por si cambió mientras esperábamos
-    if(editIdx!==null){return;}
     if(err||!Array.isArray(rows)){cb(noLocal);return;}
     var nums=rows.filter(function(r){
       if(!r[0]||isNaN(Number(r[0]))) return false;
@@ -848,8 +886,8 @@ function abrirModal(idx){
     document.getElementById('btn-guardar').disabled=false;
     syncStatus('load','Verificando N...');
     obtenerSiguienteNo(tipoActual,function(n){
-      // Solo actualizar si seguimos en modo NUEVO (editIdx===null)
-      if(editIdx===null && n>=noI){ document.getElementById('m-no').value=n; }
+      // Solo actualizar si seguimos en modo NUEVO (editNo===null)
+      if(editNo===null && n>=noI){ document.getElementById('m-no').value=n; }
       syncStatus('ok','Sincronizado');
     });
   }
@@ -887,18 +925,12 @@ function abrirModalDirecto(m){
   }
   // Guardar número original en variable global protegida
   editNo = m.no;
-  console.log('abrirModalDirecto: editNo asignado a', editNo);
   document.getElementById('m-no').value=m.no;
   document.getElementById('btn-guardar').disabled=false;
   syncStatus('ok','Listo');
   document.getElementById('modal-doc').classList.add('show');
-  // Re-asignar editNo después de 200ms por si algo lo pisa
-  var _noEdit = m.no;
-  setTimeout(function(){ editNo=_noEdit; console.log('editNo reafirmado:', editNo); }, 200);
-  setTimeout(function(){ editNo=_noEdit; }, 500);
-  setTimeout(function(){ editNo=_noEdit; }, 1000);
 }
-function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; }
+function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; editNo=null; }
 function editar(idx){ abrirModal(idx); }
 function editarPorNo(no){
   var datos=DB[tipoActual]||[];
@@ -913,10 +945,12 @@ function eliminarPorNo(no){
 }
 
 function guardar(){
-  // Usar editNo (variable protegida) si estamos editando
+  // Capturar el modo ANTES de cerrar el modal (cerrarModal resetea editNo/editIdx)
+  var esEdicion = (editNo!==null);
+  var noEdicion = editNo;
   var noVal;
-  if(editNo!==null){
-    noVal=editNo;
+  if(esEdicion){
+    noVal=noEdicion;
   } else {
     noVal=parseInt(document.getElementById('m-no').value)||0;
   }
@@ -945,7 +979,7 @@ function guardar(){
   if(!noVal){toast('Error en el N de registro','error');return;}
   cerrarModal();
   var datos=DB[tipoActual];
-  if(editNo===null){
+  if(!esEdicion){
     guardandoAhora = true;
     showLoad('Guardando...');
     obtenerSiguienteNo(tipoActual,function(noFinal){
@@ -957,29 +991,33 @@ function guardar(){
         if(!err&&res&&res.ok){
           DB[tipoActual].push({no:noFinal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioActual,nueva:true});
           actualizarTabs(); poblarResp(); render();
-          editNo=null;
           syncStatus('ok','Sincronizado'); toast('Registro N '+noFinal+' guardado');
           registrarBitacora('Agrego', getTipo(tipoActual).label, noFinal, 'Nuevo registro');
-          setTimeout(function(){ guardandoAhora=false; cargarDatos(true); }, 5000);
+          // Recargar solo el tipo actual (1 peticion), no los 6 tipos
+          setTimeout(function(){ guardandoAhora=false; cargarTipo(tipoActual); }, 2500);
         } else { guardandoAhora=false; toast('Error al guardar. Verifique conexion.','error'); syncStatus('err','Error al guardar'); }
         hideLoad();
       });
     });
   } else {
-    // Buscar el registro por editNo (más confiable que editIdx)
-    var orig = datos.find(function(d){ return d.no === editNo; }) || datos[editIdx];
+    // Buscar el registro por su numero original (indice calculado en este momento)
+    var idxLocal = -1;
+    for(var k=0;k<datos.length;k++){ if(datos[k].no===noEdicion){ idxLocal=k; break; } }
+    var orig = idxLocal!==-1 ? datos[idxLocal] : null;
     var anioEdit = orig ? (orig.anio || anioActual) : anioActual;
+    guardandoAhora = true;
     showLoad('Actualizando...');
     var esCirugEdit=(tipoActual==='Cirugia');
-    var editData={accion:'editar',tipo:tipoActual,no_original:editNo,no:editNo,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit};
+    var editData={accion:'editar',tipo:tipoActual,no_original:noEdicion,no:noEdicion,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit};
     if(esCirugEdit) editData.cols=[noVal,remite,clave,centro,fecha,hospital,monto,diagnostico];
     apiPost(editData,function(err,res){
+      guardandoAhora = false;
       if(!err&&res&&res.ok){
-        datos[editIdx]={no:noVal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit,nueva:false};
-        editNo=null;
+        var nuevoObj={no:noVal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioEdit,nueva:false};
+        if(idxLocal!==-1) datos[idxLocal]=nuevoObj; else datos.push(nuevoObj);
         poblarResp(); render(); syncStatus('ok','Sincronizado'); toast('Registro N '+noVal+' actualizado');
         registrarBitacora('Edito', getTipo(tipoActual).label, noVal, 'Registro modificado');
-      } else { toast('Error al actualizar','error'); }
+      } else { toast('Error al actualizar','error'); syncStatus('err','Error al actualizar'); }
       hideLoad();
     });
   }
@@ -1306,7 +1344,8 @@ document.getElementById('filtro-resp').addEventListener('change', render);
 document.getElementById('filtro-clausula').addEventListener('change', render);
 document.getElementById('filtro-anio').addEventListener('change', render);
 
-cargarDatos(false);
+// Nota: los datos se cargan al iniciar sesion (completarLogin), no antes.
+// Esto evita 6 peticiones innecesarias al Apps Script al abrir la pagina.
 
 </script>
 </body>
