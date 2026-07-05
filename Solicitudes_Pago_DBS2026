@@ -54,7 +54,7 @@ nav button{background:none;border:none;padding:13px 16px;font-size:13.5px;font-w
 nav button.act{color:var(--azul);border-bottom-color:var(--azul)}
 nav button:hover{color:var(--azul)}
 
-main{padding:22px;max-width:1400px;margin:0 auto}
+main{padding:16px 14px;max-width:none;margin:0 auto}
 .vista{display:none}
 .vista.act{display:block}
 
@@ -79,17 +79,18 @@ main{padding:22px;max-width:1400px;margin:0 auto}
 .filtros input:focus,.filtros select:focus{border-color:var(--azul3)}
 .filtros input[type=search]{flex:1;min-width:180px}
 .t-scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:var(--cielo);color:var(--azul);text-align:left;padding:9px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;position:sticky;top:0}
-td{padding:8px 10px;border-bottom:1px solid #eef3f9;white-space:nowrap;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--cielo);color:var(--azul);text-align:left;padding:7px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.2px;white-space:nowrap;position:sticky;top:0}
+td{padding:6px 6px;border-bottom:1px solid #eef3f9;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.envuelve{white-space:normal;line-height:1.25}
 tr:hover td{background:#f6faff}
 td.num{text-align:right;font-weight:600}
 tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
-.pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.pill{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
 .pill.pagado{background:var(--verde-bg);color:var(--verde)}
 .pill.pendiente{background:var(--ambar-bg);color:var(--ambar)}
 .pill.critico{background:var(--rojo-bg);color:var(--rojo)}
-.check{display:inline-block;width:20px;text-align:center;font-weight:700}
+.check{display:inline-block;width:16px;text-align:center;font-weight:700}
 .check.si{color:var(--verde)} .check.no{color:#c3ccd8}
 .dias-alerta{color:var(--rojo);font-weight:700}
 .acciones-td button{background:none;border:none;font-size:15px;padding:2px 5px;opacity:.65}
@@ -327,10 +328,10 @@ const HOJAS = {
     cols:[
       {k:'memo', et:'N° Memorándum', tipo:'text', req:true},
       {k:'favor', et:'A favor de', tipo:'text', req:true},
-      {k:'clausula', et:'Cláusula', tipo:'select', ops:['16','44','57','66','75','77','83','1']},
+      {k:'clausula', et:'Cláusula', etc:'Cláus.', tipo:'select', ops:['16','44','57','66','75','77','83','1']},
       {k:'fecha', et:'Fecha elaboración', tipo:'date', req:true},
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
-      {k:'nben', et:'N° Beneficiarios', tipo:'number'},
+      {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
       {k:'realizado', et:'Realizado por', tipo:'text'}
     ],
@@ -341,10 +342,10 @@ const HOJAS = {
     cols:[
       {k:'memo', et:'N° Memorándum', tipo:'text', req:true},
       {k:'favor', et:'A favor de / Área', tipo:'text', req:true},
-      {k:'tipo', et:'Tipo de pago', tipo:'select', ops:['Empleado','Centro de Servicio']},
+      {k:'tipo', et:'Tipo de pago', etc:'Tipo', tipo:'select', ops:['Empleado','Centro de Servicio']},
       {k:'fecha', et:'Fecha elaboración', tipo:'date', req:true},
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
-      {k:'nben', et:'N° Beneficiarios', tipo:'number'},
+      {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
       {k:'realizado', et:'Realizado por', tipo:'text'}
     ],
@@ -355,10 +356,10 @@ const HOJAS = {
     cols:[
       {k:'memo', et:'N° Memorándum', tipo:'text', req:true},
       {k:'favor', et:'A favor de / Área', tipo:'text', req:true},
-      {k:'enviado', et:'Enviado a', tipo:'text'},
+      {k:'enviado', et:'Enviado a', etc:'Enviado a', tipo:'text'},
       {k:'fecha', et:'Fecha elaboración', tipo:'date', req:true},
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
-      {k:'nben', et:'N° Beneficiarios', tipo:'number'},
+      {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
       {k:'realizado', et:'Realizado por', tipo:'text'}
     ],
@@ -464,8 +465,8 @@ function renderHoja(hoja){
       <table>
         <thead><tr>
           <th>Memorándum</th><th>A favor de</th>
-          ${otrasCols.map(c=>`<th>${c.et}</th>`).join('')}
-          <th>Fecha</th><th>Valor</th><th>Escaneado</th><th>Realizado por</th>
+          ${otrasCols.map(c=>`<th>${c.etc||c.et}</th>`).join('')}
+          <th>Fecha</th><th>Valor</th><th>Escan.</th><th>Realizó</th>
           <th>Verif.</th><th>Aprob.</th><th>Firm.</th><th>Pag.</th>
           <th>Estado</th><th>Días</th>${puedeEditar()?'<th></th>':''}
         </tr></thead>
@@ -507,13 +508,13 @@ function actualizarHoja(hoja){
     const critico = est==='PENDIENTE' && dias!==null && dias>30;
     const idx = datos.indexOf(r);
     return `<tr>
-      <td>${esc(r.memo)}</td>
-      <td style="white-space:normal;min-width:190px">${esc(r.favor)}</td>
+      <td class="envuelve" style="min-width:120px;max-width:170px">${esc(r.memo)}</td>
+      <td class="envuelve" style="min-width:170px">${esc(r.favor)}</td>
       ${cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado'].includes(c.k)).map(c=>`<td>${esc(r[c.k])}</td>`).join('')}
       <td>${esc(r.fecha)}</td>
       <td class="num">${L(r.valor)}</td>
-      <td>${esc(r.escaneado)}</td>
-      <td>${esc(r.realizado)}</td>
+      <td style="font-size:10.5px">${esc(r.escaneado)}</td>
+      <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
       ${CHECKS.map(c=>`<td><span class="check ${r[c]==='SI'?'si':'no'}">${r[c]==='SI'?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
