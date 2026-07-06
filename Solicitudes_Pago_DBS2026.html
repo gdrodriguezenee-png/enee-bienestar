@@ -297,6 +297,27 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
    ============================================================ */
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxM-Ycdb7IKJg84HEEikF3ocMjarI1Np9jWOyILth2oSHzKzHAFmr7OSyic_ZrSnfSd/exec';
 
+/* Carpeta de Google Drive con los PDF escaneados.
+   Para acotar la búsqueda a una carpeta específica, pega su ID aquí
+   (está en la URL de la carpeta: drive.google.com/drive/folders/ESTE_ID).
+   Si se deja vacío, busca en todo tu Drive. */
+const DRIVE_FOLDER_ID = '';
+
+/* Abre Google Drive buscando el documento escaneado por N° de memorándum.
+   Los PDF deben tener el memorándum en su nombre. */
+function verEscaneado(memo){
+  memo = (memo||'').trim();
+  if(!memo){ toast('Este registro no tiene N° de memorándum para buscar.'); return; }
+  let url = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(memo);
+  if(DRIVE_FOLDER_ID){
+    // Búsqueda dentro de una carpeta específica
+    url = 'https://drive.google.com/drive/folders/' + DRIVE_FOLDER_ID + '?q=' + encodeURIComponent(memo);
+  }
+  window.open(url, '_blank', 'noopener');
+  toast('Abriendo Drive: buscando "'+memo+'"…');
+}
+
+
 let DATOS = { clausulas: [], r55: [], r40: [] };
 let cargando = false;
 
@@ -494,7 +515,7 @@ function renderHoja(hoja){
           ${otrasCols.map(c=>`<th>${c.etc||c.et}</th>`).join('')}
           <th>Fecha</th><th>Valor</th><th>Escan.</th><th>Realizó</th>
           <th>Verif.</th><th>Aprob.</th><th>Firm.</th><th>Pag.</th>
-          <th>Estado</th><th>Días</th>${puedeEditar()?'<th></th>':''}
+          <th>Estado</th><th>Días</th><th>Acciones</th>
         </tr></thead>
         <tbody id="tb-${hoja}"></tbody>
       </table>
@@ -546,10 +567,11 @@ function actualizarHoja(hoja){
       ${CHECKS.map(c=>`<td><span class="check ${r[c]==='SI'?'si':'no'}">${r[c]==='SI'?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
-      ${puedeEditar()?`<td class="acciones-td" style="white-space:nowrap">
-        <button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button>
-        ${sesion.rol==='admin'?`<button title="Eliminar" onclick="eliminarRegistro('${hoja}',${idx})">🗑️</button>`:''}
-      </td>`:''}
+      <td class="acciones-td" style="white-space:nowrap">
+        <button title="Ver documento escaneado en Drive" onclick="verEscaneado('${esc(r.memo)}')">👁️</button>
+        ${puedeEditar()?`<button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button>`:''}
+        ${sesion && sesion.rol==='admin'?`<button title="Eliminar" onclick="eliminarRegistro('${hoja}',${idx})">🗑️</button>`:''}
+      </td>
     </tr>`;
   }).join('') || `<tr><td colspan="20"><div class="vacio">${cargando?'⏳ Cargando datos del servidor…':'Sin registros que coincidan con los filtros. Ajusta la búsqueda o agrega un registro nuevo.'}</div></td></tr>`;
 
