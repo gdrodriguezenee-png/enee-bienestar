@@ -484,29 +484,31 @@ function renderHoja(hoja){
 function actualizarHoja(hoja){
   const cfg = HOJAS[hoja], f = filtros[hoja];
   const datos = DATOS[hoja];
-  const vis = datos.filter(r=>{
-    const est = estadoDe(r);
-    if(f.estado && est!==f.estado) return false;
-    if(f.mes!=='' && mesDe(r)!==parseInt(f.mes)) return false;
-    if(f.q){
-      const q=f.q.toLowerCase();
-      if(!Object.values(r).some(v=>String(v??'').toLowerCase().includes(q))) return false;
-    }
-    return true;
-  });
-  const totVal = vis.reduce((s,r)=>s+(+r.valor||0),0);
-  const totPag = vis.filter(r=>estadoDe(r)==='PAGADO').reduce((s,r)=>s+(+r.valor||0),0);
+  const vis = datos
+    .map((r, idx)=>({r, idx}))            // conservar índice real antes de filtrar/invertir
+    .filter(({r})=>{
+      const est = estadoDe(r);
+      if(f.estado && est!==f.estado) return false;
+      if(f.mes!=='' && mesDe(r)!==parseInt(f.mes)) return false;
+      if(f.q){
+        const q=f.q.toLowerCase();
+        if(!Object.values(r).some(v=>String(v??'').toLowerCase().includes(q))) return false;
+      }
+      return true;
+    })
+    .reverse();                           // el último ingresado se muestra primero
+  const totVal = vis.reduce((s,{r})=>s+(+r.valor||0),0);
+  const totPag = vis.filter(({r})=>estadoDe(r)==='PAGADO').reduce((s,{r})=>s+(+r.valor||0),0);
 
   document.getElementById('kpi-'+hoja).innerHTML = `
     <div class="kpi"><div class="et">Registros</div><div class="val">${vis.length}</div><div class="det">de ${datos.length} en total</div></div>
     <div class="kpi"><div class="et">Monto total</div><div class="val">${L(totVal)}</div></div>
     <div class="kpi verde"><div class="et">Pagado</div><div class="val">${L(totPag)}</div><div class="det">${totVal?Math.round(totPag/totVal*100):0}% del monto</div></div>
-    <div class="kpi ambar"><div class="et">Pendiente</div><div class="val">${L(totVal-totPag)}</div><div class="det">${vis.filter(r=>estadoDe(r)==='PENDIENTE').length} solicitudes</div></div>`;
+    <div class="kpi ambar"><div class="et">Pendiente</div><div class="val">${L(totVal-totPag)}</div><div class="det">${vis.filter(({r})=>estadoDe(r)==='PENDIENTE').length} solicitudes</div></div>`;
 
-  document.getElementById('tb-'+hoja).innerHTML = vis.map(r=>{
+  document.getElementById('tb-'+hoja).innerHTML = vis.map(({r, idx})=>{
     const est = estadoDe(r), dias = diasDe(r);
     const critico = est==='PENDIENTE' && dias!==null && dias>30;
-    const idx = datos.indexOf(r);
     return `<tr>
       <td class="envuelve" style="min-width:120px;max-width:170px">${esc(r.memo)}</td>
       <td class="envuelve" style="min-width:170px">${esc(r.favor)}</td>
@@ -518,11 +520,14 @@ function actualizarHoja(hoja){
       ${CHECKS.map(c=>`<td><span class="check ${r[c]==='SI'?'si':'no'}">${r[c]==='SI'?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
-      ${puedeEditar()?`<td class="acciones-td"><button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button></td>`:''}
+      ${puedeEditar()?`<td class="acciones-td" style="white-space:nowrap">
+        <button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button>
+        ${sesion.rol==='admin'?`<button title="Eliminar" onclick="eliminarRegistro('${hoja}',${idx})">🗑️</button>`:''}
+      </td>`:''}
     </tr>`;
   }).join('') || `<tr><td colspan="20"><div class="vacio">Sin registros que coincidan con los filtros. Ajusta la búsqueda o agrega un registro nuevo.</div></td></tr>`;
 
-  document.getElementById('pie-'+hoja).textContent = `Mostrando ${vis.length} registro(s)`;
+  document.getElementById('pie-'+hoja).textContent = `Mostrando ${vis.length} registro(s) · más reciente primero`;
 }
 
 /* ============================================================
@@ -782,6 +787,18 @@ function guardarRegistro(){
   cerrarModal('m-reg');
   renderTodo();
   toast(idx>=0?'Registro actualizado.':'Registro agregado. Recuerda descargar el respaldo antes de cerrar.');
+}
+
+/* Eliminar registro (solo administrador) con doble confirmación */
+function eliminarRegistro(hoja, idx){
+  if(!sesion || sesion.rol!=='admin'){ toast('Solo un administrador puede eliminar registros.'); return; }
+  const r = DATOS[hoja][idx];
+  if(!r) return;
+  const detalle = `${r.memo || '(sin memorándum)'} — ${r.favor || ''}\nValor: ${L(r.valor)}`;
+  if(!confirm('¿Eliminar este registro de forma permanente?\n\n'+detalle+'\n\nEsta acción no se puede deshacer. Descarga un respaldo antes si no estás seguro.')) return;
+  DATOS[hoja].splice(idx, 1);
+  renderTodo();
+  toast('Registro eliminado. Recuerda descargar el respaldo para conservar el cambio.');
 }
 
 /* ============================================================
