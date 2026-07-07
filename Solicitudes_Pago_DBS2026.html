@@ -129,6 +129,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
 .modal-pie{padding:14px 20px;border-top:1px solid var(--borde);display:flex;gap:10px;justify-content:flex-end}
 .nota{background:var(--cielo);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--azul2);margin-top:12px}
 .aviso-estado{font-size:12px;color:var(--gris);padding:6px 0}
+.aviso-dup{font-size:12.5px;background:var(--ambar-bg);color:var(--ambar);border:1px solid var(--ambar);border-radius:8px;padding:8px 12px;margin:8px 0;font-weight:600}
 
 /* Usuarios */
 .tarjetas-u{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;padding:18px}
@@ -252,6 +253,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
     <div class="modal-cab"><h3 id="m-reg-titulo">Nuevo registro</h3><button onclick="cerrarModal('m-reg')">✕</button></div>
     <div class="modal-cuerpo">
       <div class="form-grid" id="m-reg-campos"></div>
+      <div class="aviso-dup" id="m-reg-dup" style="display:none"></div>
       <div class="checks-grupo" id="m-reg-checks"></div>
       <div class="aviso-estado" id="m-reg-estado"></div>
     </div>
@@ -295,7 +297,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
    CONEXIÓN A GOOGLE SHEETS (Apps Script vía JSONP)
    Patrón sin CORS: cada llamada inyecta un <script> con callback.
    ============================================================ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxM-Ycdb7IKJg84HEEikF3ocMjarI1Np9jWOyILth2oSHzKzHAFmr7OSyic_ZrSnfSd/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0mizqbjiA-IrH6W4Ny8mU6Js_-2wDImJudta3IRgxtCmqBq9Ttm6cb4BJyplWtAId/exec';
 
 /* Carpeta de Google Drive con los PDF escaneados.
    Para acotar la búsqueda a una carpeta específica, pega su ID aquí
@@ -400,16 +402,32 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
    ============================================================ */
 function esSI(v){ const s=String(v??'').trim().toUpperCase(); return s==='SI'||s==='SÍ'||s==='TRUE'; }
 function estadoDe(r){ return esSI(r.pagado) ? 'PAGADO' : 'PENDIENTE'; }
+/* Convierte cualquier fecha (Date-string largo, dd/mm/aaaa, aaaa-mm-dd)
+   a 'aaaa-mm-dd'. Devuelve '' si no se puede interpretar. */
+function fechaISO(v){
+  if(v===null || v===undefined || v==='') return '';
+  let s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);          // ya ISO
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);              // dd/mm/aaaa
+  if(m){ return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`; }
+  const d = new Date(s);                                          // "Tue Jan 13 2026 ..." u otros
+  if(!isNaN(d)){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  return '';
+}
 function diasDe(r){
-  if(!r.fecha) return null;
-  const f = new Date(r.fecha+'T00:00:00');
+  const iso = fechaISO(r.fecha);
+  if(!iso) return null;
+  const f = new Date(iso+'T00:00:00');
   if(isNaN(f)) return null;
   return Math.floor((hoy0() - f)/86400000);
 }
 function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function mesDe(r){
-  if(!r.fecha) return null;
-  const m = parseInt(r.fecha.slice(5,7),10);
+  const iso = fechaISO(r.fecha);
+  if(!iso) return null;
+  const m = parseInt(iso.slice(5,7),10);
   return isNaN(m)? null : m-1;
 }
 function L(n){ return 'L ' + Number(n||0).toLocaleString('es-HN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -561,7 +579,7 @@ function actualizarHoja(hoja){
       <td class="envuelve" style="min-width:120px;max-width:170px">${esc(r.memo)}</td>
       <td class="envuelve" style="min-width:170px">${esc(r.favor)}</td>
       ${cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado'].includes(c.k)).map(c=>`<td>${esc(r[c.k])}</td>`).join('')}
-      <td>${esc(r.fecha)}</td>
+      <td>${esc(fechaISO(r.fecha)||r.fecha)}</td>
       <td class="num">${L(r.valor)}</td>
       <td style="font-size:10.5px">${esc(r.escaneado)}</td>
       <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
@@ -802,7 +820,8 @@ function abrirModalRegistro(hoja, idx){
     (idx>=0?'Editar registro — ':'Nuevo registro — ') + cfg.titulo;
 
   document.getElementById('m-reg-campos').innerHTML = cfg.cols.map(c=>{
-    const val = r[c.k] ?? (c.k==='realizado' ? sesion.nombre : (c.k==='fecha' ? new Date().toISOString().slice(0,10) : ''));
+    let val = r[c.k] ?? (c.k==='realizado' ? sesion.nombre : (c.k==='fecha' ? new Date().toISOString().slice(0,10) : ''));
+    if(c.k==='fecha') val = fechaISO(val) || val;   // el input type=date exige aaaa-mm-dd
     if(c.tipo==='select'){
       const nval = String(val).trim().toUpperCase();   // tolera "Pendiente", " PENDIENTE ", etc.
       return `<div class="campo"><label>${c.et}${c.req?' *':''}</label>
@@ -816,8 +835,51 @@ function abrirModalRegistro(hoja, idx){
     `<label><input type="checkbox" id="f-${c}" ${esSI(r[c])?'checked':''} onchange="previsualizarEstado()">
      ${c.charAt(0).toUpperCase()+c.slice(1)}</label>`).join('');
   previsualizarEstado();
+
+  // Aviso en vivo de memorándum duplicado
+  const inpMemo = document.getElementById('f-memo');
+  if(inpMemo) inpMemo.addEventListener('input', avisarMemoDuplicado);
+  avisarMemoDuplicado();
+
   document.getElementById('m-reg').classList.add('act');
 }
+/* ============================================================
+   DETECCIÓN DE MEMORÁNDUM DUPLICADO
+   Busca el mismo N° de memorándum en las TRES hojas (ignorando
+   mayúsculas y espacios). Excluye el propio registro en edición.
+   ============================================================ */
+function buscarMemoDuplicado(memo, hojaActual, idxActual){
+  const m = String(memo||'').trim().toUpperCase();
+  if(!m) return null;
+  const idActual = idxActual>=0 ? DATOS[hojaActual][idxActual]?.id : undefined;
+  for(const h of Object.keys(HOJAS)){
+    const dup = DATOS[h].findIndex((r,i)=>{
+      if(String(r.memo||'').trim().toUpperCase() !== m) return false;
+      // no marcarse a sí mismo
+      if(h===hojaActual){
+        if(idxActual>=0 && i===idxActual) return false;
+        if(idActual!==undefined && idActual!=='' && String(r.id)===String(idActual)) return false;
+      }
+      return true;
+    });
+    if(dup>=0) return {hoja:h, r:DATOS[h][dup]};
+  }
+  return null;
+}
+function avisarMemoDuplicado(){
+  const div = document.getElementById('m-reg-dup');
+  const inp = document.getElementById('f-memo');
+  if(!div || !inp) return;
+  const dup = buscarMemoDuplicado(inp.value, modalCtx.hoja, modalCtx.idx);
+  if(dup){
+    div.style.display = '';
+    div.innerHTML = `⚠ El memorándum <b>${esc(inp.value.trim())}</b> ya está registrado en <b>${HOJAS[dup.hoja].titulo}</b> — a favor de ${esc(dup.r.favor||'(sin nombre)')}, ${L(dup.r.valor)} (${esc(dup.r.fecha||'sin fecha')}).`;
+  }else{
+    div.style.display = 'none';
+    div.innerHTML = '';
+  }
+}
+
 function previsualizarEstado(){
   const pag = document.getElementById('f-pagado')?.checked;
   document.getElementById('m-reg-estado').innerHTML =
@@ -834,6 +896,20 @@ async function guardarRegistro(){
     nuevo[c.k] = c.tipo==='number' ? (v===''?0:parseFloat(v)) : v;
   }
   for(const c of CHECKS) nuevo[c] = document.getElementById('f-'+c).checked ? 'SI':'NO';
+
+  // Alerta de memorándum repetido (en las tres hojas)
+  const dup = buscarMemoDuplicado(nuevo.memo, hoja, idx);
+  if(dup){
+    const seguir = confirm(
+      '⚠ MEMORÁNDUM REPETIDO\n\n' +
+      'El N° "' + nuevo.memo + '" ya está registrado en ' + HOJAS[dup.hoja].titulo + ':\n' +
+      '  • A favor de: ' + (dup.r.favor||'(sin nombre)') + '\n' +
+      '  • Valor: ' + L(dup.r.valor) + '\n' +
+      '  • Fecha: ' + (dup.r.fecha||'sin fecha') + '\n\n' +
+      '¿Deseas guardarlo DE TODAS FORMAS como duplicado?'
+    );
+    if(!seguir){ toast('Guardado cancelado: memorándum repetido.'); return; }
+  }
 
   // Si se está EDITANDO un registro que no tiene ID, el servidor no podría
   // encontrar su fila y crearía un duplicado (la fila original quedaría igual).
