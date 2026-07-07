@@ -137,6 +137,18 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
 .tarjeta-u .nom{font-weight:700;color:var(--azul)}
 .tarjeta-u .usr{font-size:12px;color:var(--gris);margin:2px 0 8px}
 .tarjeta-u .acc{display:flex;gap:8px;margin-top:10px}
+/* --- Conectados --- */
+#lista-conectados .tarjeta-u{display:flex;gap:12px;align-items:center;border-color:var(--verde,#16a34a)}
+.tarjeta-u .ava{width:44px;height:44px;flex:0 0 44px;border-radius:50%;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.punto-on{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;background:#16a34a;border:2px solid #fff;box-shadow:0 0 0 1px #16a34a;animation:latido 1.8s ease-in-out infinite}
+@keyframes latido{0%,100%{opacity:1}50%{opacity:.45}}
+.tarjeta-u .u-nom{font-weight:700;color:var(--azul)}
+.tarjeta-u .u-nom .yo{color:var(--gris);font-weight:500;font-size:12px}
+.tarjeta-u .u-meta{font-size:12px;color:var(--gris);margin-top:2px}
+.tarjeta-u .u-ult{font-size:11.5px;color:var(--gris);margin-top:2px;opacity:.8}
+.rol-tag{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10.5px;font-weight:700;color:#fff;background:var(--gris)}
+.rol-tag.rol-admin{background:#1e3a8a}.rol-tag.rol-editor{background:#0369a1}.rol-tag.rol-lector{background:#64748b}
+.pill-num{display:inline-block;min-width:22px;text-align:center;background:#16a34a;color:#fff;border-radius:20px;padding:1px 8px;font-size:13px;vertical-align:middle}
 
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--azul);color:#fff;padding:11px 22px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 30px rgba(0,0,0,.3);transition:transform .25s;z-index:99}
 .toast.ver{transform:translateX(-50%) translateY(0)}
@@ -203,6 +215,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
   <button data-v="r40" onclick="ir('r40')">Reembolsos C.40</button>
   <button data-v="informes" onclick="ir('informes')">📈 Informes</button>
   <button data-v="usuarios" id="tab-usuarios" onclick="ir('usuarios')" style="display:none">👥 Usuarios</button>
+  <button data-v="conectados" id="tab-conectados" onclick="ir('conectados')" style="display:none">🟢 Conectados</button>
 </nav>
 
 <main>
@@ -242,6 +255,17 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
       </div>
       <div class="tarjetas-u" id="lista-usuarios"></div>
       <div class="pie-tabla">Los roles: <b>Administrador</b> gestiona todo incluyendo usuarios · <b>Editor</b> agrega y edita registros · <b>Lector</b> solo consulta e imprime informes.</div>
+    </div>
+  </div>
+
+  <div class="vista" id="v-conectados">
+    <div class="panel">
+      <div class="panel-cab">
+        <h2>Usuarios conectados <span id="conectados-num" class="pill-num"></span></h2>
+        <div class="der"><button class="btn peq" onclick="cargarConectados()">🔄 Actualizar</button></div>
+      </div>
+      <div class="tarjetas-u" id="lista-conectados"></div>
+      <div class="pie-tabla">Aparecen aquí desde que inician sesión hasta que pulsan <b>Salir</b>. Si un equipo se cierra sin salir, la sesión se depura sola tras 30 min de inactividad.</div>
     </div>
   </div>
 </main>
@@ -297,7 +321,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
    CONEXIÓN A GOOGLE SHEETS (Apps Script vía JSONP)
    Patrón sin CORS: cada llamada inyecta un <script> con callback.
    ============================================================ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby0mizqbjiA-IrH6W4Ny8mU6Js_-2wDImJudta3IRgxtCmqBq9Ttm6cb4BJyplWtAId/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwWG-hxiqc872o7lm2wUg1VFti1RkWWnubu9TdUdmrVc2sEdONBm1R-2DcRyYxLPJxz/exec';
 
 /* Carpeta de Google Drive con los PDF escaneados.
    Para acotar la búsqueda a una carpeta específica, pega su ID aquí
@@ -453,6 +477,8 @@ async function entrar(){
     document.getElementById('u-nombre').textContent = sesion.nombre;
     document.getElementById('u-rol').textContent = ROL_NOMBRE[sesion.rol];
     document.getElementById('tab-usuarios').style.display = sesion.rol==='admin' ? '' : 'none';
+    document.getElementById('tab-conectados').style.display = sesion.rol==='admin' ? '' : 'none';
+    iniciarPing();
     await cargarDatos();
   }catch(err){
     mostrarErrLogin('No se pudo conectar con el servidor. Revisa tu internet e intenta de nuevo.');
@@ -473,12 +499,30 @@ async function cargarDatos(){
   cargando = false; renderTodo();
 }
 function salir(){
+  detenerPing();
+  const quien = cred.usr;
+  if(quien){ try{ api('salir', {usr:quien}); }catch(e){} }  // notifica al servidor (sin bloquear)
   sesion=null; cred={usr:'',pass:''}; USUARIOS=[];
   DATOS = { clausulas: [], r55: [], r40: [] };
   document.getElementById('app').style.display='none';
   document.getElementById('login').style.display='flex';
   document.getElementById('l-pass').value='';
 }
+
+/* ===== Sesiones activas (heartbeat) ===== */
+let pingT = null;
+function iniciarPing(){
+  detenerPing();
+  pingT = setInterval(()=>{ if(cred.usr){ try{ api('ping', {usr:cred.usr}); }catch(e){} } }, 5*60*1000);
+}
+function detenerPing(){ if(pingT){ clearInterval(pingT); pingT=null; } }
+// Al cerrar/recargar la pestaña, intenta avisar la salida
+window.addEventListener('pagehide', ()=>{
+  if(cred.usr){
+    const url = SCRIPT_URL + '?accion=salir&callback=x&payload=' + encodeURIComponent(JSON.stringify({usr:cred.usr}));
+    try{ navigator.sendBeacon ? navigator.sendBeacon(url) : fetch(url, {mode:'no-cors', keepalive:true}); }catch(e){}
+  }
+});
 document.getElementById('l-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
 function puedeEditar(){ return sesion && (sesion.rol==='admin'||sesion.rol==='editor'); }
 
@@ -491,6 +535,7 @@ function ir(v){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('act', b.dataset.v===v));
   if(v==='informes') renderInforme();
   if(v==='usuarios' && sesion && sesion.rol==='admin') cargarUsuarios();
+  if(v==='conectados' && sesion && sesion.rol==='admin') cargarConectados();
 }
 
 /* ============================================================
@@ -1020,6 +1065,39 @@ async function cargarUsuarios(){
     if(r.ok){ USUARIOS = r.usuarios; renderUsuarios(); }
   }catch(err){ toast('No se pudieron cargar los usuarios.'); }
 }
+
+let conectadosT = null;
+async function cargarConectados(){
+  const cont = document.getElementById('lista-conectados');
+  const num = document.getElementById('conectados-num');
+  try{
+    const r = await api('sesiones', {usr:cred.usr, pass:cred.pass});
+    if(!r.ok){ toast(r.error||'No se pudo consultar sesiones.'); return; }
+    const s = r.sesiones||[];
+    num.textContent = s.length;
+    if(!s.length){
+      cont.innerHTML = '<div class="vacio">No hay usuarios conectados en este momento.</div>';
+    }else{
+      cont.innerHTML = s.map(u=>{
+        const inicial = (u.nombre||u.usr||'?').trim().charAt(0).toUpperCase();
+        const yo = u.usr && cred.usr && u.usr.toLowerCase()===cred.usr.toLowerCase();
+        return `<div class="tarjeta-u">
+          <div class="ava" style="position:relative">${inicial}<span class="punto-on"></span></div>
+          <div class="u-info">
+            <div class="u-nom">${esc(u.nombre||u.usr)} ${yo?'<span class="yo">(tú)</span>':''}</div>
+            <div class="u-meta"><span class="rol-tag rol-${u.rol}">${ROL_NOMBRE[u.rol]||u.rol}</span> · desde ${esc(u.inicio||'—')}</div>
+            <div class="u-ult">Última actividad: ${esc(u.ultimo||'—')}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }catch(err){ toast('No se pudieron cargar las sesiones.'); }
+}
+// Autorefresco de la lista mientras la vista de conectados está visible
+setInterval(()=>{
+  const v = document.getElementById('v-conectados');
+  if(v && v.classList.contains('act') && sesion && sesion.rol==='admin') cargarConectados();
+}, 60*1000);
 
 /* ============================================================
    EXPORTAR / RESPALDO
