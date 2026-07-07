@@ -398,7 +398,8 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
    - Días transcurridos se calculan en vivo contra la fecha actual
      (corrige los valores 1518/errores de filas vacías del Excel)
    ============================================================ */
-function estadoDe(r){ return (r.pagado==='SI') ? 'PAGADO' : 'PENDIENTE'; }
+function esSI(v){ const s=String(v??'').trim().toUpperCase(); return s==='SI'||s==='SÍ'||s==='TRUE'; }
+function estadoDe(r){ return esSI(r.pagado) ? 'PAGADO' : 'PENDIENTE'; }
 function diasDe(r){
   if(!r.fecha) return null;
   const f = new Date(r.fecha+'T00:00:00');
@@ -564,7 +565,7 @@ function actualizarHoja(hoja){
       <td class="num">${L(r.valor)}</td>
       <td style="font-size:10.5px">${esc(r.escaneado)}</td>
       <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
-      ${CHECKS.map(c=>`<td><span class="check ${r[c]==='SI'?'si':'no'}">${r[c]==='SI'?'✔':'—'}</span></td>`).join('')}
+      ${CHECKS.map(c=>`<td><span class="check ${esSI(r[c])?'si':'no'}">${esSI(r[c])?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
       <td class="acciones-td" style="white-space:nowrap">
@@ -802,15 +803,17 @@ function abrirModalRegistro(hoja, idx){
 
   document.getElementById('m-reg-campos').innerHTML = cfg.cols.map(c=>{
     const val = r[c.k] ?? (c.k==='realizado' ? sesion.nombre : (c.k==='fecha' ? new Date().toISOString().slice(0,10) : ''));
-    if(c.tipo==='select')
+    if(c.tipo==='select'){
+      const nval = String(val).trim().toUpperCase();   // tolera "Pendiente", " PENDIENTE ", etc.
       return `<div class="campo"><label>${c.et}${c.req?' *':''}</label>
-        <select id="f-${c.k}"><option value="">—</option>${c.ops.map(o=>`<option ${String(val)===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
+        <select id="f-${c.k}"><option value="">—</option>${c.ops.map(o=>`<option ${nval===String(o).trim().toUpperCase()?'selected':''}>${o}</option>`).join('')}</select></div>`;
+    }
     return `<div class="campo ${c.k==='favor'?'ancho':''}"><label>${c.et}${c.req?' *':''}</label>
       <input id="f-${c.k}" type="${c.tipo}" ${c.tipo==='number'?'step="0.01" min="0"':''} value="${esc(val)}"></div>`;
   }).join('');
 
   document.getElementById('m-reg-checks').innerHTML = CHECKS.map(c=>
-    `<label><input type="checkbox" id="f-${c}" ${r[c]==='SI'?'checked':''} onchange="previsualizarEstado()">
+    `<label><input type="checkbox" id="f-${c}" ${esSI(r[c])?'checked':''} onchange="previsualizarEstado()">
      ${c.charAt(0).toUpperCase()+c.slice(1)}</label>`).join('');
   previsualizarEstado();
   document.getElementById('m-reg').classList.add('act');
@@ -827,18 +830,33 @@ async function guardarRegistro(){
   for(const c of cfg.cols){
     let v = document.getElementById('f-'+c.k).value.trim();
     if(c.req && !v){ toast('Completa el campo obligatorio: '+c.et); return; }
+    if(c.tipo==='select') v = v.toUpperCase()==='ESCANEADO'||v.toUpperCase()==='PENDIENTE' ? v.toUpperCase() : v;
     nuevo[c.k] = c.tipo==='number' ? (v===''?0:parseFloat(v)) : v;
   }
   for(const c of CHECKS) nuevo[c] = document.getElementById('f-'+c).checked ? 'SI':'NO';
+
+  // Si se está EDITANDO un registro que no tiene ID, el servidor no podría
+  // encontrar su fila y crearía un duplicado (la fila original quedaría igual).
+  const editandoSinId = idx>=0 && (nuevo.id===undefined || nuevo.id===null || String(nuevo.id).trim()==='');
 
   const btn = document.querySelector('#m-reg .modal-pie .btn:last-child');
   btn.disabled = true; btn.textContent = 'Guardando…';
   try{
     const r = await api('guardar', {hoja, registro:nuevo, usr:cred.usr, pass:cred.pass});
     if(!r.ok){ toast('Error al guardar: '+(r.error||'')); return; }
+    if(r.id!==undefined && r.id!==null) nuevo.id = r.id;
+
+    // Actualización inmediata en pantalla (no depende de la recarga)
+    if(idx>=0) DATOS[hoja][idx] = nuevo; else DATOS[hoja].push(nuevo);
     cerrarModal('m-reg');
-    await cargarDatos();
-    toast(idx>=0?'Registro actualizado en el servidor.':'Registro agregado en el servidor.');
+    renderTodo();
+
+    await cargarDatos();  // sincroniza con el servidor
+    if(editandoSinId){
+      toast('⚠ El registro no tenía ID: se guardó como fila nueva. Revisa si quedó duplicado en la hoja.');
+    }else{
+      toast(idx>=0?'Registro actualizado en el servidor.':'Registro agregado en el servidor.');
+    }
   }catch(err){ toast('No se pudo guardar. Revisa tu conexión.'); }
   finally{ btn.disabled=false; btn.textContent='Guardar registro'; }
 }
