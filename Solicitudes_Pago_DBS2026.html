@@ -350,7 +350,7 @@ let cargando = false;
 function api(accion, payload){
   return new Promise((resolve, reject)=>{
     const cb = 'jsonp_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
-    const limpiar = ()=>{ delete window[cb]; s.remove(); clearTimeout(t); };
+    const limpiar = ()=>{ window[cb] = ()=>{ delete window[cb]; }; s.remove(); clearTimeout(t); }; // respuesta tardía: se autolimpia sin ReferenceError
     const t = setTimeout(()=>{ limpiar(); reject(new Error('Tiempo de espera agotado. Revisa tu conexión.')); }, 30000);
     window[cb] = (resp)=>{ limpiar(); resolve(resp); };
     const params = new URLSearchParams({ accion, payload: JSON.stringify(payload||{}), callback: cb });
@@ -493,7 +493,7 @@ async function cargarDatos(){
   cargando = true; renderTodo();
   try{
     const r = await api('listar', {});
-    if(r.ok){ DATOS = r.datos; }
+    if(r.ok){ DATOS = { clausulas:[], r55:[], r40:[], ...(r.datos||{}) }; }
     else toast('Error al cargar datos: '+(r.error||''));
   }catch(err){ toast('No se pudieron cargar los datos del servidor.'); }
   cargando = false; renderTodo();
@@ -501,7 +501,7 @@ async function cargarDatos(){
 function salir(){
   detenerPing();
   const quien = cred.usr;
-  if(quien){ try{ api('salir', {usr:quien}); }catch(e){} }  // notifica al servidor (sin bloquear)
+  if(quien){ api('salir', {usr:quien}).catch(()=>{}); }  // notifica al servidor (sin bloquear)
   sesion=null; cred={usr:'',pass:''}; USUARIOS=[];
   DATOS = { clausulas: [], r55: [], r40: [] };
   document.getElementById('app').style.display='none';
@@ -513,17 +513,18 @@ function salir(){
 let pingT = null;
 function iniciarPing(){
   detenerPing();
-  pingT = setInterval(()=>{ if(cred.usr){ try{ api('ping', {usr:cred.usr}); }catch(e){} } }, 5*60*1000);
+  pingT = setInterval(()=>{ if(cred.usr){ api('ping', {usr:cred.usr}).catch(()=>{}); } }, 5*60*1000);
 }
 function detenerPing(){ if(pingT){ clearInterval(pingT); pingT=null; } }
 // Al cerrar/recargar la pestaña, intenta avisar la salida
 window.addEventListener('pagehide', ()=>{
   if(cred.usr){
     const url = SCRIPT_URL + '?accion=salir&callback=x&payload=' + encodeURIComponent(JSON.stringify({usr:cred.usr}));
-    try{ navigator.sendBeacon ? navigator.sendBeacon(url) : fetch(url, {mode:'no-cors', keepalive:true}); }catch(e){}
+    try{ fetch(url, {mode:'no-cors', keepalive:true}).catch(()=>{}); }catch(e){} // GET keepalive: sendBeacon usa POST y Apps Script (JSONP) solo atiende GET
   }
 });
 document.getElementById('l-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
+document.getElementById('l-usr').addEventListener('keydown', e=>{ if(e.key==='Enter') entrar(); });
 function puedeEditar(){ return sesion && (sesion.rol==='admin'||sesion.rol==='editor'); }
 
 /* ============================================================
@@ -632,7 +633,7 @@ function actualizarHoja(hoja){
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
       <td class="acciones-td" style="white-space:nowrap">
-        <button title="Ver documento escaneado en Drive" onclick="verEscaneado('${esc(r.memo)}')">👁️</button>
+        <button title="Ver documento escaneado en Drive" onclick="verEscaneado(DATOS.${hoja}[${idx}].memo)">👁️</button>
         ${puedeEditar()?`<button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button>`:''}
         ${sesion && sesion.rol==='admin'?`<button title="Eliminar" onclick="eliminarRegistro('${hoja}',${idx})">🗑️</button>`:''}
       </td>
