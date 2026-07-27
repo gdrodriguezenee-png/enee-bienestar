@@ -73,65 +73,21 @@ header{background:var(--blue);display:flex;align-items:stretch;}
 .btn-imp{background:#16a34a;color:#fff;}.btn-imp:hover{background:#15803d;}
 
 /* TABLE */
-.table-area{padding:12px 16px 32px;}
-/* ── TARJETAS ── */
-.cards-list{display:flex;flex-direction:column;gap:8px;}
-.card{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,50,140,.08);border:1.5px solid #e4eaf5;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .18s;}
-.card:hover{border-color:var(--blue2);box-shadow:0 4px 16px rgba(0,53,128,.14);transform:translateY(-1px);}
-.card.sub-card{background:#fdfaf0;border-color:#e0d080;}
-.card.new-card{background:#f0fff4;border-color:#86efac;}
-/* círculo N° */
-.card-num{width:56px;height:56px;border-radius:12px;background:var(--blue2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0;line-height:1;gap:1px;}
-.card-num span{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.75;}
-.card-num.sub{background:#b59a00;}
-.card-num.newc{background:#16a34a;}
-/* chips de iconos */
-.card-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0;}
-.chip{display:inline-flex;align-items:center;gap:4px;background:#f0f4fb;border-radius:20px;padding:4px 10px;font-size:12px;color:#334;white-space:nowrap;border:1px solid #dce4f5;}
-.chip.green{background:#f0fdf4;border-color:#bbf7d0;color:#166534;}
-.chip.orange{background:#fff7ed;border-color:#fed7aa;color:#9a3412;}
-.chip.blue{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}
-.chip .ci{font-size:13px;}
-/* acciones */
-.card-actions{display:flex;gap:6px;flex-shrink:0;}
-.btn-card-edit,.btn-card-del{border:none;border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:background .15s;}
-.btn-card-edit{background:#eff6ff;}.btn-card-edit:hover{background:#bfdbfe;}
-.btn-card-del{background:#fff1f2;}.btn-card-del:hover{background:#fecdd3;}
-/* badge nuevo */
-.badge-new{display:inline-block;background:#dcfce7;color:#16a34a;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;}
-/* MODAL DETALLE */
-.det-modal{width:580px;}
-/* Cabecera con número grande */
-.det-top{display:flex;align-items:flex-start;gap:18px;padding:22px 22px 20px;border-bottom:1px solid var(--border);}
-.det-top-num{min-width:68px;height:68px;border-radius:14px;background:var(--blue2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:26px;font-weight:900;flex-shrink:0;line-height:1.1;}
-.det-top-num small{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.7;}
-.det-top-info{flex:1;min-width:0;}
-.det-instruc{font-size:11px;font-weight:700;color:#889;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
-.det-status{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-top:4px;}
-.det-status.ok{background:#dcfce7;color:#16a34a;}
-.det-status.pend{background:#fef3c7;color:#b45309;}
-/* Secciones */
-.det-section{padding:20px 22px;border-bottom:1px solid #eef0f8;}
-.det-section:last-of-type{border-bottom:none;}
-.det-section-title{font-size:10px;font-weight:800;color:#aab;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;}
-.det-memo{font-size:14px;font-weight:800;color:var(--blue2);line-height:1.45;margin-bottom:0;}
-.det-asunto{font-size:13.5px;color:#334;line-height:1.7;background:#f7f9fd;border-radius:8px;padding:14px 16px;border-left:3px solid var(--blue2);}
-/* Grid de campos */
-.det-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
-.det-field{display:flex;flex-direction:column;gap:4px;}
-.det-field.full{grid-column:1/-1;}
-.det-label{font-size:10px;font-weight:700;color:#aab;text-transform:uppercase;letter-spacing:.4px;}
-.det-value{font-size:13px;color:#223;font-weight:600;line-height:1.4;}
-.det-value.green{color:#16a34a;}
-.det-value.blue{color:var(--blue2);}
-.det-value.muted{color:#bbb;font-weight:400;font-style:italic;}
-/* Footer */
-.det-foot{padding:14px 22px;background:#f8f9fd;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;border-radius:0 0 12px 12px;}
-.btn-det-edit{background:var(--blue2);color:#fff;border:none;padding:9px 22px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;}
-.btn-det-edit:hover{background:var(--blue);}
-.btn-det-del{background:#fff1f2;color:#b91c1c;border:1.5px solid #fecdd3;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;}
-.btn-det-del:hover{background:#fee2e2;}
-.det-badge{display:inline-block;padding:3px 12px;border-radius:10px;font-size:11px;font-weight:700;}
+.table-area{padding:12px 12px 32px;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,50,140,.08);table-layout:fixed;}
+thead th{background:var(--blue2);color:#fff;padding:10px 10px;text-align:left;font-size:11.5px;font-weight:700;white-space:nowrap;border-right:1px solid rgba(255,255,255,.1);position:sticky;top:0;z-index:10;}
+tbody tr{border-bottom:1px solid #e8ecf4;cursor:pointer;}
+tbody tr:hover td{background:#eef3fc !important;}
+tbody tr.main-row td{background:#fff;}
+tbody tr.main-row:nth-child(even) td{background:var(--row-alt);}
+tbody tr.sub-row td{background:var(--sub);border-bottom:1px solid #e0d080;}
+tbody tr.new-row td{background:#f0fff4 !important;}
+td{padding:8px 10px;vertical-align:top;border-right:1px solid #eceef5;font-size:13px;line-height:1.5;}
+td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:nowrap;}
+.col-num{width:42px;}.col-inst{width:58px;}.col-fi{width:86px;}.col-memo{width:240px;word-break:break-word;}
+.col-asunto{width:192px;word-break:break-word;}.col-dir{width:145px;word-break:break-word;}
+.col-fd{width:86px;}.col-rec{width:106px;word-break:break-word;}
+.col-ent{width:126px;word-break:break-word;}.col-fent{width:86px;}.col-act{width:56px;text-align:center !important;}
 .no-data{text-align:center;padding:40px;color:#889;font-size:14px;}
 .btn-del,.btn-edit{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;}
 .btn-del{color:#c44;}.btn-del:hover{background:#fde;}
@@ -292,7 +248,17 @@ header{background:var(--blue);display:flex;align-items:stretch;}
 </div>
 
 <div class="table-area">
-  <div class="cards-list" id="tableBody"></div>
+  <table>
+    <thead><tr>
+      <th class="col-num">N°</th><th class="col-inst">N° INSTRUC</th>
+      <th class="col-fi">F. INGRESO</th><th class="col-memo">N° MEMO / OFICIO</th>
+      <th class="col-asunto">ASUNTO</th><th class="col-dir">DIRIGIDO A</th>
+      <th class="col-fd">FECHA DOC.</th><th class="col-rec">RECIBIDO POR</th>
+      <th class="col-ent">ENTREGADO A</th><th class="col-fent">F. ENTREGADO</th>
+      <th class="col-act">ACCIÓN</th>
+    </tr></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
 </div>
 
 <!-- MODAL REGISTRO -->
@@ -864,44 +830,22 @@ function renderTable(){
   let rows=DATA.map((r,i)=>({...r,_i:i})).filter(r=>r.year===activeYear&&r.month===activeMonth).reverse();
   if(q)rows=rows.filter(r=>(r.memo+r.asunto+r.entregado+r.recibido+r.num+r.instruc+r.dirigido+r.fecha_ingreso+r.fecha_doc).toLowerCase().includes(q));
   const tb=document.getElementById('tableBody');
-
-  if(!rows.length){
-    tb.innerHTML='<div style="text-align:center;padding:48px;color:#889;font-size:14px">No se encontraron registros.</div>';
-    document.getElementById('countBadge').textContent='0 registros';
-    return;
-  }
-
-  tb.innerHTML=rows.map(r=>{
-    const isNew=r._new===true;
-    const isSub=!r.num||r.num==='';
-    const entregado=r.entregado&&r.entregado.trim();
-    const cardCls=isNew?'card new-card':isSub?'card sub-card':'card';
-    const numCls=isNew?'card-num newc':isSub?'card-num sub':'card-num';
-
-    const chipEnt=entregado
-      ?`<span class="chip green"><span class="ci">📤</span>${esc(entregado.slice(0,30))}${entregado.length>30?'…':''}</span>`
-      :`<span class="chip orange"><span class="ci">⏳</span>Pendiente</span>`;
-
-    const chipFecha=r.fecha_ingreso
-      ?`<span class="chip blue"><span class="ci">📅</span>${esc(r.fecha_ingreso)}</span>`:'';
-
-    const chipInstruc=r.instruc
-      ?`<span class="chip"><span class="ci">📌</span>${esc(r.instruc)}</span>`:'';
-
-    const chipMemo=r.memo
-      ?`<span class="chip"><span class="ci">📄</span>${esc(r.memo.slice(0,40))}${r.memo.length>40?'…':''}</span>`:'';
-
-    const newBadge=isNew?'<span class="badge-new">NUEVO</span>':'';
-
-    return '<div class="'+cardCls+'" onclick="openDetail('+r._i+')">'+
-      '<div class="'+numCls+'">'+esc(r.instruc||'—')+'<span>Instruc</span></div>'+
-      '<div class="card-chips">'+chipMemo+chipFecha+chipInstruc+chipEnt+newBadge+'</div>'+
-      '<div class="card-actions" onclick="event.stopPropagation()">'+
-        '<button class="btn-card-edit" onclick="openEdit('+r._i+')" title="Editar">✏️</button>'+
-        '<button class="btn-card-del" onclick="confirmDelete('+r._i+')" title="Eliminar">🗑️</button>'+
-      '</div></div>';
-  }).join('');
-
+  if(!rows.length){tb.innerHTML='<tr><td colspan="11" class="no-data">No se encontraron registros.</td></tr>';document.getElementById('countBadge').textContent='0 registros';return;}
+  tb.innerHTML=rows.map(r=>'<tr class="'+(r._new?'new-row':r.num?'main-row':'sub-row')+'" onclick="openDetail('+r._i+')" title="Clic para ver el detalle">'+
+    '<td class="col-num">'+esc(r.num)+(r._new?' 🆕':'')+'</td>'+
+    '<td class="col-inst" style="text-align:center;color:#778;font-size:12px">'+esc(r.instruc)+'</td>'+
+    '<td class="col-fi" style="white-space:nowrap;font-size:12px;color:#445">'+esc(r.fecha_ingreso)+'</td>'+
+    '<td class="col-memo" style="font-weight:700;color:#1a2e6e;font-size:12px">'+esc(r.memo)+'</td>'+
+    '<td class="col-asunto">'+esc(r.asunto)+'</td>'+
+    '<td class="col-dir" style="font-size:12px;color:#445">'+esc(r.dirigido)+'</td>'+
+    '<td class="col-fd" style="white-space:nowrap;font-size:12px;color:#445">'+esc(r.fecha_doc)+'</td>'+
+    '<td class="col-rec" style="font-size:12px;color:#445">'+esc(r.recibido)+'</td>'+
+    '<td class="col-ent" style="font-size:12px;color:#1a501a;font-weight:700">'+esc(r.entregado)+'</td>'+
+    '<td class="col-fent" style="white-space:nowrap;font-size:12px;color:#2a5a2a;font-weight:700">'+esc(r.fecha_entregado||'')+'</td>'+
+    '<td class="col-act" onclick="event.stopPropagation()">'+
+      '<button class="btn-edit" onclick="openEdit('+r._i+')" title="Editar">✏️</button>'+
+      '<button class="btn-del" onclick="confirmDelete('+r._i+')" title="Eliminar">🗑️</button>'+
+    '</td></tr>').join('');
   const mc=rows.filter(r=>r.num&&r.num!=='').length;
   document.getElementById('countBadge').textContent=rows.length+' registros ('+mc+' principales)';
   document.getElementById('totalBadge').textContent='Total '+activeYear+': '+DATA.filter(r=>r.year===activeYear).length+' docs';
