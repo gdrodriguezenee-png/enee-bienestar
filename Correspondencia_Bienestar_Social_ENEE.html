@@ -73,21 +73,65 @@ header{background:var(--blue);display:flex;align-items:stretch;}
 .btn-imp{background:#16a34a;color:#fff;}.btn-imp:hover{background:#15803d;}
 
 /* TABLE */
-.table-area{padding:12px 12px 32px;overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,50,140,.08);table-layout:fixed;}
-thead th{background:var(--blue2);color:#fff;padding:10px 10px;text-align:left;font-size:11.5px;font-weight:700;white-space:nowrap;border-right:1px solid rgba(255,255,255,.1);position:sticky;top:0;z-index:10;}
-tbody tr{border-bottom:1px solid #e8ecf4;}
-tbody tr:hover td{background:#eef3fc !important;}
-tbody tr.main-row td{background:#fff;}
-tbody tr.main-row:nth-child(even) td{background:var(--row-alt);}
-tbody tr.sub-row td{background:var(--sub);border-bottom:1px solid #e0d080;}
-tbody tr.new-row td{background:#f0fff4 !important;}
-td{padding:8px 10px;vertical-align:top;border-right:1px solid #eceef5;font-size:13px;line-height:1.5;}
-td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:nowrap;}
-.col-num{width:42px;}.col-inst{width:58px;}.col-fi{width:86px;}.col-memo{width:240px;word-break:break-word;}
-.col-asunto{width:192px;word-break:break-word;}.col-dir{width:145px;word-break:break-word;}
-.col-fd{width:86px;}.col-rec{width:106px;word-break:break-word;}
-.col-ent{width:126px;word-break:break-word;}.col-fent{width:86px;}.col-act{width:56px;text-align:center !important;}
+.table-area{padding:12px 16px 32px;}
+/* ── TARJETAS ── */
+.cards-list{display:flex;flex-direction:column;gap:8px;}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 6px rgba(0,50,140,.08);border:1.5px solid #e4eaf5;padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .18s;}
+.card:hover{border-color:var(--blue2);box-shadow:0 4px 16px rgba(0,53,128,.14);transform:translateY(-1px);}
+.card.sub-card{background:#fdfaf0;border-color:#e0d080;}
+.card.new-card{background:#f0fff4;border-color:#86efac;}
+/* círculo N° */
+.card-num{width:56px;height:56px;border-radius:12px;background:var(--blue2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;font-weight:900;flex-shrink:0;line-height:1;gap:1px;}
+.card-num span{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.75;}
+.card-num.sub{background:#b59a00;}
+.card-num.newc{background:#16a34a;}
+/* chips de iconos */
+.card-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0;}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#f0f4fb;border-radius:20px;padding:4px 10px;font-size:12px;color:#334;white-space:nowrap;border:1px solid #dce4f5;}
+.chip.green{background:#f0fdf4;border-color:#bbf7d0;color:#166534;}
+.chip.orange{background:#fff7ed;border-color:#fed7aa;color:#9a3412;}
+.chip.blue{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}
+.chip .ci{font-size:13px;}
+/* acciones */
+.card-actions{display:flex;gap:6px;flex-shrink:0;}
+.btn-card-edit,.btn-card-del{border:none;border-radius:7px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:background .15s;}
+.btn-card-edit{background:#eff6ff;}.btn-card-edit:hover{background:#bfdbfe;}
+.btn-card-del{background:#fff1f2;}.btn-card-del:hover{background:#fecdd3;}
+/* badge nuevo */
+.badge-new{display:inline-block;background:#dcfce7;color:#16a34a;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;}
+/* MODAL DETALLE */
+.det-modal{width:580px;}
+/* Cabecera con número grande */
+.det-top{display:flex;align-items:flex-start;gap:18px;padding:22px 22px 20px;border-bottom:1px solid var(--border);}
+.det-top-num{min-width:68px;height:68px;border-radius:14px;background:var(--blue2);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:26px;font-weight:900;flex-shrink:0;line-height:1.1;}
+.det-top-num small{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.7;}
+.det-top-info{flex:1;min-width:0;}
+.det-instruc{font-size:11px;font-weight:700;color:#889;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
+.det-status{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-top:4px;}
+.det-status.ok{background:#dcfce7;color:#16a34a;}
+.det-status.pend{background:#fef3c7;color:#b45309;}
+/* Secciones */
+.det-section{padding:20px 22px;border-bottom:1px solid #eef0f8;}
+.det-section:last-of-type{border-bottom:none;}
+.det-section-title{font-size:10px;font-weight:800;color:#aab;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;}
+.det-memo{font-size:14px;font-weight:800;color:var(--blue2);line-height:1.45;margin-bottom:0;}
+.det-asunto{font-size:13.5px;color:#334;line-height:1.7;background:#f7f9fd;border-radius:8px;padding:14px 16px;border-left:3px solid var(--blue2);}
+/* Grid de campos */
+.det-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;}
+.det-field{display:flex;flex-direction:column;gap:4px;}
+.det-field.full{grid-column:1/-1;}
+.det-label{font-size:10px;font-weight:700;color:#aab;text-transform:uppercase;letter-spacing:.4px;}
+.det-value{font-size:13px;color:#223;font-weight:600;line-height:1.4;}
+.det-value.green{color:#16a34a;}
+.det-value.blue{color:var(--blue2);}
+.det-value.muted{color:#bbb;font-weight:400;font-style:italic;}
+/* Footer */
+.det-foot{padding:14px 22px;background:#f8f9fd;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;border-radius:0 0 12px 12px;}
+.btn-det-edit{background:var(--blue2);color:#fff;border:none;padding:9px 22px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;}
+.btn-det-edit:hover{background:var(--blue);}
+.btn-det-del{background:#fff1f2;color:#b91c1c;border:1.5px solid #fecdd3;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;}
+.btn-det-del:hover{background:#fee2e2;}
+.det-badge{display:inline-block;padding:3px 12px;border-radius:10px;font-size:11px;font-weight:700;}
 .no-data{text-align:center;padding:40px;color:#889;font-size:14px;}
 .btn-del,.btn-edit{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;}
 .btn-del{color:#c44;}.btn-del:hover{background:#fde;}
@@ -239,24 +283,16 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
 <div id="monthTabsWrapper"></div>
 
 <div class="toolbar">
-  <input type="text" class="search-box" id="searchBox" placeholder="Buscar por memo, asunto, entregado a...">
+  <input type="text" class="search-box" id="searchBox" placeholder="Buscar por memo, asunto, N° instrucción, entregado a, fecha...">
   <span class="sbadge" id="countBadge">0 registros</span>
+  <span id="syncStatus" style="background:#f3f4f6;color:#6b7280;padding:5px 13px;border-radius:13px;font-size:12px;font-weight:700;white-space:nowrap">📴 Sin conectar</span>
+  <button class="btn-tool" style="background:#0369a1;color:#fff" onclick="cloudLoad(false)">🔄 Actualizar</button>
   <button class="btn-tool btn-imp" onclick="openImportModal()">📂 Importar CSV</button>
   <button class="btn-tool btn-exp" onclick="exportCSV()">⬇ Exportar CSV</button>
 </div>
 
 <div class="table-area">
-  <table>
-    <thead><tr>
-      <th class="col-num">N°</th><th class="col-inst">N° INSTRUC</th>
-      <th class="col-fi">F. INGRESO</th><th class="col-memo">N° MEMO / OFICIO</th>
-      <th class="col-asunto">ASUNTO</th><th class="col-dir">DIRIGIDO A</th>
-      <th class="col-fd">FECHA DOC.</th><th class="col-rec">RECIBIDO POR</th>
-      <th class="col-ent">ENTREGADO A</th><th class="col-fent">F. ENTREGADO</th>
-      <th class="col-act">ACCIÓN</th>
-    </tr></thead>
-    <tbody id="tableBody"></tbody>
-  </table>
+  <div class="cards-list" id="tableBody"></div>
 </div>
 
 <!-- MODAL REGISTRO -->
@@ -295,6 +331,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
     <div class="admin-tabs">
       <div class="atab active" onclick="switchAtab('tabU')">👥 Usuarios</div>
       <div class="atab" onclick="switchAtab('tabN')">➕ Nuevo / Editar</div>
+      <div class="atab" onclick="switchAtab('tabC')">☁️ Nube</div>
     </div>
     <div id="tabU" class="apanel active">
       <table class="utbl">
@@ -331,6 +368,21 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
         <button class="btn-c" onclick="cancelEdit()">Cancelar</button>
         <button class="btn-s" onclick="saveUser()">💾 Guardar Usuario</button>
+      </div>
+    </div>
+
+    <div id="tabC" class="apanel">
+      <div style="font-size:12.5px;color:#556;background:#f0f4fb;border-radius:8px;padding:12px 14px;line-height:1.7;margin-bottom:16px">
+        Los registros se guardan en <strong>Google Sheets</strong>, así todos los usuarios ven la misma información desde cualquier PC.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn-s" style="background:#0369a1" onclick="probarConexion()">🔌 Probar conexión</button>
+        <button class="btn-s" style="background:#16a34a" onclick="cloudLoad(false)">⬇️ Descargar de la nube</button>
+        <button class="btn-s" style="background:#7c3aed" onclick="repararMeses()">🗓️ Recalcular meses de la nube</button>
+        <button class="btn-s" style="background:#b45309" onclick="migrarALaNube()">⬆️ Subir registros locales a la nube</button>
+      </div>
+      <div style="font-size:11.5px;color:#889;margin-top:14px;line-height:1.6">
+        <strong>Subir registros locales</strong> se usa solo la primera vez, para migrar los datos que ya tenías guardados en este navegador.
       </div>
     </div>
   </div>
@@ -400,6 +452,19 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
 </div>
 
 
+
+<!-- MODAL DETALLE -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal det-modal" style="border-radius:14px;overflow:hidden;">
+    <div class="mhead" id="detHead" style="border-radius:0">
+      <span style="font-size:18px">📋</span>
+      <h2>Detalle del Registro</h2>
+      <button class="mclose" onclick="closeDetail()">✕</button>
+    </div>
+    <div id="detBody" style="overflow-y:auto;max-height:75vh;"></div>
+  </div>
+</div>
+
 <!-- CONFIRM -->
 <div class="overlay" id="confirmOverlay">
   <div class="cbox">
@@ -463,6 +528,7 @@ async function doLogin(){
   document.getElementById('lerror').textContent='';
   renderChip();
   populateRecibido();
+  cloudLoad(true);
 }
 
 function shake(){const c=document.getElementById('lcard');c.classList.remove('shake');void c.offsetWidth;c.classList.add('shake');}
@@ -491,7 +557,7 @@ function doLogout(){
 // init auth
 (function(){
   const s=sessionStorage.getItem('enee_session');
-  if(s){try{currentUser=JSON.parse(s);document.getElementById('loginScreen').style.display='none';renderChip();populateRecibido();}catch(e){}}
+  if(s){try{currentUser=JSON.parse(s);document.getElementById('loginScreen').style.display='none';renderChip();populateRecibido();setTimeout(()=>cloudLoad(true),400);}catch(e){}}
   else setTimeout(()=>document.getElementById('linput_user').focus(),150);
 })();
 
@@ -507,7 +573,7 @@ function switchAtab(id){
   document.querySelectorAll('.apanel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.atab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  const idx=['tabU','tabN'].indexOf(id);
+  const idx=['tabU','tabN','tabC'].indexOf(id);
   document.querySelectorAll('.atab')[idx].classList.add('active');
   if(id==='tabN')initUForm();
 }
@@ -596,11 +662,175 @@ function populateRecibido(){
 // ============================================================
 // DATA
 // ============================================================
+
+// ============================================================
+// SINCRONIZACIÓN GOOGLE SHEETS (JSONP)
+// ============================================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhj-IjrAhOjXveIRbyzKsmJFFRWkXn5sl0Qgck6cK_0mcm55Zwy6MIHR2ROjFQ9AJH/exec';
+let syncEnabled = true;
+let jsonpCounter = 0;
+
+function jsonp(params, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const cb = 'eneeCb_' + (++jsonpCounter) + '_' + Date.now();
+    const s = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
+    };
+    window[cb] = (data) => { done = true; cleanup(); resolve(data); };
+    const qs = Object.keys(params).map(k => encodeURIComponent(k)+'='+encodeURIComponent(params[k])).join('&');
+    s.src = SCRIPT_URL + '?' + qs + '&callback=' + cb;
+    s.onerror = () => { if(!done){ cleanup(); reject(new Error('Error de red')); } };
+    document.body.appendChild(s);
+    setTimeout(() => { if(!done){ cleanup(); reject(new Error('Tiempo agotado')); } }, timeoutMs || 25000);
+  });
+}
+
+function setSyncStatus(state, msg) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    ok:      ['#dcfce7','#166534','☁️'],
+    sync:    ['#dbeafe','#1e40af','🔄'],
+    err:     ['#fee2e2','#b91c1c','⚠️'],
+    offline: ['#f3f4f6','#6b7280','📴']
+  };
+  const [bg,fg,ic] = map[state] || map.ok;
+  el.style.background = bg; el.style.color = fg;
+  el.innerHTML = ic + ' ' + msg;
+}
+
+
+// Deduce año/mes a partir de la fecha de ingreso (o del documento como respaldo)
+function normalizarPeriodo(r) {
+  const leer = (s) => {
+    if (!s) return null;
+    s = String(s).trim();
+    let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);   // dd/mm/aaaa
+    if (m) return { y: +m[3], mo: +m[2] };
+    m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);       // aaaa-mm-dd
+    if (m) return { y: +m[1], mo: +m[2] };
+    return null;
+  };
+  const p = leer(r.fecha_ingreso) || leer(r.fecha_doc);
+  if (p && p.mo >= 1 && p.mo <= 12) {
+    r.year = p.y; r.month = p.mo;
+  } else {
+    r.year  = parseInt(r.year)  || new Date().getFullYear();
+    r.month = parseInt(r.month) || (new Date().getMonth() + 1);
+  }
+  r.month_name = MONTHS[r.month] || String(r.month);
+  return r;
+}
+
+async function cloudLoad(silent) {
+  if (!syncEnabled) return;
+  setSyncStatus('sync','Cargando...');
+  try {
+    const res = await jsonp({action:'get'});
+    if (res && res.ok) {
+      DATA = res.data.map(r => normalizarPeriodo(r));
+      saveLocal();
+      buildTabs(); renderTable();
+      setSyncStatus('ok','Sincronizado (' + DATA.length + ')');
+      if (!silent) showToast('☁️ ' + DATA.length + ' registros cargados de la nube');
+    } else {
+      setSyncStatus('err','Error');
+      if (!silent) showToast('Error al cargar: ' + (res && res.error), '', true);
+    }
+  } catch(e) {
+    setSyncStatus('err','Sin conexión');
+    if (!silent) showToast('No se pudo conectar con la nube', '', true);
+  }
+}
+
+async function cloudSave(rec) {
+  if (!syncEnabled) return {ok:false};
+  setSyncStatus('sync','Guardando...');
+  try {
+    const res = await jsonp({action:'save', data: JSON.stringify(rec)});
+    if (res && res.ok) {
+      rec._id = res.id;
+      setSyncStatus('ok','Guardado');
+      return res;
+    }
+    setSyncStatus('err','Error');
+    return {ok:false};
+  } catch(e) {
+    setSyncStatus('err','Sin conexión');
+    return {ok:false};
+  }
+}
+
+async function cloudDelete(id) {
+  if (!syncEnabled || !id) return;
+  setSyncStatus('sync','Eliminando...');
+  try {
+    await jsonp({action:'delete', id: id});
+    setSyncStatus('ok','Eliminado');
+  } catch(e) { setSyncStatus('err','Sin conexión'); }
+}
+
+// Subida masiva con barra de progreso
+async function cloudUploadAll(records) {
+  let ok = 0, fail = 0;
+  for (let i = 0; i < records.length; i++) {
+    setSyncStatus('sync', 'Subiendo ' + (i+1) + '/' + records.length);
+    try {
+      const res = await jsonp({action:'save', data: JSON.stringify(records[i])});
+      if (res && res.ok) { records[i]._id = res.id; ok++; } else fail++;
+    } catch(e) { fail++; }
+  }
+  setSyncStatus('ok','Sincronizado');
+  return {ok, fail};
+}
+
+// Migración inicial: sube todo lo que hay en local a la nube
+async function migrarALaNube() {
+  if (!confirm('Se subirán ' + DATA.length + ' registros locales a Google Sheets.\n\n¿Continuar? Puede tardar varios minutos.')) return;
+  const r = await cloudUploadAll(DATA);
+  saveLocal();
+  showToast('☁️ Subidos: ' + r.ok + (r.fail ? ' · Fallidos: ' + r.fail : ''));
+  await cloudLoad(true);
+}
+
+
+// Recalcula año/mes de todos los registros de la nube y los reescribe
+async function repararMeses() {
+  if (!confirm('Se revisarán los ' + DATA.length + ' registros y se corregirá el mes de los que estén mal.\n\n¿Continuar?')) return;
+  const malos = [];
+  DATA.forEach(r => {
+    const antesY = r.year, antesM = r.month;
+    normalizarPeriodo(r);
+    if (r.year !== antesY || r.month !== antesM) malos.push(r);
+  });
+  if (!malos.length) { showToast('✅ Todos los meses ya estaban correctos'); buildTabs(); renderTable(); return; }
+  saveLocal(); buildTabs(); renderTable();
+  showToast('Corrigiendo ' + malos.length + ' registros...');
+  const res = await cloudUploadAll(malos);
+  showToast('✅ Corregidos: ' + res.ok + (res.fail ? ' · Fallidos: ' + res.fail : ''));
+}
+
+async function probarConexion() {
+  setSyncStatus('sync','Probando...');
+  try {
+    const res = await jsonp({action:'ping'});
+    if (res && res.ok) { setSyncStatus('ok','Conectado'); showToast('✅ Conexión exitosa con Google Sheets'); }
+    else { setSyncStatus('err','Error'); showToast('Respuesta inesperada', '', true); }
+  } catch(e) {
+    setSyncStatus('err','Sin conexión');
+    showToast('❌ No se pudo conectar. Revisa la URL del script.', '', true);
+  }
+}
+
 const MONTHS={1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'};
 let DATA = [{"num": "1", "instruc": "543", "fecha_ingreso": "01/06/2026", "memo": "MEMO UBSNO-40-AP-I/V/2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area:NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "28/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "2", "instruc": "544", "fecha_ingreso": "01/06/2026", "memo": "MEMO UBSNO-83-COD-SS/V/2026", "asunto": "Remisión trámite de pago clasula # 83 \"BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES\" CCV area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "22/05/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA                                                           03-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "3", "instruc": "545", "fecha_ingreso": "01/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV del empleado: MARCIO ANTONIO HERNANDEZ IZAGUIRRE # 845.", "asunto": "Solicitud trámite de pago clausula # 57 CCV del empleado: MARCIO ANTONIO HERNANDEZ IZAGUIRRE # 845.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE                                                     03-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "4", "instruc": "546", "fecha_ingreso": "01/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV de la empleada: DENIA IVETH CERRATO REYES # 16280.", "asunto": "Solicitud trámite de pago clausula # 57 CCV de la empleada: DENIA IVETH CERRATO REYES # 16280.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "5", "instruc": "547", "fecha_ingreso": "03/06/2026", "memo": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE GALVEZ       #  15760 los días MIERCOLES 03, JUEVES 04 Y VIERNES 05 DE JUNIO/2026.", "asunto": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE GALVEZ       #  15760 los días MIERCOLES 03, JUEVES 04 Y VIERNES 05 DE JUNIO/2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "6", "instruc": "548", "fecha_ingreso": "03/06/2026", "memo": "OFICIO CHACARL-JEF-071-2026", "asunto": "Remisión trámite de pago clasula # 83 \"BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES\" CCV area: CENTRAL HIDROELECTRICA CAÑAVERAL RIO LINDO", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA 05-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "7", "instruc": "549", "fecha_ingreso": "03/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV del empleado: ISAUL PEREZ BUESO # 3443.", "asunto": "Solicitud trámite de pago clausula # 57 CCV del empleado: ISAUL PEREZ BUESO # 3443.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "26/05/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE 05-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "8", "instruc": "550", "fecha_ingreso": "03/06/2026", "memo": "Nota del STENEE para realizar las gestiones administrativas y presupuestaria en aplicación a la clausula # 88 CCV CONFRATERNIDAD DEL DÍA DEL EMPLEADO DE LA ENEE.", "asunto": "Nota del STENEE para realizar las gestiones administrativas y presupuestaria en aplicación a la clausula # 88 CCV CONFRATERNIDAD DEL DÍA DEL EMPLEADO DE LA ENEE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "HACER NOTA RESERVA PRESUPUESTARIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "9", "instruc": "551", "fecha_ingreso": "03/06/2026", "memo": "Nota del STENEE para realizar las gestiones administrativas y presupuestaria en aplicación a la clausula # 74 CCV JUGUETES PARA HIJOS DE LOS TRABAJADORES 2026 asi mismo iniciar con la conformidad de las cimisiones con el fin de trabajar en conjunto ENEE/STENEE.", "asunto": "Nota del STENEE para realizar las gestiones administrativas y presupuestaria en aplicación a la clausula # 74 CCV JUGUETES PARA HIJOS DE LOS TRABAJADORES 2026 asi mismo iniciar con la conformidad de las cimisiones con el fin de trabajar en conjunto ENEE/STENEE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE 05-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "10", "instruc": "552", "fecha_ingreso": "03/06/2026", "memo": "MEMO DL-481-VI-2026", "asunto": "Remisión DICTAMEN LEGAL DL-ENEE-181-V-2026", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ 03-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "10", "instruc": "552", "fecha_ingreso": "03/06/2026", "memo": "MEMO DL-480-VI-2026", "asunto": "Remisión DICTAMEN LEGAL DL-ENEE-179-V-2026", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "10", "instruc": "552", "fecha_ingreso": "03/06/2026", "memo": "MEMO DL-479-VI-2026", "asunto": "Remisión DICTAMEN LEGAL DL-ENEE-180-V-2026", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "11", "instruc": "553", "fecha_ingreso": "03/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV del empleado: MARIO MELENDEZ #15720.", "asunto": "Solicitud trámite de pago clausula # 57 CCV del empleado: MARIO MELENDEZ #15720.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE 05-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "12", "instruc": "554", "fecha_ingreso": "03/06/2026", "memo": "MEMO AUXPLACHPATU-III-021-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: CENTRAL HIDROLECTRICA PATUCA III.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "13", "instruc": "555", "fecha_ingreso": "03/06/2026", "memo": "MEMO AUXPLACHPATU-III-022-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 83 (BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES) CCV area: CENTRAL HIDROLECTRICA PATUCA III.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "14", "instruc": "556", "fecha_ingreso": "03/06/2026", "memo": "MEMO AUXPLACHPATU-III-025-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 83 (BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES) CCV area: CENTRAL HIDROLECTRICA PATUCA III.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "15", "instruc": "557", "fecha_ingreso": "03/06/2026", "memo": "MEMO DAGE-447-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica Francisco Morazan.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "16", "instruc": "558", "fecha_ingreso": "04/06/2026", "memo": "MEMO DRL-0996-V-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: HECTOR FERNANDO BECERRA ANDINO # 16646.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ 10-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "17", "instruc": "559", "fecha_ingreso": "04/06/2026", "memo": "MEMO UBSNO-40-AP-3-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                                                                08-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "17", "instruc": "559", "fecha_ingreso": "04/06/2026", "memo": "MEMO UBSNO-40-AP-2-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                                                                08-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "18", "instruc": "560", "fecha_ingreso": "05/06/2026", "memo": "MEMO DRL-1009-VI-2026", "asunto": "Remisión DICTAMEN CLAUSULA # 57 CCV del empleado: CARLOS MANUEL HENRIQUEZ DOBLADO # 16554.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "01/06/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE 09-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-294-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-283-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-282-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-281-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-280-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-279-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "19", "instruc": "561", "fecha_ingreso": "05/06/2026", "memo": "MEMO UCODCS-278-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "20", "instruc": "562", "fecha_ingreso": "05/06/2026", "memo": "COORDINACIÓN REGIONAL  N.O                                          UNIDAD DE BIENESTAR SOCIAL N.O.                                     PLAN MÉDICO", "asunto": "Remisión trámite de pago según cláusula # 55 CCV por reembolso de los empleados por GASTOS MÉDICOS cubietos por el PLAN MÉDICO area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "21", "instruc": "563", "fecha_ingreso": "05/06/2026", "memo": "MEMO DRL-1039-VI-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: SUSY WALESKA NUÑEZ GALE           # 16464.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "22", "instruc": "564", "fecha_ingreso": "05/06/2026", "memo": "MEMO DRL-1036-VI-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: MARIO ENRIQUE ELVIR GUERRERO # 6198.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "23", "instruc": "565", "fecha_ingreso": "05/06/2026", "memo": "MEMO DRL-0902-V-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: JOSÉ ADAN GONZALEZ ELVIR           # 11535.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "18/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "24", "instruc": "566", "fecha_ingreso": "05/06/2026", "memo": "MEMO DDCO-0567-VI-2026", "asunto": "Remisión de LISTADO DE EMPLEADOS ACTIVOS E INACTIVOS.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "05/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA                                          09-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-293-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-292-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-291-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-290-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-289-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "25", "instruc": "567", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCODCS-288-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "25/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "26", "instruc": "568", "fecha_ingreso": "08/06/2026", "memo": "MEMO UAPCS-166-V-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: ALUMBRADO PUBLICO, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "27/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "26", "instruc": "568", "fecha_ingreso": "08/06/2026", "memo": "MEMO UAPCS-101-IV-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: ALUMBRADO PUBLICO, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/04/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "26", "instruc": "568", "fecha_ingreso": "08/06/2026", "memo": "MEMO UAPCS-100-IV-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: ALUMBRADO PUBLICO, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/04/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "26", "instruc": "568", "fecha_ingreso": "08/06/2026", "memo": "MEMO UAPCS-99-IV-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: ALUMBRADO PUBLICO, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/04/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "27", "instruc": "569", "fecha_ingreso": "08/06/2026", "memo": "Notificación donde  la empleada GRACIELA SALGADO menciona su estado de GRAVIDEZ.", "asunto": "Notificación donde  la empleada GRACIELA SALGADO menciona su estado de GRAVIDEZ.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "OSCAR PONCE", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "28", "instruc": "570", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCG-122-V-2026", "asunto": "Solicitud de reunión de trabajo para presentación de matriz preliminar vinculada al  Marcaje de Género.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "29/05/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "29", "instruc": "571", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCG-120-V-2026", "asunto": "Solicitud de apoyo técnico para el fortalecimiento de los procesos administrativos y operativos.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "28/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "30", "instruc": "572", "fecha_ingreso": "08/06/2026", "memo": "MEMO UCG-124-VI-2026", "asunto": "Solicutd de firma del Acta final de proceso de mesas de trabajo para la implementación operativa del Protocolo", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "31", "instruc": "573", "fecha_ingreso": "09/06/2026", "memo": "MEMO DDH-488-VI-2026", "asunto": "Nota de presentación al Depto. de Bienestar Social la empleada: AURA PATRICIA MARADIAGA ESCOBAR .", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "32", "instruc": "574", "fecha_ingreso": "09/06/2026", "memo": "Nota solicitud trámite de pago clausula # 40 CCV area: LITORAL ATLANTICO.", "asunto": "Nota solicitud trámite de pago clausula # 40 CCV area: LITORAL ATLANTICO.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "22/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "33", "instruc": "575", "fecha_ingreso": "09/06/2026", "memo": "MEMO UAPLA-036-VI-2026", "asunto": "Remisión trámite de pago clausula # 40 CCV area: LITORAL ATLANTICO", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "02/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "33", "instruc": "575", "fecha_ingreso": "09/06/2026", "memo": "MEMO UAPLA-039-VI-2026", "asunto": "Remisión trámite de pago clausula # 40 CCV area: LITORAL ATLANTICO", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "34", "instruc": "576", "fecha_ingreso": "09/06/2026", "memo": "Remisión de incapacidad de (62 días) del SEGURO SOCIAL de la empleada: CELIN OSIRIS NARVAEZ BLANDON # 12487.", "asunto": "Remisión de incapacidad de (62 días) del SEGURO SOCIAL de la empleada: CELIN OSIRIS NARVAEZ BLANDON # 12487.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "03/06/2026", "recibido": "Carmen    Cáceres", "entregado": "LO TIENE                                                      PATY LARIOS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "35", "instruc": "577", "fecha_ingreso": "09/06/2026", "memo": "Nota solicitud de reembolso por GASTOS MÉDICOS en aplicación a la clausula # 16 CCV de la empleada: CELIN OSIRIS NARVAEZ BLANDON # 12487, area: DISTRIBUCIÓN, CENTRO SUR.", "asunto": "Nota solicitud de reembolso por GASTOS MÉDICOS en aplicación a la clausula # 16 CCV de la empleada: CELIN OSIRIS NARVAEZ BLANDON # 12487, area: DISTRIBUCIÓN, CENTRO SUR.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA                                                   11-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "36", "instruc": "578", "fecha_ingreso": "09/06/2026", "memo": "MEMO DRL-1038-VI-2026", "asunto": "Remisión DICTAMEN CLAUSULA # 57 CCV del ex empleado: JEREMY ALESSANDRO LAINEZ HERNANDEZ # 16089 (QDDG).", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA                                                   11-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "37", "instruc": "579", "fecha_ingreso": "09/06/2026", "memo": "MEMO UCG-126-VI-2026", "asunto": "Convocatoria y solicitud de autorización para participación en el Modulo 3: Prevención de la Violencia  y el Acoso sexual en el ámbito laboral.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "38", "instruc": "580", "fecha_ingreso": "09/06/2026", "memo": "DIRECCIÓN DE DESARROLLO HUMANO  MEMO DDH-173-VI-2026", "asunto": "Reunión de Trabajo que se llevara a cabo  el día: MARTES 16 DE JUNIO/2026 a las 08:30 am en el Salón de Reuniones del Quinto piso, Edificio Cuerpo Bajo C del Centro Civico Gubernamental.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "05/06/2026", "recibido": "Carmen    Cáceres", "entregado": "DELMY DEL CARMEN GÁLVEZ 11-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "39", "instruc": "581", "fecha_ingreso": "09/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV del empleado: CARLOS EDUARDO JIMENEZ VELASQUEZ # 12875.", "asunto": "Solicitud trámite de pago clausula # 57 CCV del empleado: CARLOS EDUARDO JIMENEZ VELASQUEZ # 12875.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "29/05/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE                                                         11-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "40", "instruc": "582", "fecha_ingreso": "10/06/2026", "memo": "MEMO UGDCS-141-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: UNIDAD GESTIÓN DE LA MEDIDA, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "05/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "41", "instruc": "583", "fecha_ingreso": "10/06/2026", "memo": "DIRECCIÓN DE GENERACIÓN TERMICA UNIDAD DE GENERACIÓN TERMICA L.A.", "asunto": "Remisión beneficio trámite de pago según cláusula          # 83 (BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES) CCV area: DIRECCIÓN DE GENERACIÓN TERMICA L.A.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARITA SAUCEDA                                                        12-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "41", "instruc": "583", "fecha_ingreso": "10/06/2026", "memo": "DIRECCIÓN DE GENERACIÓN TERMICA UNIDAD DE GENERACIÓN TERMICA L.A.", "asunto": "Remisión beneficio trámite de pago según cláusula          # 83 (BONIFICACIÓN POR TRABAJOS EN DIAS ESPECIALES) CCV area: DIRECCIÓN DE GENERACIÓN TERMICA L.A.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "42", "instruc": "584", "fecha_ingreso": "10/06/2026", "memo": "DIRECCIÓN DE GENERACIÓN TERMICA UNIDAD DE GENERACIÓN TERMICA L.A.", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DIRECCIÓN DE GENERACIÓN TERMICA L.A.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "43", "instruc": "585", "fecha_ingreso": "10/06/2026", "memo": "Notificación de vacaciones de la empleada: CIELO PATRICIA INSTROZA MARTINEZ # 12254.", "asunto": "Notificación de vacaciones de la empleada: CIELO PATRICIA INSTROZA MARTINEZ             # 12254.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "44", "instruc": "586", "fecha_ingreso": "10/06/2026", "memo": "MEMO DRL-0831-V-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: FRANCISCO JAVIER BONILLA            # 6305.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "18/05/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                                                                    10-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "45", "instruc": "587", "fecha_ingreso": "10/06/2026", "memo": "MEMO DRL-0485-VI-2027", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones de la   ex empleada: DAYSI MELISSA QUIJADA GUTIERREZ  # 16367.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "24/03/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS                                                      10-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "46", "instruc": "588", "fecha_ingreso": "10/06/2026", "memo": "Remisión pagos de la Claúsula # 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "asunto": "Remisión pagos de la Claúsula # 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "08/06/2026", "recibido": "Carmen    Cáceres", "entregado": "PATRICIA MARADIAGA ESCOBAR                                                       11-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "47", "instruc": "589", "fecha_ingreso": "10/06/2026", "memo": "Remisión pagos de las  Clausulas # 40, 55 y 57  CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-861-VI-2026.", "asunto": "Remisión pagos de las  # 40, 55 y 57  CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-861-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "48", "instruc": "590", "fecha_ingreso": "10/06/2026", "memo": "Remisión pagos de las  Clausulas # 55 y 16  CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-892-VI-2026.", "asunto": "Remisión pagos de las  # 55 y 16  CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-892-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "49", "instruc": "591", "fecha_ingreso": "10/06/2026", "memo": "MEMO DPS-852-VI-2026", "asunto": "Remisión trámite de pagp clausula # 40 CCV area: DEPTO. PLANILLAS", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "02/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA 12-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "50", "instruc": "592", "fecha_ingreso": "10/06/2026", "memo": "MEMO UCG-128-VI-2026", "asunto": "Solicitud de espacio en su agenda para presentar el avance en la transversalización del Enfoque de Género en el Marco de la Politica Institucional de Género y sus documentos derivados.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "51", "instruc": "593", "fecha_ingreso": "11/06/2026", "memo": "Notificación de vacaciones de la empleada: VILMA PATRICIA LARIOS COBOS # 12333.", "asunto": "Notificación de vacaciones de la empleada: VILMA PATRICIA LARIOS COBOS # 12333.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "52", "instruc": "594", "fecha_ingreso": "11/06/2026", "memo": "COORDINACIÓN REGIONAL  N.O                                         UNIDAD DE BIENESTAR SOCIAL N.O.                                      PLAN MÉDICO", "asunto": "Remisión Orden de Pago a favor del Centro de                      Servicio:  CONTROL DIAGNOSTICO CLÍNICO, S.A. DE C.V                                                                           Cobranza #  2202607085    Lp.s         920.00 Cobranza #  2202607086    Lp.s      2,656.00  Cobranza #  2202607087    Lp.s      2,928.00", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09-06-202", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "53", "instruc": "595", "fecha_ingreso": "11/06/2026", "memo": "COORDINACIÓN REGIONAL  N.O                                         UNIDAD DE BIENESTAR SOCIAL N.O.                                      PLAN MÉDICO", "asunto": "Remisión Orden de Pago a favor del Centro de                      Servicio:  LABORATORIO CONSULAB S. DE R.L.                                                                           Cobranza #  2202607088    Lp.s     4,042.75", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ                                                                        12-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "54", "instruc": "596", "fecha_ingreso": "11/06/2026", "memo": "MEMO DRL-1081-VI-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del   ex empleado: JULIO CESAR SALGADO VELASQUEZ # 15003.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "09/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ                                                                        12-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "55", "instruc": "597", "fecha_ingreso": "15/06/2026", "memo": "Remisión pagos de la Claúsula # 57 y 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "asunto": "Remisión pagos de la Claúsula # 57 y 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "PATRICIA MARADIAGA                                              15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "56", "instruc": "598", "fecha_ingreso": "12/06/2026", "memo": "MEMO UBSNO-16-06-2026", "asunto": "Remisión original de la Resonancia Magnetica del empleado: CRISTOBAL ALVARENGA SIBAJA # 12786.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA                                                            15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "57", "instruc": "599", "fecha_ingreso": "12/06/2026", "memo": "OFICIO DP-CRLA-003-2026", "asunto": "Remisión de solicitud de GLADYS DUNIA MOLINA ROSALES y VICTORIIA GABRIELA MARTEL CABRERA beneficiarias de MARIO ANTONIO MARTEL VARGAS (QDDG) # 7252 para trámite de pago de las CLAUSULAS # 56 Y 72 CCV.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "PATRICIA LARIOS                                                       15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "58", "instruc": "600", "fecha_ingreso": "12/06/2026", "memo": "COORDINACIÓN REGIONAL  N.O                                          UNIDAD DE BIENESTAR SOCIAL N.O.                                     PLAN MÉDICO", "asunto": "Remisión trámite de pago según cláusula # 55 CCV por reembolso de los empleados por GASTOS MÉDICOS cubietos por el PLAN MÉDICO area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ 15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "59", "instruc": "601", "fecha_ingreso": "12/06/2026", "memo": "Solicitud trámite de pago clausula # 57 CCV del empleado: DANNY MAURICIO ORDOÑEZ SAUCEDA # 15846.", "asunto": "Solicitud trámite de pago clausula # 57 CCV del empleado: DANNY MAURICIO ORDOÑEZ SAUCEDA # 15846.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE 15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "60", "instruc": "602", "fecha_ingreso": "12/06/2026", "memo": "MEMO DAPF-636-06-2026", "asunto": "Devolución de documentos de pagos de CLAUSULA # 40 CCV para ser corregidos.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "61", "instruc": "603", "fecha_ingreso": "12/06/2026", "memo": "MEMO DAGE-501-06-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica Francisco Morazan.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "62", "instruc": "604", "fecha_ingreso": "12/06/2026", "memo": "MEMO UCG-129-VI-2026", "asunto": "Solicitud de apoyo para la Coordinación del MODULO # 2 \"MASCULINIDADES LIBRES DE VIOLENCIA# en la región SUR.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CINTHIA MURILLO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "63", "instruc": "605", "fecha_ingreso": "12/06/2026", "memo": "DIRECCION DE DESARROLLO HUMANO                                                                                                  HOJA DE INSTRUCCIÓN # 194", "asunto": "Jornada de Capacitación, solicitada por la Dirección de Auditoria Interna al Tribunal Superior de Cuentas.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "64", "instruc": "606", "fecha_ingreso": "15/06/2026", "memo": "Nota de la empleada: CARLA PATRICIA MORENO ÁVILA # 16291 en atención a la CIRCULAR DBS-002-03-2026.", "asunto": "Nota de la empleada: CARLA PATRICIA MORENO ÁVILA # 16291 en atención a la CIRCULAR DBS-002-03-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "15/06/2026", "recibido": "Carmen    Cáceres", "entregado": "OSCAR PONCE", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "65", "instruc": "607", "fecha_ingreso": "15-06-206", "memo": "PERMISO SINDICAL de la empleada: LEZANDRA MARCELA DUARTE LANZA              # 15760 los días: LUNES 15 Y MARTES 16 DE JUNIO/2026.", "asunto": "PERMISO SINDICAL de la empleada: LEZANDRA MARCELA DUARTE LANZA              # 15760 los días: LUNES 15 Y MARTES 16 DE JUNIO/2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "15/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "66", "instruc": "608", "fecha_ingreso": "15/06/2026", "memo": "MEMO UBSNO-40-COD-3-4/VI/2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                              16-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-343-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                              16-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-342-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-341-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-321-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-320-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-319-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "67", "instruc": "609", "fecha_ingreso": "15/06/2026", "memo": "MEMO UCODCS-318-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "68", "instruc": "610", "fecha_ingreso": "15/06/2026", "memo": "MEMO DRL-1126-06-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones de la  ex empleada: ESTEFANI CAROLINA HERNANDEZ GARCIA # 16046.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ROSA GARCIA                                                              16-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "69", "instruc": "611", "fecha_ingreso": "15/06/2026", "memo": "MEMO DRL-1125-06-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del  ex empleado: JIMMY FRANKLIN MARADIAGA MATUTE # 16405.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO RODRIGUEZ                                                        15-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "70", "instruc": "612", "fecha_ingreso": "15/06/2026", "memo": "MEMO DRL-1097-VI-2026", "asunto": "Remisión de PERMISO CLAUSULA # 50 CCV \"PERMISOS Y LICENCIAS\" del empleado: OSCAR ROLANDO PONCE MEJÍA # 15823.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "10/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "71", "instruc": "613", "fecha_ingreso": "16/05/2026", "memo": "Remisión pagos de la Claúsula # 57 y 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "asunto": "Remisión pagos de la Claúsula # 57 y 55 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-882-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "PATRICIA MARADIAGA                                              16-06-2026", "year": 2026, "month": 5, "month_name": "Mayo"}, {"num": "72", "instruc": "614", "fecha_ingreso": "16/06/2026", "memo": "Solicitud trámite de pago clausula # 66 CCV de la empleada: MELIN JULISSA VALERIANO AMAYA # 16077.", "asunto": "Solicitud trámite de pago clausula # 66 CCV de la empleada: MELIN JULISSA VALERIANO AMAYA # 16077.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "16/06/2026", "recibido": "Carmen    Cáceres", "entregado": "WENDY IZAGUIRRE                                                                  16-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "73", "instruc": "615", "fecha_ingreso": "16/06/2026", "memo": "MEMO DAGT-T44-OP-C-79-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 44 (TRANSPORTE DE TRABAJADORES) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "16/06/2026", "recibido": "Carmen    Cáceres", "entregado": "DANIELA REYES                                                             16-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "73", "instruc": "615", "fecha_ingreso": "16/06/2026", "memo": "MEMO DAGT-T44-OP-C-78-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 44 (TRANSPORTE DE TRABAJADORES) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "74", "instruc": "616", "fecha_ingreso": "17/06/2026", "memo": "Remisión pagos de la Claúsula # 83, 55 y 40 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-920-VI-2026.", "asunto": "Remisión pagos de la Claúsula # 83, 55 y 40CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-920-VI-2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "12/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "75", "instruc": "617", "fecha_ingreso": "17/06/2026", "memo": "MEMO DIDCS-079-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: DISTRIBUCIÓN, CENTRO SUR", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "15/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "76", "instruc": "618", "fecha_ingreso": "17/06/2026", "memo": "Remisión de facturas y recibos del CENTRO DE SERVICIO: LABORATORIO DE ANALISIS CLÍNICO MENDEZ Y ASOCIADOS S. DE R.L.", "asunto": "Remisión de facturas y recibos del CENTRO DE SERVICIO: LABORATORIO DE ANALISIS CLÍNICO MENDEZ Y ASOCIADOS S. DE R.L.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "30/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "77", "instruc": "619", "fecha_ingreso": "17/06/2026", "memo": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE LANZA # 15760 los días: MIERCOLES 17, JUEVES 18 Y VIERNES 18 DE JUNIO/2026.", "asunto": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE LANZA # 15760 los días: MIERCOLES 17, JUEVES 18 Y VIERNES 18 DE JUNIO/2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "78", "instruc": "620", "fecha_ingreso": "17/06/2026", "memo": "MEMO DAPF-647-VI-2026", "asunto": "Devolución de documentos de pagos de CLAUSULA # 44 CCV para ser corregidos.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "79", "instruc": "621", "fecha_ingreso": "17/06/2026", "memo": "MEMO DAGE-531-06-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "79", "instruc": "621", "fecha_ingreso": "17/06/2026", "memo": "MEMO DAGE-530-06-2027", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "79", "instruc": "621", "fecha_ingreso": "17/06/2026", "memo": "MEMO DAGE-529-06-2027", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica Francisco Morazan.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "80", "instruc": "622", "fecha_ingreso": "17/06/2026", "memo": "MEMO DRL-1127-VI-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del  ex empleado: JOSÉ PATRICIO ZUNIGA GIRON        # 7020", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "15/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "81", "instruc": "623", "fecha_ingreso": "18/06/2026", "memo": "MEMO UCG-145-VI-2026", "asunto": "Solicitud de habilitación de IP para canal  de atención al PROTOCOLO ANTIACOSO.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "18/06/2026", "recibido": "Carmen    Cáceres", "entregado": "CONOCIMIENTO Y ARCHIVO", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "82", "instruc": "624", "fecha_ingreso": "18/06/2026", "memo": "MEMO UBSNO-40-M-3/VI/2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: NOR OCCIDENTE.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "16/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "83", "instruc": "625", "fecha_ingreso": "18/06/2026", "memo": "COORDINACIÓN REGIONAL  N.O                                         UNIDAD DE BIENESTAR SOCIAL N.O.                                      PLAN MÉDICO", "asunto": "Remisión Orden de Pago a favor del Centro de                      Servicio:  HOSPITAL QUIRURGICO BARABDILLAS                                                                            Cobranza #  2202607091    Lp.s        4,250.00 Cobranza #  2202607092    Lp.s        8,470.00  Cobranza #  2202607093    Lp.s      13,630.00 Cobranza #  2202607095    Lp.s      39,220.00  Cobranza #  2202607094    Lp.s      46,850.00 Cobranza #  2202607096    Lp.s      54,810.00", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "84", "instruc": "626", "fecha_ingreso": "18/06/2026", "memo": "DIRECCIÓN DESARROLLO HUMANO                                         MEMO DDH-197-V-2026", "asunto": "Notificación de presentación del empeado: MARLON AMILCAR VALDEZ RAMIREZ                # 16911 al DEPARTAMENTO DE BIENESTAR SOCIAL.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/05/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "85", "instruc": "627", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-T44-OP-N-67-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 44 (TRANSPORTE DE TRABAJADORES) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "85", "instruc": "627", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-T44-OP-N-68-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 44 (TRANSPORTE DE TRABAJADORES) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-SE-N-82-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-CE-C-83-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-SE-N-81-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-SE-N-65-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-SE-N-64-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "86", "instruc": "628", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGT-A40-SE-N-62-VI-2026", "asunto": "Remisión beneficio trámite de pago según cláusula          # 40 (ALIMENTACIÓN POR PROLOGACIÓN DE JORNADA) CCV area: TRANSMISIÓN, GERENCIA TRANSMISIÓN, DEPTO. ADMINISTRATIVO TRANSMISIÓN.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-537-VI-2027", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-536-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-532-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica Francisco Morazan.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "18/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-528-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DEPARTAMENTO ADMINISTRATIVO DE  GENERACIÓN.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "18/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-525-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-524-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-523-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "87", "instruc": "629", "fecha_ingreso": "18/06/2026", "memo": "MEMO DAGE-522-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: DIRECCIÓN GENERACIÓN TERMICA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "88", "instruc": "630", "fecha_ingreso": "18/06/2026", "memo": "Nota solicitud del calculo de los últimos 36 SALARIOS con AJUSTES del INDICE INFLACIONARIO del empleado: FRANCISCO E. TORRES AGUILAR # 8986.", "asunto": "Nota solicitud del calculo de los últimos 36 SALARIOS con AJUSTES del INDICE INFLACIONARIO del empleado: FRANCISCO E. TORRES AGUILAR # 8986.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "11/06/2026", "recibido": "Carmen    Cáceres", "entregado": "SARA SAUCEDA", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "88", "instruc": "630", "fecha_ingreso": "18/06/2026", "memo": "Nota solicitud del calculo de los últimos 36 SALARIOS con AJUSTES del INDICE INFLACIONARIO despues de mi RETIRO VOLUNTARIO del empleado: FRANCISCO E. TORRES AGUILAR # 8986.", "asunto": "Nota solicitud del calculo de los últimos 36 SALARIOS con AJUSTES del INDICE INFLACIONARIO despues de mi RETIRO VOLUNTARIO del empleado: FRANCISCO E. TORRES AGUILAR # 8986.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "89", "instruc": "631", "fecha_ingreso": "18/06/2026", "memo": "MEMO DRL-0491-III-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del  ex empleado: CHRISTHIAN JOSUE SANABRIA HERRERA # 15696.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "24/03/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "89", "instruc": "631", "fecha_ingreso": "18/06/2026", "memo": "MEMO DRL-0475-III-2026", "asunto": "Solicitud de Constancia para trámite de Finiquito y pago de prestaciones del  ex empleado: ERICK VLADIMIR CARDONA LEZAMA # 16407.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "20/03/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "90", "instruc": "632", "fecha_ingreso": "19/06/2026", "memo": "MEMO DAGE-549-VI-2026", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica El Níspero.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "19/06/2026", "recibido": "Carmen    Cáceres", "entregado": "ADRIANA SALINAS", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "90", "instruc": "632", "fecha_ingreso": "19/06/2026", "memo": "MEMO DAGE-546-VI-2027", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, Central Hidroelectrica El Níspero.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "90", "instruc": "632", "fecha_ingreso": "19/06/2026", "memo": "MEMO DAGE-531-VI-2028", "asunto": "Remisión trámite de pago Clausula # 40 CCV area: GENERACIÓN, DIRECCIÓN DE GENERACIÓN TÉRMICA.", "dirigido": "", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "91", "instruc": "633", "fecha_ingreso": "22/06/2026", "memo": "MEMO DBS-872-VI-2026", "asunto": "Remisión de CONVENIO DE PRESTACIÓN DE SERVICIOS FARMACEUTICOS entre la FARMACIA MI ESPERANZA para conseguir firma del representante de la FARMACIA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "04/06/2026", "recibido": "Carmen    Cáceres", "entregado": "GUSTAVO ADOLFO RODRÍGUEZ                                22-06-2026", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "92", "instruc": "634", "fecha_ingreso": "22/06/2026", "memo": "Remisión de TRANSCRIPCIÓN DE CONSTANCIA del INSTITUTO HONDUREÑO DE SEGURIDAD SOCIAL del empleado JAVIER ANTONIO PAZ MEJIA.", "asunto": "Remisión de TRANSCRIPCIÓN DE CONSTANCIA del INSTITUTO HONDUREÑO DE SEGURIDAD SOCIAL del empleado JAVIER ANTONIO PAZ MEJIA.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "17/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "93", "instruc": "635", "fecha_ingreso": "22/06/2026", "memo": "Remisión trámite de pago clausula # 77 CCV de la empleada: RUTH ONEIDA MARTINEZ AGUIRRE # 8793.", "asunto": "Remisión trámite de pago clausula # 77 CCV de la empleada: RUTH ONEIDA MARTINEZ AGUIRRE # 8793.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "22/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "94", "instruc": "636", "fecha_ingreso": "22/06/2026", "memo": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE LANZA     # 15760 los días: LUNES 22, MARTES 23, MIERCOLES 24, JUEVES 25 Y VIERNES 26 DE JUNIO/2026.", "asunto": "PERMISO SINDICAL de la empleada: LEXANDRA MARCELA DUARTE LANZA     # 15760 los días: LUNES 22, MARTES 23, MIERCOLES 24, JUEVES 25 Y VIERNES 26 DE JUNIO/2026.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "22/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "96", "instruc": "637", "fecha_ingreso": "22/06/2026", "memo": "MEMO UCG-147-VI-2026", "asunto": "Convocatoria al personal asignado para participar en el primer taller de formación del Equipo Interdisciplinario.", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "22/06/2026", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}, {"num": "97", "instruc": "638", "fecha_ingreso": "22/06/2026", "memo": "Remisión pagos de la Claúsula # 83, 55 y 40 CCV con el Visto Bueno de la DIRECCIÓN DE DESARROLLO HUMANO del DEPTO. BIENESTAR SOCIAL se adjunta copia del MEMO DBS-920-VI-2026.", "asunto": "", "dirigido": "Lic. Cinthia Murillo                Jefe Depto.    Bienestar Social", "fecha_doc": "", "recibido": "Carmen    Cáceres", "entregado": "", "year": 2026, "month": 6, "month_name": "Junio"}];
 
 try{const s=localStorage.getItem('enee_correspondencia');if(s)DATA=JSON.parse(s);}catch(e){}
-function saveData(){try{localStorage.setItem('enee_correspondencia',JSON.stringify(DATA));}catch(e){}}
+function saveLocal(){try{localStorage.setItem('enee_correspondencia',JSON.stringify(DATA));}catch(e){}}
+function saveData(){saveLocal();}
 
 function getPeriods(){
   const seen={};DATA.forEach(r=>{const k=r.year+'_'+r.month;if(!seen[k])seen[k]=[r.year,r.month];});
@@ -632,25 +862,49 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function renderTable(){
   const q=searchTerm.toLowerCase();
   let rows=DATA.map((r,i)=>({...r,_i:i})).filter(r=>r.year===activeYear&&r.month===activeMonth).reverse();
-  if(q)rows=rows.filter(r=>(r.memo+r.asunto+r.entregado+r.recibido+r.num+r.dirigido).toLowerCase().includes(q));
+  if(q)rows=rows.filter(r=>(r.memo+r.asunto+r.entregado+r.recibido+r.num+r.instruc+r.dirigido+r.fecha_ingreso+r.fecha_doc).toLowerCase().includes(q));
   const tb=document.getElementById('tableBody');
-  if(!rows.length){tb.innerHTML=`<tr><td colspan="11" class="no-data">No se encontraron registros.</td></tr>`;document.getElementById('countBadge').textContent='0 registros';return;}
-  tb.innerHTML=rows.map(r=>`<tr class="${r._new?'new-row':r.num?'main-row':'sub-row'}">
-    <td class="col-num">${esc(r.num)}${r._new?' 🆕':''}</td>
-    <td class="col-inst" style="text-align:center;color:#778;font-size:12px">${esc(r.instruc)}</td>
-    <td class="col-fi" style="white-space:nowrap;font-size:12px;color:#445">${esc(r.fecha_ingreso)}</td>
-    <td class="col-memo" style="font-weight:700;color:#1a2e6e;font-size:12px">${esc(r.memo)}</td>
-    <td class="col-asunto">${esc(r.asunto)}</td>
-    <td class="col-dir" style="font-size:12px;color:#445">${esc(r.dirigido)}</td>
-    <td class="col-fd" style="white-space:nowrap;font-size:12px;color:#445">${esc(r.fecha_doc)}</td>
-    <td class="col-rec" style="font-size:12px;color:#445">${esc(r.recibido)}</td>
-    <td class="col-ent" style="font-size:12px;color:#1a501a;font-weight:700">${esc(r.entregado)}</td>
-    <td class="col-fent" style="white-space:nowrap;font-size:12px;color:#2a5a2a;font-weight:700">${esc(r.fecha_entregado||'')}</td>
-    <td class="col-act"><button class="btn-edit" onclick="openEdit(${r._i})">✏️</button><button class="btn-del" onclick="confirmDelete(${r._i})">🗑️</button></td>
-  </tr>`).join('');
-  const mc=rows.filter(r=>r.num!=='').length;
-  document.getElementById('countBadge').textContent=`${rows.length} registros (${mc} principales)`;
-  document.getElementById('totalBadge').textContent=`Total ${activeYear}: ${DATA.filter(r=>r.year===activeYear).length} docs`;
+
+  if(!rows.length){
+    tb.innerHTML='<div style="text-align:center;padding:48px;color:#889;font-size:14px">No se encontraron registros.</div>';
+    document.getElementById('countBadge').textContent='0 registros';
+    return;
+  }
+
+  tb.innerHTML=rows.map(r=>{
+    const isNew=r._new===true;
+    const isSub=!r.num||r.num==='';
+    const entregado=r.entregado&&r.entregado.trim();
+    const cardCls=isNew?'card new-card':isSub?'card sub-card':'card';
+    const numCls=isNew?'card-num newc':isSub?'card-num sub':'card-num';
+
+    const chipEnt=entregado
+      ?`<span class="chip green"><span class="ci">📤</span>${esc(entregado.slice(0,30))}${entregado.length>30?'…':''}</span>`
+      :`<span class="chip orange"><span class="ci">⏳</span>Pendiente</span>`;
+
+    const chipFecha=r.fecha_ingreso
+      ?`<span class="chip blue"><span class="ci">📅</span>${esc(r.fecha_ingreso)}</span>`:'';
+
+    const chipInstruc=r.instruc
+      ?`<span class="chip"><span class="ci">📌</span>${esc(r.instruc)}</span>`:'';
+
+    const chipMemo=r.memo
+      ?`<span class="chip"><span class="ci">📄</span>${esc(r.memo.slice(0,40))}${r.memo.length>40?'…':''}</span>`:'';
+
+    const newBadge=isNew?'<span class="badge-new">NUEVO</span>':'';
+
+    return '<div class="'+cardCls+'" onclick="openDetail('+r._i+')">'+
+      '<div class="'+numCls+'">'+esc(r.instruc||'—')+'<span>Instruc</span></div>'+
+      '<div class="card-chips">'+chipMemo+chipFecha+chipInstruc+chipEnt+newBadge+'</div>'+
+      '<div class="card-actions" onclick="event.stopPropagation()">'+
+        '<button class="btn-card-edit" onclick="openEdit('+r._i+')" title="Editar">✏️</button>'+
+        '<button class="btn-card-del" onclick="confirmDelete('+r._i+')" title="Eliminar">🗑️</button>'+
+      '</div></div>';
+  }).join('');
+
+  const mc=rows.filter(r=>r.num&&r.num!=='').length;
+  document.getElementById('countBadge').textContent=rows.length+' registros ('+mc+' principales)';
+  document.getElementById('totalBadge').textContent='Total '+activeYear+': '+DATA.filter(r=>r.year===activeYear).length+' docs';
 }
 
 function today(){return new Date().toISOString().split('T')[0];}
@@ -716,14 +970,24 @@ function saveRecord(){
     entregado:document.getElementById('f_entregado').value.trim(),
     fecha_entregado:fmtD(document.getElementById('f_fecha_entregado').value),
     year,month,month_name:MONTHS[month]||String(month),_new:editIdx===null};
-  if(editIdx!==null){rec._new=DATA[editIdx]._new||false;DATA[editIdx]=rec;showToast('✅ Registro actualizado');}
-  else{DATA.push(rec);showToast('✅ Correspondencia registrada');}
-  saveData();activeYear=year;activeMonth=month;closeModal();buildTabs();renderTable();
+  if(editIdx!==null){
+    rec._id=DATA[editIdx]._id||'';
+    rec._new=DATA[editIdx]._new||false;
+    DATA[editIdx]=rec;
+    showToast('✅ Registro actualizado');
+  } else {
+    DATA.push(rec);
+    showToast('✅ Correspondencia registrada');
+  }
+  rec._user = currentUser ? currentUser.name : '';
+  saveLocal();
+  activeYear=year;activeMonth=month;closeModal();buildTabs();renderTable();
+  cloudSave(rec).then(()=>saveLocal());
 }
 
 function confirmDelete(idx){deleteIdx=idx;document.getElementById('confirmMsg').textContent=`Se eliminará: "${DATA[idx].memo||DATA[idx].asunto.slice(0,50)}..."`;document.getElementById('confirmOverlay').classList.add('open');}
 function closeConfirm(){document.getElementById('confirmOverlay').classList.remove('open');deleteIdx=null;}
-function doDelete(){if(deleteIdx===null)return;DATA.splice(deleteIdx,1);saveData();closeConfirm();buildTabs();renderTable();showToast('🗑️ Eliminado');}
+function doDelete(){if(deleteIdx===null)return;const rid=DATA[deleteIdx]._id;DATA.splice(deleteIdx,1);saveLocal();closeConfirm();buildTabs();renderTable();showToast('🗑️ Eliminado');if(rid)cloudDelete(rid);}
 
 function showToast(msg,_,err=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(err?' err':'')+' show';setTimeout(()=>t.classList.remove('show'),3000);}
 
@@ -780,7 +1044,7 @@ function parseCSV(text,fname){
     if(!obj.memo&&!obj.asunto){skip++;continue;}
     let year=activeYear,month=activeMonth;
     if(obj.fecha_ingreso){const m1=obj.fecha_ingreso.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);const m2=obj.fecha_ingreso.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);if(m1){year=parseInt(m1[3]);month=parseInt(m1[2]);}else if(m2){year=parseInt(m2[1]);month=parseInt(m2[2]);}}
-    parsed.push({num:obj.num||'',instruc:obj.instruc||'',fecha_ingreso:obj.fecha_ingreso||'',memo:obj.memo||'',asunto:obj.asunto||'',dirigido:obj.dirigido||'Lic. Cinthia Murillo    Jefe Depto.  Bienestar Social',fecha_doc:obj.fecha_doc||'',recibido:obj.recibido||'',entregado:obj.entregado||'',fecha_entregado:obj.fecha_entregado||'',year,month,month_name:MONTHS[month]||String(month),_new:true});
+    parsed.push(normalizarPeriodo({num:obj.num||'',instruc:obj.instruc||'',fecha_ingreso:obj.fecha_ingreso||'',memo:obj.memo||'',asunto:obj.asunto||'',dirigido:obj.dirigido||'Lic. Cinthia Murillo    Jefe Depto.  Bienestar Social',fecha_doc:obj.fecha_doc||'',recibido:obj.recibido||'',entregado:obj.entregado||'',fecha_entregado:obj.fecha_entregado||'',year,month,_new:true}));
   }
   impRows=parsed;
   document.getElementById('impPreview').style.display='block';
@@ -986,13 +1250,13 @@ function buildExcelPreview() {
       if (m1) { year = parseInt(m1[3]); month = parseInt(m1[2]); }
       else if (m2) { year = parseInt(m2[1]); month = parseInt(m2[2]); }
     }
-    parsed.push({
+    parsed.push(normalizarPeriodo({
       num: get('num'), instruc: get('instruc'), fecha_ingreso: fi, memo, asunto,
       dirigido: get('dirigido') || 'Lic. Cinthia Murillo    Jefe Depto.  Bienestar Social',
       fecha_doc: get('fecha_doc'), recibido: get('recibido'),
       entregado: get('entregado'), fecha_entregado: get('fecha_entregado'),
-      year, month, month_name: MONTHS[month] || String(month), _new: true
-    });
+      year, month, _new: true
+    }));
   });
 
   impRows = parsed;
@@ -1018,23 +1282,115 @@ function buildExcelPreview() {
   document.getElementById('btnImpOk').disabled = parsed.length === 0;
 }
 
-function doImport(){if(!impRows.length)return;DATA.push(...impRows);saveData();closeImport();buildTabs();renderTable();showToast(`✅ ${impRows.length} registros importados`);impRows=[];}
+async function doImport(){
+  if(!impRows.length)return;
+  const batch=impRows.slice();
+  batch.forEach(r=>{r._user=currentUser?currentUser.name:'';});
+  DATA.push(...batch);
+  saveLocal();closeImport();buildTabs();renderTable();
+  showToast('⬆️ Subiendo '+batch.length+' registros a la nube...');
+  impRows=[];
+  const res=await cloudUploadAll(batch);
+  saveLocal();
+  showToast('✅ Importados: '+res.ok+(res.fail?' · Fallidos: '+res.fail:''));
+}
 function dlTemplate(){
   const blob=new Blob(['\uFEFFnum;instruc;fecha_ingreso;memo;asunto;dirigido;fecha_doc;recibido;entregado;fecha_entregado\n1;543;01/06/2026;MEMO EJEMPLO-001-VI-2026;Descripción del asunto;Lic. Cinthia Murillo Jefe Depto. Bienestar Social;28/05/2026;Carmen Cáceres;ROSA GARCIA;03/06/2026'],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Plantilla_Correspondencia.csv';a.click();
 }
 
 
+
+// ============================================================
+// MODAL DETALLE
+// ============================================================
+function openDetail(idx) {
+  const r = DATA[idx];
+  if (!r) return;
+
+  const entregado = r.entregado && r.entregado.trim();
+  const statusHtml = entregado
+    ? '<span class="det-status ok">✅ Entregado</span>'
+    : '<span class="det-status pend">⏳ Pendiente entrega</span>';
+
+  document.getElementById('detHead').style.background = entregado ? 'var(--blue)' : '#b45309';
+
+  // Asunto: si es igual al memo o está vacío, mostrar aviso
+  const asunto = r.asunto && r.asunto.trim();
+  const asuntoHtml = asunto
+    ? '<div class="det-asunto">' + esc(asunto) + '</div>'
+    : '<div class="det-asunto muted" style="color:#bbb;font-style:italic;font-weight:400">Sin descripción de asunto</div>';
+
+  document.getElementById('detBody').innerHTML =
+    '<div class="det-top">' +
+      '<div class="det-top-num">' + esc(r.num||'—') + '<small>N° Corr.</small></div>' +
+      '<div class="det-top-info">' +
+        '<div class="det-instruc">📌 N° Instrucción: <strong style="font-size:15px;color:var(--blue2)">' + esc(r.instruc||'—') + '</strong></div>' +
+        '<div style="font-size:12px;color:#778;margin-top:5px">📅 Fecha ingreso: <strong style="color:#334">' + esc(r.fecha_ingreso||'—') + '</strong></div>' +
+        '<div style="margin-top:8px">' + statusHtml + '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="det-section">' +
+      '<div class="det-section-title">📄 N° Memo / Oficio</div>' +
+      '<div class="det-memo">' + esc(r.memo||'—') + '</div>' +
+    '</div>' +
+
+    '<div class="det-section">' +
+      '<div class="det-section-title">📝 Asunto</div>' +
+      asuntoHtml +
+    '</div>' +
+
+    '<div class="det-section">' +
+      '<div class="det-section-title">📋 Información</div>' +
+      '<div class="det-grid">' +
+        '<div class="det-field">' +
+          '<span class="det-label">Fecha del Documento</span>' +
+          '<span class="det-value">' + (esc(r.fecha_doc) || '<em class="muted">—</em>') + '</span>' +
+        '</div>' +
+        '<div class="det-field">' +
+          '<span class="det-label">Dirigido a</span>' +
+          '<span class="det-value">' + (esc(r.dirigido) || '<em class="muted">—</em>') + '</span>' +
+        '</div>' +
+        '<div class="det-field">' +
+          '<span class="det-label">Recibido por</span>' +
+          '<span class="det-value">' + (esc(r.recibido) || '<em class="muted">—</em>') + '</span>' +
+        '</div>' +
+        '<div class="det-field">' +
+          '<span class="det-label">Entregado a</span>' +
+          '<span class="det-value ' + (entregado?'green':'') + '">' + (entregado ? esc(entregado) : '<em class="muted">Pendiente</em>') + '</span>' +
+        '</div>' +
+        '<div class="det-field full">' +
+          '<span class="det-label">Fecha de Entrega</span>' +
+          '<span class="det-value green">' + (esc(r.fecha_entregado) || '<em class="muted">—</em>') + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="det-foot">' +
+      '<button class="btn-det-edit" onclick="closeDetail();openEdit(' + idx + ')">✏️ Editar</button>' +
+      '<button class="btn-det-del" onclick="closeDetail();confirmDelete(' + idx + ')">🗑️ Eliminar</button>' +
+      '<div style="flex:1"></div>' +
+      '<button class="btn-c" onclick="closeDetail()">Cerrar</button>' +
+    '</div>';
+
+  document.getElementById('detailOverlay').classList.add('open');
+}
+function closeDetail() {
+  document.getElementById('detailOverlay').classList.remove('open');
+}
+
 // Cerrar modales
-['modalOverlay','importOverlay','adminOverlay'].forEach(id=>{
+['modalOverlay','importOverlay','adminOverlay','detailOverlay'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){
     if(e.target!==this)return;
     if(id==='modalOverlay')closeModal();
     else if(id==='importOverlay')closeImport();
+    else if(id==='detailOverlay')closeDetail();
     else closeAdmin();
   });
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeConfirm();closeImport();closeAdmin();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeConfirm();closeImport();closeAdmin();closeDetail();}});
 
 // INIT
 initActive();buildTabs();renderTable();populateRecibido();
