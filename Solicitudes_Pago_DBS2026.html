@@ -445,8 +445,18 @@ function diasDe(r){
   if(!iso) return null;
   const f = new Date(iso+'T00:00:00');
   if(isNaN(f)) return null;
-  return Math.floor((hoy0() - f)/86400000);
+  let hasta = hoy0();                       // por defecto cuenta hasta hoy
+  if(esSI(r.pagado)){                       // PAGADO -> el conteo se detiene
+    const isoPago = fechaISO(r.fpago);
+    if(!isoPago) return null;               // pagado sin fecha de pago registrada
+    const fp = new Date(isoPago+'T00:00:00');
+    if(isNaN(fp)) return null;
+    hasta = fp;
+  }
+  const d = Math.floor((hasta - f)/86400000);
+  return d < 0 ? 0 : d;
 }
+function hoyISO(){ const d=hoy0(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function hoy0(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function mesDe(r){
   const iso = fechaISO(r.fecha);
@@ -621,6 +631,9 @@ function actualizarHoja(hoja){
   document.getElementById('tb-'+hoja).innerHTML = vis.map(({r, idx})=>{
     const est = estadoDe(r), dias = diasDe(r);
     const critico = est==='PENDIENTE' && dias!==null && dias>30;
+    const celdaDias = est==='PAGADO'
+      ? `<td class="num" style="color:var(--verde);font-weight:600" title="Dias que tardo en pagarse - conteo detenido">${dias===null?'—':dias}</td>`
+      : `<td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>`;
     return `<tr>
       <td class="envuelve" style="min-width:120px;max-width:170px">${esc(r.memo)}</td>
       <td class="envuelve" style="min-width:170px">${esc(r.favor)}</td>
@@ -631,7 +644,7 @@ function actualizarHoja(hoja){
       <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
       ${CHECKS.map(c=>`<td><span class="check ${esSI(r[c])?'si':'no'}">${esSI(r[c])?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
-      <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
+      ${celdaDias}
       <td class="acciones-td" style="white-space:nowrap">
         <button title="Ver documento escaneado en Drive" onclick="verEscaneado(DATOS.${hoja}[${idx}].memo)">👁️</button>
         ${puedeEditar()?`<button title="Editar" onclick="abrirModalRegistro('${hoja}',${idx})">✏️</button>`:''}
@@ -943,6 +956,14 @@ async function guardarRegistro(){
   }
   for(const c of CHECKS) nuevo[c] = document.getElementById('f-'+c).checked ? 'SI':'NO';
 
+  /* Fecha de pago: se sella el dia en que se marca PAGADO y ahi se
+     detiene el conteo de dias. Si se desmarca, se borra. */
+  if(nuevo.pagado==='SI'){
+    if(!fechaISO(nuevo.fpago)) nuevo.fpago = hoyISO();
+  }else{
+    nuevo.fpago = '';
+  }
+
   // Alerta de memorándum repetido (en las tres hojas)
   const dup = buscarMemoDuplicado(nuevo.memo, hoja, idx);
   if(dup){
@@ -1105,11 +1126,11 @@ setInterval(()=>{
    ============================================================ */
 function exportarCSV(hoja){
   const cfg = HOJAS[hoja];
-  const cab = [...cfg.cols.map(c=>c.et),'Verificado','Aprobado','Firmado','Pagado','Estado','Días'];
+  const cab = [...cfg.cols.map(c=>c.et),'Verificado','Aprobado','Firmado','Pagado','Estado','Fecha de pago','Días'];
   const filas = DATOS[hoja].map(r=>[
     ...cfg.cols.map(c=>r[c.k]??''),
     ...CHECKS.map(c=>r[c]??'NO'),
-    estadoDe(r), diasDe(r)??''
+    estadoDe(r), fechaISO(r.fpago)||'', diasDe(r)??''
   ]);
   const csv = '\uFEFF' + [cab,...filas].map(f=>f.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
   descargar(csv, cfg.titulo.replace(/\s+/g,'_')+'_2026.csv', 'text/csv;charset=utf-8');
