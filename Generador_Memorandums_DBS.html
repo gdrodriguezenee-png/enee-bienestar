@@ -182,6 +182,7 @@
   <option value="Depto de Bienestar Social L.A."></option>
   <option value="Depto de Bienestar Social C.S."></option>
 </datalist>
+<input type="file" id="fileImp" accept=".docx" class="hidden" onchange="importarWord(this)">
 <div id="app" class="hidden">
   <header class="top">
     <div class="brand">
@@ -247,6 +248,7 @@
     <div class="actions">
       <button class="btn-gen" onclick="generar('memo')">⬇ Generar Word y Guardar</button>
       <button class="btn-sec" onclick="nuevo('memo')">Nuevo / Limpiar</button>
+      <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
     <div class="msg" id="m_msg"></div>
   </main>
@@ -291,6 +293,7 @@
     <div class="actions">
       <button class="btn-gen" onclick="generar('reem')">⬇ Generar Word y Guardar</button>
       <button class="btn-sec" onclick="nuevo('reem')">Nuevo / Limpiar</button>
+      <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
     <div class="msg" id="r_msg"></div>
   </main>
@@ -333,6 +336,7 @@
     <div class="actions">
       <button class="btn-gen" onclick="generar('dev')">⬇ Generar Word y Guardar</button>
       <button class="btn-sec" onclick="nuevo('dev')">Nuevo / Limpiar</button>
+      <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
     <div class="msg" id="d_msg"></div>
   </main>
@@ -346,6 +350,7 @@
         <button class="btn-sec" onclick="cargarHist()">↻ Actualizar</button>
         <button class="btn-sec" onclick="exportCSV()">⬇ Exportar a Excel (CSV)</button>
       </div>
+      <div id="h_pend" class="editing hidden" style="margin-bottom:10px"></div>
       <div id="h_msg" class="msg"></div>
       <div class="tbl-wrap">
         <table class="list">
@@ -522,19 +527,106 @@ var CLOUD_PROV = [];  // proveedores nuevos guardados en la nube (overlay)
 /* ==================================================================
    CAPA DE NUBE (JSONP para funcionar desde archivo local sin CORS)
    ================================================================== */
-function apiCall(action, payload){
+var URL_MAX = 7500;   // Google rechaza las peticiones GET de mas de ~8000 caracteres
+function apiCall(action, payload, opts){
+  opts = opts || {};
   return new Promise(function(resolve, reject){
     var cb = 'jsonp_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+    var src = API_URL + '?action=' + encodeURIComponent(action) +
+              '&callback=' + cb +
+              '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
+    if(src.length > URL_MAX){
+      reject(new Error('EL REGISTRO ES DEMASIADO GRANDE para enviarse en una sola petici\u00f3n ('+src.length+' caracteres). Divida el memor\u00e1ndum en dos con menos beneficiarios.'));
+      return;
+    }
     var sc = document.createElement('script');
-    var timer = setTimeout(function(){ cleanup(); reject(new Error('Tiempo de espera agotado (revise la URL / conexión)')); }, 25000);
+    var timer = setTimeout(function(){ cleanup(); reject(new Error('Tiempo de espera agotado (revise la URL / conexi\u00f3n)')); }, 25000);
     function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if(sc.parentNode) sc.parentNode.removeChild(sc); }
-    window[cb] = function(res){ cleanup(); resolve(res); };
-    sc.onerror = function(){ cleanup(); reject(new Error('No se pudo conectar con la nube')); };
-    sc.src = API_URL + '?action=' + encodeURIComponent(action) +
-             '&callback=' + cb +
-             '&payload=' + encodeURIComponent(JSON.stringify(payload || {}));
+    window[cb] = function(res){
+      cleanup();
+      if(opts.raw){ resolve(res); return; }
+      if(res == null){ reject(new Error('La nube respondi\u00f3 vac\u00edo')); return; }
+      if(res.ok === false){ reject(new Error(res.error || res.message || 'La nube rechaz\u00f3 la operaci\u00f3n')); return; }
+      resolve(res);
+    };
+    sc.onerror = function(){ cleanup(); reject(new Error('No se pudo conectar con la nube (revise el Internet o vuelva a desplegar el Apps Script)')); };
+    sc.src = src;
     document.head.appendChild(sc);
   });
+}
+function espera(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
+/* Reintenta ante fallos de red o del servidor; no reintenta si el registro no cabe en la URL */
+async function apiCallRetry(action, payload, intentos){
+  intentos = intentos || 3; var ultimo;
+  for(var i=1; i<=intentos; i++){
+    try{ return await apiCall(action, payload); }
+    catch(e){
+      ultimo = e;
+      if(e.message.indexOf('DEMASIADO GRANDE') >= 0) throw e;
+      if(i < intentos) await espera(700*i);
+    }
+  }
+  throw ultimo;
+}
+
+/* ---- formato compacto de 'data': reduce ~40% el tama\u00f1o enviado ---- */
+var COLS_ROW = ['clave','benef','fac','val','pct','pemp','penee'];
+var COLS_DEV = ['memo','benef','obs'];
+function packData(tipo, header, rows){
+  var cols = (tipo==='dev') ? COLS_DEV : COLS_ROW;
+  return JSON.stringify({ v:2, header:header, r:(rows||[]).map(function(o){
+    return cols.map(function(k){ return (o[k]==null?'':String(o[k])); });
+  })});
+}
+function unpackData(m){
+  var d; try{ d = JSON.parse(m.data||'{}'); }catch(e){ return {header:{}, rows:[]}; }
+  if(d && d.v === 2){
+    var cols = (m.tipo==='dev') ? COLS_DEV : COLS_ROW;
+    d.rows = (d.r||[]).map(function(a){
+      var o={}; cols.forEach(function(k,i){ o[k] = (a[i]==null?'':a[i]); }); return o;
+    });
+  }
+  if(!d.rows) d.rows=[];
+  if(!d.header) d.header={};
+  return d;
+}
+
+/* ---- respaldo local de lo que no se pudo subir a la nube ---- */
+var PEND_KEY = 'memos_dbs_pendientes';
+function pendGet(){ try{ return JSON.parse(localStorage.getItem(PEND_KEY)||'[]'); }catch(e){ return []; } }
+function pendSet(a){ try{ localStorage.setItem(PEND_KEY, JSON.stringify(a)); }catch(e){} }
+function pendAdd(rec){
+  var a = pendGet().filter(function(x){ return !(x.tipo===rec.tipo && String(x.num)===String(rec.num)); });
+  a.push(rec); pendSet(a); pintarPendientes();
+}
+function pendDel(rec){
+  pendSet(pendGet().filter(function(x){ return !(x.tipo===rec.tipo && String(x.num)===String(rec.num)); }));
+  pintarPendientes();
+}
+function pintarPendientes(){
+  var el = document.getElementById('h_pend'); if(!el) return;
+  var a = pendGet();
+  if(a.length===0){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = '\u26a0 Hay <b>'+a.length+'</b> documento(s) que NO se pudieron guardar en la nube: <b>'+
+    a.map(function(x){ return esc(x.num); }).join(', ')+'</b>. Est\u00e1n respaldados en esta PC. '+
+    '<button class="btn-sec" style="padding:5px 12px;margin-left:8px" onclick="reintentarPendientes()">Reintentar ahora</button>';
+}
+async function reintentarPendientes(){
+  var a = pendGet(); if(a.length===0) return;
+  var msg = document.getElementById('h_msg');
+  if(msg){ msg.className='msg info'; msg.textContent='Reintentando subir '+a.length+' documento(s)...'; }
+  var ok=0, fall=0;
+  for(var i=0;i<a.length;i++){
+    try{ await apiCallRetry('save', a[i]); pendDel(a[i]); ok++; }
+    catch(e){ fall++; }
+  }
+  await cargarHist();
+  if(msg){
+    msg.className = fall? 'msg err' : 'msg ok';
+    msg.textContent = fall ? ('Se subieron '+ok+', pero '+fall+' siguen pendientes.')
+                           : ('\u2713 Se subieron los '+ok+' documento(s) pendientes.');
+  }
 }
 
 /* ---- almacenamiento local (fallback) ---- */
@@ -543,7 +635,7 @@ function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); 
 function lsSet(a){ localStorage.setItem(LS_KEY, JSON.stringify(a)); }
 
 async function storeLogin(u,p){
-  if(CLOUD) return await apiCall('login',{user:u,pass:p});
+  if(CLOUD) return await apiCall('login',{user:u,pass:p},{raw:true});
   var a = USERS[u.toLowerCase()];
   return (a && a.pass===p) ? {ok:true, nombre:a.nombre, rol:a.rol||'user'} : {ok:false};
 }
@@ -551,8 +643,26 @@ async function storeList(){
   if(CLOUD){ var r = await apiCall('list'); return r.memos || []; }
   return lsGet();
 }
+/* Confirma leyendo de vuelta que el registro qued\u00f3 realmente en la nube */
+async function existeEnNube(rec){
+  var r = await apiCall('list');
+  var memos = r.memos || [];
+  HIST_CACHE = memos.sort(function(a,b){ return String(b.ts||'').localeCompare(String(a.ts||'')); });
+  return memos.some(function(m){ return m.tipo===rec.tipo && String(m.num)===String(rec.num); });
+}
 async function storeSave(rec){
-  if(CLOUD) return await apiCall('save', rec);
+  if(CLOUD){
+    var err = null;
+    try{ await apiCallRetry('save', rec); }catch(e){ err = e; }
+    // Verificar SIEMPRE: la nube puede contestar bien y no haber escrito la fila
+    try{ if(await existeEnNube(rec)){ pendDel(rec); return {ok:true, verificado:true}; } }catch(e){}
+    if(!err){
+      try{ await apiCallRetry('save', rec, 1); if(await existeEnNube(rec)){ pendDel(rec); return {ok:true, verificado:true}; } }
+      catch(e){ err = e; }
+    }
+    pendAdd(rec);
+    throw new Error(err ? err.message : 'la nube acept\u00f3 la petici\u00f3n pero el registro no aparece en la hoja');
+  }
   var a = lsGet();
   if(rec.originalNum && String(rec.originalNum)!==String(rec.num))
     a = a.filter(function(m){ return !(m.tipo===rec.tipo && String(m.num)===String(rec.originalNum)); });
@@ -893,7 +1003,7 @@ function facturasHistorial(){
   // Set de facturas ya usadas en memorándums guardados (excepto el que se está editando)
   var set={};
   HIST_CACHE.forEach(function(m){
-    var d; try{ d=JSON.parse(m.data||'{}'); }catch(e){ return; }
+    var d = unpackData(m);
     if(EDITING[m.tipo] && String(EDITING[m.tipo])===String(m.num)) return;  // el que editamos no cuenta
     (d.rows||[]).forEach(function(r){
       var f=fmtFactura(r.fac); if(f) set[f]=m.num;
@@ -1140,9 +1250,241 @@ function obsXml(texto){
     return bp.replace(/(<w:t(?:\s[^>]*)?>)[\s\S]*?(<\/w:t>)/, function(mm,a,b){ return a+esc(L)+b; });
   }).join('');
 }
+
+/* ==================================================================
+   IMPORTAR UN WORD YA GENERADO POR ESTA APP
+   ================================================================== */
+function xmlUnesc(s){
+  return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+                  .replace(/&apos;/g,"'").replace(/&#(\d+);/g,function(m,n){ return String.fromCharCode(+n); })
+                  .replace(/&amp;/g,'&');
+}
+function txtDe(frag){
+  var t=(String(frag).match(/<w:t(?:\s[^>]*)?>[\s\S]*?<\/w:t>/g)||[])
+        .map(function(x){ return x.replace(/^<w:t(?:\s[^>]*)?>/,'').replace(/<\/w:t>$/,''); }).join('');
+  return xmlUnesc(t);
+}
+function tablasDe(xml){ return String(xml).match(/<w:tbl>[\s\S]*?<\/w:tbl>/g)||[]; }
+function filasDe(t){ return String(t).match(/<w:tr[ >][\s\S]*?<\/w:tr>/g)||[]; }
+function celdasDe(tr){ return (String(tr).match(/<w:tc>[\s\S]*?<\/w:tc>/g)||[]).map(txtDe); }
+/* celda con varias vi\u00f1etas: una l\u00ednea por p\u00e1rrafo */
+function celdasLineas(tr){
+  return (String(tr).match(/<w:tc>[\s\S]*?<\/w:tc>/g)||[]).map(function(tc){
+    return (tc.match(/<w:p[ >][\s\S]*?<\/w:p>/g)||[]).map(txtDe)
+           .filter(function(x){ return x.trim()!==''; }).join('\n');
+  });
+}
+function parrafosDe(xml){
+  var b=String(xml).replace(/<w:tbl>[\s\S]*?<\/w:tbl>/g,'');
+  return (b.match(/<w:p[ >][\s\S]*?<\/w:p>/g)||[]).map(txtDe).filter(function(x){ return x.trim()!==''; });
+}
+function buscaLinea(ps, etiqueta){
+  for(var i=0;i<ps.length;i++){
+    var m=ps[i].match(new RegExp('^\\s*'+etiqueta+'\\s*:?\\s*(.*)$','i'));
+    if(m) return m[1].trim();
+  }
+  return '';
+}
+function numDe(s){ var v=String(s==null?'':s).replace(/[^\d.\-]/g,''); return v===''?'':v; }
+/* "3 DE AGOSTO, 2026" -> "2026-08-03" */
+function fechaISOdeTexto(txt){
+  var meses=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var m=String(txt||'').toUpperCase().match(/(\d{1,2})\s*DE\s*([A-Z\u00c1\u00c9\u00cd\u00d3\u00da]+)\s*,?\s*(\d{4})/);
+  if(!m) return '';
+  var i=meses.indexOf(m[2]); if(i<0) return '';
+  return m[3]+'-'+String(i+1).padStart(2,'0')+'-'+String(parseInt(m[1],10)).padStart(2,'0');
+}
+
+async function importarWord(input){
+  var f = input.files && input.files[0];
+  input.value='';
+  if(!f) return;
+  var tActual = document.getElementById('viewMemo').classList.contains('hidden')
+              ? (document.getElementById('viewReem').classList.contains('hidden') ? 'dev' : 'reem') : 'memo';
+  var msgId = pfxOf(tActual)+'_msg';
+  showMsg(msgId,'info','Leyendo '+f.name+' ...');
+  try{
+    var zip = await JSZip.loadAsync(f);
+    var doc = zip.file('word/document.xml');
+    if(!doc) throw new Error('el archivo no parece un documento de Word v\u00e1lido');
+    var xml = await doc.async('string');
+    var r = leerDocx(xml);
+    if(!r.tipo) throw new Error('no se reconoce el formato; debe ser un Memor\u00e1ndum, Reembolso o Devoluci\u00f3n generado por esta app');
+    aplicarImportado(r);
+    showTab(r.tipo);
+    var m2 = pfxOf(r.tipo)+'_msg';
+    showMsg(m2, r.avisos.length? 'info':'ok',
+      (r.avisos.length? '\u26a0 ':'\u2713 ')+'Importado '+f.name+': '+r.rows.length+' fila(s).'+
+      (r.avisos.length? '  Revise: '+r.avisos.join('; ')+'.' : '')+
+      '  Verifique los datos y pulse "Generar Word y Guardar" para registrarlo en el historial.');
+  }catch(e){
+    showMsg(msgId,'err','No se pudo importar: '+e.message);
+  }
+}
+
+function leerDocx(xml){
+  var ps = parrafosDe(xml), tbls = tablasDe(xml), avisos=[];
+  var todo = ps.join(' | ');
+  var tipo = /DEVOLUCI\u00d3N DE CLAUSULA|DEVOLUCION DE CLAUSULA/i.test(todo) ? 'dev'
+           : (/tr\u00e1mite de reembolso|tramite de reembolso/i.test(todo) ? 'reem'
+           : (/solicitamos elaborar orden de pago/i.test(todo) ? 'memo' : ''));
+  if(!tipo) return {tipo:''};
+
+  var h={}, rows=[];
+  var mNum = todo.match(/MEMOR[\u00c1A]ND(?:UM|O)\s+([A-Z\u00c1\u00c9\u00cd\u00d3\u00da\-]+-\d+-[IVXLC]+-\d{4})/i);
+  h.num  = mNum ? mNum[1] : '';
+  h.seq  = parseNum(h.num);
+  h.iso  = fechaISOdeTexto(buscaLinea(ps,'FECHA'));
+  h.dest = buscaLinea(ps,'PARA');
+  if(!h.num)  avisos.push('no se hall\u00f3 el N\u00b0 de memor\u00e1ndum');
+  if(!h.iso)  avisos.push('no se hall\u00f3 la fecha');
+
+  /* ---- firmas: "JEFE          V.B. DIRECTORA" ---- */
+  for(var i=0;i<ps.length;i++){
+    if(/V\.?B\.?/i.test(ps[i]) && /LIC|DRA|ING/i.test(ps[i])){
+      var par = ps[i].split(/\s{2,}(?=V\.?B\.?)/);
+      h.jefe = (par[0]||'').trim();
+      h.dir  = (par[1]||'').trim();
+      break;
+    }
+  }
+
+  if(tipo==='dev'){
+    h.depto    = ps[2] ? ps[2].trim() : '';
+    var mc = todo.match(/DEVOLUCI[\u00d3O]N DE CLAUSULA\s*N?[\u00ba\u00b0]?\s*(\d+)/i);
+    h.clausula = mc ? mc[1] : '55';
+    var ms = todo.match(/DEVOLUCI[\u00d3O]N DE CLAUSULA[^|]*\|\s*([^|]+)/i);
+    h.sub      = ms ? ms[1].trim() : 'GASTOS M\u00c9DICOS';
+    var ma = todo.match(/del \u00e1rea de\s+([^,]+),/i);
+    h.area     = ma ? ma[1].trim() : '';
+    var jefeDev = ps.filter(function(x){ return /^LIC\.|^DRA\.|^ING\./i.test(x.trim()); });
+    if(jefeDev.length) h.jefe = jefeDev[jefeDev.length-1].trim();
+    var td = tbls[0];
+    if(!td){ avisos.push('no se hall\u00f3 el cuadro de gestiones'); }
+    else filasDe(td).forEach(function(tr,ix){
+      var c = celdasLineas(tr);
+      if(ix===0 || c.length<3) return;                       // encabezado
+      if(/^MEMOR/i.test(c[0]) && /^BENEFICIARIO/i.test(c[1]||'')) return;
+      if(!c[0].trim() && !c[1].trim() && !c[2].trim()) return;
+      rows.push({ memo:c[0].trim(), benef:(c[1]||'').trim(), obs:(c[2]||'').trim() });
+    });
+    return {tipo:tipo, h:h, rows:rows, avisos:avisos};
+  }
+
+  /* ---- memo / reem ---- */
+  var mCta = todo.match(/acreditado a la cuenta\s*N?[\u00ba\u00b0]?\s*([^\s]+)\s*(?:del\s+)?([^|]*?)\s*y se detalla/i);
+  if(mCta){ h.cuenta=mCta[1].trim(); h.banco=(mCta[2]||'').trim(); }
+  else avisos.push('no se hallaron banco y cuenta');
+
+  if(tipo==='memo'){
+    var mProv = todo.match(/orden de pago a favor de\s+([^,]+?),\s*Centro de servicio/i);
+    h.provNombre = mProv ? mProv[1].trim() : '';
+    var tRes = tbls[0], tBen = tbls[1];
+    if(tRes){
+      var fr = filasDe(tRes); var c1 = fr[1] ? celdasDe(fr[1]) : [];
+      h.centro = (c1[0]||'').trim(); h.rtn = (c1[1]||'').trim();
+      h.orden  = (c1[2]||'').trim(); h.nbenef = (c1[3]||'').trim();
+    }
+    if(!tBen){ avisos.push('no se hall\u00f3 el cuadro de beneficiarios'); }
+    else filasDe(tBen).forEach(function(tr,ix){
+      var c = celdasDe(tr);
+      if(ix===0 || c.length<12) return;
+      if(/^TOTAL/i.test((c[0]||'').trim())) return;
+      rows.push({ clave:(c[1]||'').trim(), benef:(c[3]||'').trim(), fac:(c[8]||'').trim(),
+                  val:numDe(c[9]), pemp:numDe(c[10]), penee:numDe(c[11]) });
+    });
+  } else {
+    var mEmp = todo.match(/reembolso a favor del empleado\s+([^|]*?)\s+afiliado al Plan M/i);
+    h.emp = mEmp ? mEmp[1].trim() : '';
+    var tR = tbls[0];
+    if(!tR){ avisos.push('no se hall\u00f3 el cuadro de beneficiario'); }
+    else filasDe(tR).forEach(function(tr,ix){
+      var c = celdasDe(tr);
+      if(ix===0 || c.length<11) return;
+      if(/^TOTAL/i.test((c[0]||'').trim())) return;
+      rows.push({ clave:(c[0]||'').trim(), benef:(c[2]||'').trim(), fac:(c[7]||'').trim(),
+                  val:numDe(c[8]), pemp:numDe(c[9]), penee:numDe(c[10]) });
+    });
+    if(rows.length) h.clave = rows[0].clave;
+  }
+  /* % coherente con lo que ya trae el documento */
+  rows.forEach(function(r){
+    var v=Number(r.val)||0, pe=Number(r.pemp)||0;
+    r.pct = v>0 ? String(Math.round(pe/v*1000)/10) : '';
+  });
+  if(rows.length===0) avisos.push('no se ley\u00f3 ninguna fila');
+  return {tipo:tipo, h:h, rows:rows, avisos:avisos};
+}
+
+function aplicarImportado(r){
+  var t=r.tipo, h=r.h, pfx=pfxOf(t);
+  document.getElementById(pfx+'_body').innerHTML='';
+  EDITING[t]=''; showEditBanner(t);
+  if(h.iso) setVal(pfx+'_fecha', h.iso);
+  if(h.seq) setVal(pfx+'_seq', h.seq);
+  buildNum(t);
+  if(h.num) setVal(pfx+'_num', h.num);     // se respeta el n\u00famero original del documento
+
+  if(t==='dev'){
+    if(h.dest)     setVal('d_dest', h.dest);
+    if(h.depto)    setVal('d_depto', h.depto);
+    if(h.clausula) setVal('d_clausula', h.clausula);
+    if(h.sub)      setVal('d_sub', h.sub);
+    if(h.area)     setVal('d_area', h.area);
+    if(h.jefe)     setVal('d_jefe', h.jefe);
+  } else if(t==='memo'){
+    if(h.dest) setVal('m_dest', h.dest);
+    if(h.jefe) setVal('m_jefe', h.jefe);
+    if(h.dir)  setVal('m_dir',  h.dir);
+    /* proveedor: se busca en el cat\u00e1logo por nombre o por RTN */
+    var sel=document.getElementById('m_prov'), hallado=false;
+    if(sel){
+      var meta=function(x){ return String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,''); };
+      var buscado=meta(h.provNombre), rtn=meta(h.rtn);
+      for(var i=0;i<sel.options.length;i++){
+        var o=sel.options[i]; if(!o.value) continue;
+        var on=meta(o.textContent);
+        if(on && buscado && (on===buscado || on.indexOf(buscado)===0 || buscado.indexOf(on)===0)){ sel.value=o.value; hallado=true; break; }
+      }
+      if(!hallado && rtn){
+        for(var j=0;j<PROVEEDORES.length;j++){
+          if(meta(PROVEEDORES[j].r) && meta(PROVEEDORES[j].r)===rtn){ sel.value=String(j); hallado=true; break; }
+        }
+      }
+      if(hallado) provFill();
+    }
+    if(!hallado && h.provNombre) r.avisos.push('el proveedor "'+h.provNombre+'" no est\u00e1 en la lista, sel\u00e9ccionelo a mano');
+    /* los datos del documento mandan sobre el catálogo: así el Word se regenera idéntico */
+    if(h.orden)  setVal('m_orden', h.orden);
+    if(h.centro) setVal('m_centro', h.centro);
+    if(h.rtn)    setVal('m_rtn', h.rtn);
+    if(h.banco)  setVal('m_banco', h.banco);
+    if(h.cuenta) setVal('m_cuenta', h.cuenta);
+    if(h.nbenef){ var nb=document.getElementById('m_nbenef'); nb.value=h.nbenef; nb.dataset.auto='0'; }
+  } else {
+    if(h.dest)   setVal('r_dest', h.dest);
+    if(h.jefe)   setVal('r_jefe', h.jefe);
+    if(h.dir)    setVal('r_dir',  h.dir);
+    if(h.clave)  setVal('r_clave', h.clave);
+    if(h.clave)  reemClave();
+    if(h.emp && !val('r_emp')) setVal('r_emp', h.emp);
+    if(h.banco)  setVal('r_banco', h.banco);
+    if(h.cuenta) setVal('r_cuenta', h.cuenta);
+  }
+  (r.rows.length? r.rows : [null]).forEach(function(x){ addRow(t, x||undefined); });
+  recalc(t);
+  if(h.num) setVal(pfx+'_num', h.num);
+}
+
 function showMsg(id,cls,text){ var el=document.getElementById(id); el.className='msg '+cls; el.textContent=text; }
 
+var GENERANDO = false;
 async function generar(t){
+  if(GENERANDO){ showMsg(pfxOf(t)+'_msg','info','Espere: ya hay un documento generándose...'); return; }
+  GENERANDO = true;
+  try{ return await generarInterno(t); } finally { GENERANDO = false; }
+}
+async function generarInterno(t){
   if(t==='dev') return await generarDev();
   var pfx=t==='memo'?'m':'r'; var msgId=pfx+'_msg';
   recalc(t);
@@ -1194,13 +1536,13 @@ async function generar(t){
   // Guardar en el historial (nube o local)
   var rec={ tipo:t, num:num, fecha:fechaTexto(t==='memo'?val('m_fecha'):val('r_fecha')), detalle:detalle,
             total:'L'+fmtMoney(t==='memo'?tf:tn), usuario:CURRENT.nombre, originalNum:EDITING[t]||'',
-            data: JSON.stringify({ header:getHeader(t), rows:raws }) };
+            data: packData(t, getHeader(t), raws) };
   try{
     await storeSave(rec);
     EDITING[t]=num; showEditBanner(t);
-    showMsg(msgId,'ok','✓ Word generado y guardado en el historial: '+fname+'  ('+rows.length+' beneficiario(s), Total L'+fmtMoney(tf)+')');
+    showMsg(msgId,'ok','✓ Word generado y GUARDADO Y VERIFICADO en el historial: '+fname+'  ('+rows.length+' beneficiario(s), Total L'+fmtMoney(tf)+')');
   }catch(err){
-    showMsg(msgId,'err','El Word se generó, pero NO se pudo guardar en el historial: '+err.message);
+    showMsg(msgId,'err','⚠ El Word se generó, pero NO quedó guardado en el historial: '+err.message+ (CLOUD? '  Se guardó un respaldo en esta PC; use \'Reintentar ahora\' en la pestaña Historial.' : ''));
   }
 }
 
@@ -1238,13 +1580,13 @@ async function generarDev(){
   var detalle='Devolución — '+(val('d_area')||'')+': '+raws.map(function(r){ return r.memo; }).join(', ');
   var rec={ tipo:'dev', num:num, fecha:fechaTexto(val('d_fecha')), detalle:detalle,
             total:raws.length+' gestión(es)', usuario:CURRENT.nombre, originalNum:EDITING.dev||'',
-            data: JSON.stringify({ header:getHeader('dev'), rows:raws }) };
+            data: packData('dev', getHeader('dev'), raws) };
   try{
     await storeSave(rec);
     EDITING.dev=num; showEditBanner('dev');
-    showMsg(msgId,'ok','\u2713 Word generado y guardado en el historial: '+fname+'  ('+raws.length+' gestión(es))');
+    showMsg(msgId,'ok','\u2713 Word generado y GUARDADO Y VERIFICADO en el historial: '+fname+'  ('+raws.length+' gestión(es))');
   }catch(err){
-    showMsg(msgId,'err','El Word se generó, pero NO se pudo guardar en el historial: '+err.message);
+    showMsg(msgId,'err','⚠ El Word se generó, pero NO quedó guardado en el historial: '+err.message+ (CLOUD? '  Se guardó un respaldo en esta PC; use \'Reintentar ahora\' en la pestaña Historial.' : ''));
   }
 }
 
@@ -1280,7 +1622,7 @@ async function cargarHist(){
     HIST_CACHE = await storeList();
     HIST_CACHE.sort(function(a,b){ return String(b.ts||'').localeCompare(String(a.ts||'')); });
     msg.className='msg'; msg.textContent='';
-    renderHist();
+    renderHist(); pintarPendientes();
   }catch(e){
     msg.className='msg err'; msg.textContent='No se pudo cargar el historial: '+e.message;
   }
@@ -1327,7 +1669,7 @@ function renderHist(){
   });
 }
 function cargarEnFormulario(m){
-  var d; try{ d=JSON.parse(m.data||'{}'); }catch(e){ d={}; }
+  var d = unpackData(m);
   var t=m.tipo;
   document.getElementById(pfxOf(t)+'_body').innerHTML='';
   setHeader(t, d.header||{});
@@ -1350,7 +1692,7 @@ function exportCSV(){
              'CLAVE','EMPLEADO','BENEFICIARIO','DNI','GA','UE','UA','N° FACTURA','VALOR FACTURA','PAGO EMPLEADO','PAGO ENEE',
              'MEMO DEVUELTO','OBSERVACIÓN']];
   HIST_CACHE.forEach(function(m){
-    var d; try{ d=JSON.parse(m.data||'{}'); }catch(e){ d={}; }
+    var d = unpackData(m);
     var etq = m.tipo==='memo' ? 'Memorándum' : (m.tipo==='dev' ? 'Devolución' : 'Reembolso');
     var base=[etq, m.num, fmtFecha(m.fecha), m.detalle||'', m.total||'', m.usuario||'', fmtTS(m.ts)];
     var rs=d.rows||[];
