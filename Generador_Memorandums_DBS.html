@@ -95,6 +95,9 @@
   .btn-sec:hover{background:#f0f3f7}
   .hint{font-size:12px;color:var(--suave);margin-top:4px}
   .editing{background:#fff4e6;border:1px solid #f0c987;color:var(--naranja);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:14px}
+  .draft{background:#eef6ff;border:1px solid #b9d6f2;color:#1e5b96;padding:9px 12px;border-radius:8px;font-size:13px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .draft b{color:#124a80}
+  .draft button{padding:5px 12px;font-size:12px}
   .totbar{margin-left:auto;font-size:13px;color:var(--suave)}
   .totbar b{color:var(--azul);font-size:15px}
   .msg{margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;display:none}
@@ -207,6 +210,7 @@
   <!-- ---------- MEMORANDUM ---------- -->
   <main id="viewMemo">
     <div class="editing hidden" id="m_editing"></div>
+    <div class="draft hidden" id="m_draft"></div>
     <div class="card">
       <h3>Datos del Memorándum (Proveedor)</h3>
       <div class="grid">
@@ -247,6 +251,7 @@
     </div>
     <div class="actions">
       <button class="btn-gen" onclick="generar('memo')">⬇ Generar Word y Guardar</button>
+      <button class="btn-sec" onclick="guardarBorrador('memo')">💾 Guardar y seguir después</button>
       <button class="btn-sec" onclick="nuevo('memo')">Nuevo / Limpiar</button>
       <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
@@ -256,6 +261,7 @@
   <!-- ---------- REEMBOLSO ---------- -->
   <main id="viewReem" class="hidden">
     <div class="editing hidden" id="r_editing"></div>
+    <div class="draft hidden" id="r_draft"></div>
     <div class="card">
       <h3>Datos del Reembolso — Cláusula N° 55</h3>
       <div class="grid">
@@ -292,6 +298,7 @@
     </div>
     <div class="actions">
       <button class="btn-gen" onclick="generar('reem')">⬇ Generar Word y Guardar</button>
+      <button class="btn-sec" onclick="guardarBorrador('reem')">💾 Guardar y seguir después</button>
       <button class="btn-sec" onclick="nuevo('reem')">Nuevo / Limpiar</button>
       <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
@@ -302,6 +309,7 @@
   <!-- ---------- DEVOLUCION ---------- -->
   <main id="viewDev" class="hidden">
     <div class="editing hidden" id="d_editing"></div>
+    <div class="draft hidden" id="d_draft"></div>
     <div class="card">
       <h3>Datos de la Devolución</h3>
       <div class="grid">
@@ -335,6 +343,7 @@
     </div>
     <div class="actions">
       <button class="btn-gen" onclick="generar('dev')">⬇ Generar Word y Guardar</button>
+      <button class="btn-sec" onclick="guardarBorrador('dev')">💾 Guardar y seguir después</button>
       <button class="btn-sec" onclick="nuevo('dev')">Nuevo / Limpiar</button>
       <button class="btn-sec" onclick="document.getElementById('fileImp').click()">⬆ Importar Word ya hecho</button>
     </div>
@@ -845,6 +854,8 @@ async function initApp(){
   if(document.getElementById('m_body').rows.length===0) addRow('memo');
   if(document.getElementById('r_body').rows.length===0) addRow('reem');
   if(document.getElementById('d_body').rows.length===0) addRow('dev');
+  vigilarCambios();
+  ['memo','reem','dev'].forEach(pintarBorrador);
 }
 function rebuildProvSelect(){
   var sel=document.getElementById('m_prov');
@@ -1476,6 +1487,96 @@ function aplicarImportado(r){
   if(h.num) setVal(pfx+'_num', h.num);
 }
 
+
+/* ==================================================================
+   BORRADORES  (quedan en esta PC, no en la nube)
+   ================================================================== */
+var BORR_KEY = 'memos_dbs_borrador_';
+var borrTimer = {};
+function borrLeer(t){ try{ return JSON.parse(localStorage.getItem(BORR_KEY+t)||'null'); }catch(e){ return null; } }
+function borrEscribir(t,o){ try{ localStorage.setItem(BORR_KEY+t, JSON.stringify(o)); return true; }catch(e){ return false; } }
+function borrBorrar(t){ try{ localStorage.removeItem(BORR_KEY+t); }catch(e){} pintarBorrador(t); }
+
+/* \u00bfhay algo que valga la pena conservar? */
+function hayContenido(t){
+  var filas = rawRows(t);
+  if(filas.length > 0) return true;
+  var pfx = pfxOf(t);
+  return !!(val(pfx+'_seq') || (t==='memo' && val('m_orden')) || (t==='reem' && val('r_clave')));
+}
+function capturarBorrador(t){
+  return { tipo:t, header:getHeader(t), rows:rawRows(t), editando:EDITING[t]||'',
+           usuario:CURRENT.nombre||'', ts:new Date().toISOString() };
+}
+/* guardado autom\u00e1tico: se dispara solo mientras se escribe */
+function autoGuardarBorrador(t){
+  clearTimeout(borrTimer[t]);
+  borrTimer[t] = setTimeout(function(){
+    if(!hayContenido(t)){ return; }
+    var b = capturarBorrador(t); b.auto = true;
+    borrEscribir(t, b);
+  }, 1200);
+}
+function guardarBorrador(t){
+  var msgId = pfxOf(t)+'_msg';
+  if(!hayContenido(t)){ showMsg(msgId,'err','No hay nada que guardar todav\u00eda.'); return; }
+  var b = capturarBorrador(t);
+  if(borrEscribir(t,b)){
+    pintarBorrador(t);
+    showMsg(msgId,'ok','\u2713 Guardado en esta PC ('+b.rows.length+' fila(s)). Puede cerrar y continuar despu\u00e9s desde este mismo navegador.');
+  } else {
+    showMsg(msgId,'err','No se pudo guardar el borrador (el almacenamiento del navegador est\u00e1 lleno o bloqueado).');
+  }
+}
+function fmtCuando(iso){
+  var d = new Date(iso); if(isNaN(d)) return '';
+  var hoy = new Date();
+  var mismoDia = d.toDateString() === hoy.toDateString();
+  var hh = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  return mismoDia ? ('hoy a las '+hh)
+                  : (String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+hh);
+}
+function pintarBorrador(t){
+  var el = document.getElementById(pfxOf(t)+'_draft'); if(!el) return;
+  var b = borrLeer(t);
+  if(!b){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  var pfx = pfxOf(t);
+  var numB = (b.header && (b.header[pfx+'_num'] || b.header[pfx+'_seq'])) || 's/n';
+  el.classList.remove('hidden');
+  el.innerHTML = '<span>\ud83d\udcbe Tiene trabajo sin terminar de <b>'+esc(fmtCuando(b.ts))+'</b> \u2014 N\u00b0 <b>'+esc(numB)+
+    '</b>, '+(b.rows?b.rows.length:0)+' fila(s)'+(b.usuario?' ('+esc(b.usuario)+')':'')+'.</span>'+
+    '<button class="btn-sec" onclick="continuarBorrador(\''+t+'\')">Continuar</button>'+
+    '<button class="btn-sec" onclick="descartarBorrador(\''+t+'\')">Descartar</button>';
+}
+function continuarBorrador(t){
+  var b = borrLeer(t); if(!b) return;
+  if(hayContenido(t) && !confirm('Se reemplazar\u00e1 lo que hay ahora en el formulario por el borrador guardado. \u00bfContinuar?')) return;
+  document.getElementById(pfxOf(t)+'_body').innerHTML='';
+  setHeader(t, b.header||{});
+  if(t==='reem') reemClave();
+  (b.rows && b.rows.length ? b.rows : [null]).forEach(function(r){ addRow(t, r||undefined); });
+  EDITING[t] = b.editando || ''; showEditBanner(t);
+  recalc(t);
+  var pfx = pfxOf(t);
+  if(b.header && b.header[pfx+'_num']) setVal(pfx+'_num', b.header[pfx+'_num']);
+  showMsg(pfx+'_msg','ok','\u2713 Borrador recuperado ('+(b.rows?b.rows.length:0)+' fila(s)). Contin\u00fae donde lo dej\u00f3.');
+}
+function descartarBorrador(t){
+  if(!confirm('\u00bfDescartar el borrador guardado? No se puede deshacer.')) return;
+  borrBorrar(t);
+  showMsg(pfxOf(t)+'_msg','info','Borrador descartado.');
+}
+/* cualquier cambio en un formulario reprograma el autoguardado */
+function vigilarCambios(){
+  ['memo','reem','dev'].forEach(function(t){
+    var v = document.getElementById('view'+(t==='memo'?'Memo':(t==='reem'?'Reem':'Dev')));
+    if(!v) return;
+    ['input','change'].forEach(function(ev){
+      v.addEventListener(ev, function(){ autoGuardarBorrador(t); });
+    });
+  });
+}
+
 function showMsg(id,cls,text){ var el=document.getElementById(id); el.className='msg '+cls; el.textContent=text; }
 
 var GENERANDO = false;
@@ -1539,7 +1640,7 @@ async function generarInterno(t){
             data: packData(t, getHeader(t), raws) };
   try{
     await storeSave(rec);
-    EDITING[t]=num; showEditBanner(t);
+    EDITING[t]=num; showEditBanner(t); borrBorrar(t);
     showMsg(msgId,'ok','✓ Word generado y GUARDADO Y VERIFICADO en el historial: '+fname+'  ('+rows.length+' beneficiario(s), Total L'+fmtMoney(tf)+')');
   }catch(err){
     showMsg(msgId,'err','⚠ El Word se generó, pero NO quedó guardado en el historial: '+err.message+ (CLOUD? '  Se guardó un respaldo en esta PC; use \'Reintentar ahora\' en la pestaña Historial.' : ''));
@@ -1583,7 +1684,7 @@ async function generarDev(){
             data: packData('dev', getHeader('dev'), raws) };
   try{
     await storeSave(rec);
-    EDITING.dev=num; showEditBanner('dev');
+    EDITING.dev=num; showEditBanner('dev'); borrBorrar('dev');
     showMsg(msgId,'ok','\u2713 Word generado y GUARDADO Y VERIFICADO en el historial: '+fname+'  ('+raws.length+' gestión(es))');
   }catch(err){
     showMsg(msgId,'err','⚠ El Word se generó, pero NO quedó guardado en el historial: '+err.message+ (CLOUD? '  Se guardó un respaldo en esta PC; use \'Reintentar ahora\' en la pestaña Historial.' : ''));
@@ -1592,6 +1693,7 @@ async function generarDev(){
 
 function nuevo(t){
   var pfx=pfxOf(t);
+  clearTimeout(borrTimer[t]);
   document.getElementById(pfx+'_body').innerHTML='';
   if(t==='dev'){
     ['d_num','d_seq'].forEach(function(id){ setVal(id,''); });
