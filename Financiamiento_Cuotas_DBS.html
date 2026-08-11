@@ -256,7 +256,9 @@ td:last-child{border-right:0}
     <div class="modal-body">
       <div class="grid3">
         <div class="f"><label>No. Registro</label><input type="text" id="m-no"></div>
-        <div class="f"><label>Clave del empleado</label><input type="text" id="m-clave"></div>
+        <div class="f"><label>Clave del empleado</label>
+          <input type="text" id="m-clave" list="dl-clave" autocomplete="off" oninput="onClaveInput()" placeholder="Escriba la clave...">
+          <datalist id="dl-clave"></datalist></div>
         <div class="f"><label>Estado</label>
           <select id="m-estado">
             <option value="Activo">Activo</option>
@@ -265,7 +267,9 @@ td:last-child{border-right:0}
           </select></div>
       </div>
       <div class="grid2">
-        <div class="f"><label>Nombre del empleado</label><input type="text" id="m-nombre"></div>
+        <div class="f"><label>Nombre del empleado</label>
+          <input type="text" id="m-nombre" list="dl-nombre" autocomplete="off" oninput="onNombreInput()" placeholder="O escriba el nombre...">
+          <datalist id="dl-nombre"></datalist></div>
         <div class="f"><label>Centro de trabajo</label><input type="text" id="m-centro"></div>
       </div>
       <div class="grid3">
@@ -344,9 +348,15 @@ td:last-child{border-right:0}
 /* ==================================================================
    CONFIGURACION
 ================================================================== */
-var API   = 'https://script.google.com/macros/s/AKfycbyKMLdJuEdWqwgpJc_4GTe-62uHh0F4EafmL5Os5qLH51_jhbj3lrpa8Q5ovO69bBewKw/exec';
+var API   = 'https://script.google.com/macros/s/AKfycbwYFUtGUs-EBDrBl8Qny-R-NFYlfD79XfmhyB1MRoRkxT2PUJlZauE8_rFo1vOGWEn-SQ/exec';
 var HOJA  = 'Financiamiento';
 var HOJA_USU = 'UsuariosFin';   // hoja propia: NO tocar la hoja 'Usuarios' compartida
+var HOJA_EMP = 'EMPLEADOS';     // catalogo de empleados (solo lectura)
+/* Si la deteccion automatica de columnas falla, fije aqui los numeros de
+   columna (0 = A, 1 = B, 2 = C ...). Ejemplo: {clave:0, nombre:1, centro:2} */
+var EMP_COLS = {clave:null, nombre:null, centro:null};
+var EMPLEADOS = [];
+var EMP_MAPA  = {};
 var LSKEY = 'enee_financiamiento_v1';
 
 /* Usuario base del sistema. Los demas se administran desde el boton
@@ -566,6 +576,7 @@ function entrar(){
   document.getElementById('u-ini').textContent = u.nombre.substring(0,2).toUpperCase();
   document.getElementById('btn-usuarios').style.display = (u.rol==='admin')? 'inline-block' : 'none';
   cargarDatos(false);
+  cargarEmpleados();
   reloadTimer = setInterval(function(){ try{ cargarDatos(true); }catch(e){} }, 45000);
 }
 function salir(){
@@ -639,6 +650,144 @@ function cargarDatos(silencioso){
 }
 
 /* ==================================================================
+   CATALOGO DE EMPLEADOS  (hoja EMPLEADOS, solo lectura)
+================================================================== */
+function detectarColumnasEmp(filas){
+  if(EMP_COLS.clave!==null && EMP_COLS.nombre!==null) return EMP_COLS;
+  var muestra = filas.slice(0, 250);
+  var nCols = 0;
+  for(var i=0;i<muestra.length;i++) if(muestra[i].length>nCols) nCols = muestra[i].length;
+
+  var stats = [];
+  for(var c=0;c<nCols;c++){
+    var llenos=0, numericos=0, largo=0, palabras=0, distintos={};
+    for(var r=0;r<muestra.length;r++){
+      var v = String(muestra[r][c]==null?'':muestra[r][c]).trim();
+      if(!v) continue;
+      llenos++;
+      largo += v.length;
+      palabras += v.split(/\s+/).length;
+      distintos[v.toLowerCase()] = 1;
+      if(/^[0-9\-\.]+$/.test(v)) numericos++;
+    }
+    stats.push({
+      col:c, llenos:llenos,
+      fracNum: llenos? numericos/llenos : 0,
+      largoProm: llenos? largo/llenos : 0,
+      palProm: llenos? palabras/llenos : 0,
+      distintos: Object.keys(distintos).length
+    });
+  }
+  var utiles = stats.filter(function(s){ return s.llenos > muestra.length*0.4; });
+  if(!utiles.length) return EMP_COLS;
+
+  // Clave: la columna mas numerica y corta
+  var clave = utiles.slice().sort(function(a,b){
+    if(b.fracNum !== a.fracNum) return b.fracNum - a.fracNum;
+    return a.largoProm - b.largoProm;
+  })[0];
+
+  // Nombre: texto con mas palabras por celda y muchos valores distintos
+  var texto = utiles.filter(function(s){ return s.col!==clave.col && s.fracNum<0.5; });
+  var nombre = texto.slice().sort(function(a,b){
+    var pa = a.palProm*1.5 + (a.distintos/muestra.length)*2;
+    var pb = b.palProm*1.5 + (b.distintos/muestra.length)*2;
+    return pb - pa;
+  })[0];
+
+  // Centro: el otro texto, con menos valores distintos (se repite mucho)
+  var centro = texto.filter(function(s){ return !nombre || s.col!==nombre.col; })
+                    .sort(function(a,b){ return a.distintos - b.distintos; })[0];
+
+  EMP_COLS = {
+    clave:  clave  ? clave.col  : 0,
+    nombre: nombre ? nombre.col : 1,
+    centro: centro ? centro.col : null
+  };
+  console.log('Columnas EMPLEADOS detectadas:', EMP_COLS);
+  return EMP_COLS;
+}
+
+function cargarEmpleados(){
+  apiGet(HOJA_EMP, function(r){
+    if(!r || !r.datos || !r.datos.length){
+      console.warn('No se pudo leer la hoja '+HOJA_EMP);
+      actualizarInfoEmp(0);
+      return;
+    }
+    var filas = r.datos.filter(function(f){
+      return f && f.join('').trim() !== '';
+    });
+    var col = detectarColumnasEmp(filas);
+    EMPLEADOS = []; EMP_MAPA = {};
+    for(var i=0;i<filas.length;i++){
+      var f = filas[i];
+      var cl = String(f[col.clave]==null?'':f[col.clave]).trim();
+      var nb = String(f[col.nombre]==null?'':f[col.nombre]).trim();
+      var ce = col.centro!==null ? String(f[col.centro]==null?'':f[col.centro]).trim() : '';
+      if(!cl && !nb) continue;
+      var e = {clave:cl, nombre:nb, centro:ce};
+      EMPLEADOS.push(e);
+      if(cl) EMP_MAPA[cl.toLowerCase()] = e;
+    }
+    actualizarInfoEmp(EMPLEADOS.length);
+  });
+}
+function actualizarInfoEmp(n){
+  var el = document.getElementById('info-emp');
+  if(el) el.innerHTML = n
+    ? 'Cat&aacute;logo: <b>'+n+'</b> empleados'
+    : '<span style="color:#c05000">Cat&aacute;logo de empleados no disponible</span>';
+}
+
+/* Busca coincidencias por clave o por nombre */
+function buscarEmpleados(q, porNombre){
+  q = String(q||'').toLowerCase().trim();
+  if(q.length < 2) return [];
+  var out = [];
+  for(var i=0;i<EMPLEADOS.length && out.length<30;i++){
+    var e = EMPLEADOS[i];
+    var campo = porNombre ? e.nombre : e.clave;
+    if(String(campo).toLowerCase().indexOf(q) !== -1) out.push(e);
+  }
+  return out;
+}
+function pintarSugerencias(idLista, lista, porNombre){
+  var dl = document.getElementById(idLista);
+  if(!dl) return;
+  var h = '';
+  for(var i=0;i<lista.length;i++){
+    var e = lista[i];
+    var val = porNombre ? e.nombre : e.clave;
+    var etq = porNombre ? (e.clave+(e.centro?' - '+e.centro:'')) : e.nombre;
+    h += '<option value="'+esc(val)+'">'+esc(etq)+'</option>';
+  }
+  dl.innerHTML = h;
+}
+function aplicarEmpleado(e){
+  if(!e) return;
+  if(e.clave)  document.getElementById('m-clave').value  = e.clave;
+  if(e.nombre) document.getElementById('m-nombre').value = e.nombre;
+  if(e.centro) document.getElementById('m-centro').value = e.centro;
+}
+function onClaveInput(){
+  var v = document.getElementById('m-clave').value;
+  pintarSugerencias('dl-clave', buscarEmpleados(v,false), false);
+  var e = EMP_MAPA[String(v).toLowerCase().trim()];
+  if(e) aplicarEmpleado(e);
+}
+function onNombreInput(){
+  var v = document.getElementById('m-nombre').value;
+  var lista = buscarEmpleados(v,true);
+  pintarSugerencias('dl-nombre', lista, true);
+  for(var i=0;i<lista.length;i++){
+    if(lista[i].nombre.toLowerCase() === String(v).toLowerCase().trim()){
+      aplicarEmpleado(lista[i]); break;
+    }
+  }
+}
+
+/* ==================================================================
    FILTROS
 ================================================================== */
 function poblarAnios(){
@@ -703,7 +852,8 @@ function render(){
   pintarKpis(lista, corte);
   document.getElementById('info').innerHTML =
     'Mes de corte: <b>'+ymLabel(corte)+'</b> &nbsp;&bull;&nbsp; Registros mostrados: <b>'+lista.length+
-    '</b> de <b>'+DATOS.length+'</b> &nbsp;&bull;&nbsp; Usuario: <b>'+esc(usuarioActual?usuarioActual.nombre:'')+'</b>';
+    '</b> de <b>'+DATOS.length+'</b> &nbsp;&bull;&nbsp; Usuario: <b>'+esc(usuarioActual?usuarioActual.nombre:'')+'</b>'+
+    ' &nbsp;&bull;&nbsp; <span id="info-emp">'+(EMPLEADOS.length? 'Cat&aacute;logo: <b>'+EMPLEADOS.length+'</b> empleados':'')+'</span>';
 
   if(vistaActual==='Registro')      pintarRegistro(lista, corte);
   else if(vistaActual==='Empleado') pintarEmpleado(lista, corte);
