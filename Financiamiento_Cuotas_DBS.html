@@ -62,7 +62,6 @@ header .sub{font-size:11.5px;color:#9fc4e8;letter-spacing:.4px}
 .tab-btn.active{color:#fff;border-radius:6px 6px 0 0}
 .tab-btn[data-v="Registro"].active{background:#003366}
 .tab-btn[data-v="Empleado"].active{background:#1a6b3a}
-.tab-btn[data-v="Planilla"].active{background:#7a3a00}
 
 /* ---------- TOOLBAR ---------- */
 .toolbar{padding:13px 18px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
@@ -219,7 +218,6 @@ td:last-child{border-right:0}
   <div class="tabs-bar">
     <button class="tab-btn active" data-v="Registro"  onclick="setVista('Registro')">&#x1F4CB; Financiamientos</button>
     <button class="tab-btn"        data-v="Empleado"  onclick="setVista('Empleado')">&#x1F464; Conteo por Empleado</button>
-    <button class="tab-btn"        data-v="Planilla"  onclick="setVista('Planilla')">&#x1F4B0; Descuento del Mes</button>
   </div>
 
   <div class="toolbar">
@@ -855,9 +853,8 @@ function render(){
     '</b> de <b>'+DATOS.length+'</b> &nbsp;&bull;&nbsp; Usuario: <b>'+esc(usuarioActual?usuarioActual.nombre:'')+'</b>'+
     ' &nbsp;&bull;&nbsp; <span id="info-emp">'+(EMPLEADOS.length? 'Cat&aacute;logo: <b>'+EMPLEADOS.length+'</b> empleados':'')+'</span>';
 
-  if(vistaActual==='Registro')      pintarRegistro(lista, corte);
-  else if(vistaActual==='Empleado') pintarEmpleado(lista, corte);
-  else                              pintarPlanilla(lista, corte);
+  if(vistaActual==='Empleado') pintarEmpleado(lista, corte);
+  else                         pintarRegistro(lista, corte);
 }
 
 function pintarKpis(lista, corte){
@@ -969,43 +966,6 @@ function pintarEmpleado(lista, corte){
       '<td class="num">'+(e.cuotaMes>0? L(e.cuotaMes) : '-')+'</td>'+
       '<td>'+ymLabel(e.ultFin)+'</td>'+
     '</tr>';
-  }
-  document.getElementById('tabla-wrap').innerHTML = h+'</tbody></table>';
-}
-
-/* ---------- VISTA 3: descuento del mes (para planilla) ---------- */
-function pintarPlanilla(lista, corte){
-  var filas = [], tot = 0;
-  for(var i=0;i<lista.length;i++){
-    var d=lista[i], c=d._c;
-    if(c.cuotaMes>0){ filas.push({d:d,c:c}); tot += c.cuotaMes; }
-  }
-  filas.sort(function(a,b){ return (a.d.clave||'').localeCompare(b.d.clave||''); });
-
-  var h = '<table><thead><tr>'+
-    '<th>Clave</th><th>Empleado</th><th>Centro</th><th>Factura</th><th>Proveedor</th>'+
-    '<th>Cuota No.</th><th>Monto a descontar</th><th>Saldo despues</th>'+
-    '</tr></thead><tbody>';
-  if(!filas.length){
-    h += '<tr><td colspan="8" class="vacio">No hay cuotas a descontar en '+ymLabel(corte)+'.</td></tr>';
-  }
-  for(var j=0;j<filas.length;j++){
-    var d=filas[j].d, c=filas[j].c;
-    h += '<tr>'+
-      '<td>'+esc(d.clave)+'</td>'+
-      '<td>'+esc(d.nombre)+'</td>'+
-      '<td>'+esc(d.centro)+'</td>'+
-      '<td>'+esc(d.factura)+'</td>'+
-      '<td>'+esc(d.proveedor)+'</td>'+
-      '<td class="num">'+c.nroCuotaMes+' de '+d.cuotas+'</td>'+
-      '<td class="num">'+L(c.cuotaMes)+'</td>'+
-      '<td class="num">'+L(c.saldo)+'</td>'+
-    '</tr>';
-  }
-  if(filas.length){
-    h += '<tr style="background:#003366;color:#fff;font-weight:600">'+
-         '<td colspan="6" style="text-align:right">TOTAL A DESCONTAR EN '+ymLabel(corte).toUpperCase()+'</td>'+
-         '<td class="num">'+L(tot)+'</td><td></td></tr>';
   }
   document.getElementById('tabla-wrap').innerHTML = h+'</tbody></table>';
 }
