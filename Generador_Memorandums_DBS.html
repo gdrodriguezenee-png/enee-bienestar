@@ -149,7 +149,9 @@
     <button class="btn-primary" id="btnLogin" type="submit">Ingresar</button>
     <div id="loginError"></div>
     <div class="modo" id="modoLabel"></div>
-    <button type="button" class="btn-sec" style="width:100%;margin-top:14px" onclick="toggleCfg()">☁ Configurar conexión a la nube</button>
+    <button type="button" class="btn-sec" style="width:100%;margin-top:14px" onclick="probarConexion()">🔌 Probar conexión</button>
+    <div id="diagBox" class="hidden" style="margin-top:10px;text-align:left;background:#f4f6f9;border:1px solid var(--borde);border-radius:8px;padding:11px;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word"></div>
+    <button type="button" class="btn-sec" style="width:100%;margin-top:10px" onclick="toggleCfg()">☁ Configurar conexión a la nube</button>
     <div id="cfgBox" class="hidden" style="margin-top:12px;text-align:left;background:#f4f6f9;border:1px solid var(--borde);border-radius:8px;padding:12px">
       <label style="font-size:12px;font-weight:600;color:var(--suave);display:block;margin-bottom:5px">URL de la Aplicación web de Google (termina en /exec)</label>
       <input id="cfgUrl" style="width:100%;padding:9px 10px;border:1px solid var(--borde);border-radius:8px" placeholder="https://script.google.com/macros/s/.../exec">
@@ -216,6 +218,7 @@
   <main id="viewMemo">
     <div class="editing hidden" id="m_editing"></div>
     <div class="draft hidden" id="m_draft"></div>
+    <div class="editing hidden" id="m_provAviso"></div>
     <div class="card">
       <h3>Datos del Memorándum (Proveedor)</h3>
       <div class="grid">
@@ -470,7 +473,9 @@
         <div class="fg"><label>Banco</label><input id="p_b" placeholder="BANCO DE OCCIDENTE S.A."></div>
         <div class="fg"><label>N° de Cuenta</label><input id="p_cu"></div>
         <div class="fg"><label>Centro de Servicios (para el cuadro)</label><input id="p_ce"></div>
-        <div class="fg"><label>RTN</label><input id="p_r"></div>
+        <div class="fg"><label>RTN (14 dígitos, puede empezar con 0)</label>
+          <input id="p_r" inputmode="numeric" maxlength="14" placeholder="08019012453685"
+                 oninput="this.value=this.value.replace(/\D/g,'')" onblur="this.value=normRTN(this.value)"></div>
       </div>
       <div class="actions" style="margin-top:14px">
         <button class="btn-gen" onclick="guardarProveedor()">Guardar proveedor</button>
@@ -554,8 +559,19 @@ function apiCall(action, payload, opts){
       return;
     }
     var sc = document.createElement('script');
-    var timer = setTimeout(function(){ cleanup(); reject(new Error('Tiempo de espera agotado (revise la URL / conexi\u00f3n)')); }, 25000);
-    function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if(sc.parentNode) sc.parentNode.removeChild(sc); }
+    var terminado = false, tCorto = null;
+    var timer = setTimeout(function(){ fallar('No hubo respuesta de la nube en 25 segundos. Puede ser el Internet de esta PC, o que script.google.com est\u00e9 bloqueado en la red de la instituci\u00f3n.'); }, 25000);
+    function cleanup(){ terminado = true; clearTimeout(timer); clearTimeout(tCorto);
+      try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if(sc.parentNode) sc.parentNode.removeChild(sc); }
+    function fallar(m){ if(terminado) return; cleanup(); reject(new Error(m)); }
+    /* Si el archivo carga pero nunca llama al callback, lo que respondi\u00f3 no es
+       nuestra app web sino una p\u00e1gina de Google (inicio de sesi\u00f3n o permisos). */
+    sc.onload = function(){
+      if(terminado) return;
+      tCorto = setTimeout(function(){
+        fallar('LA DIRECCI\u00d3N RESPONDE, PERO NO ES LA APLICACI\u00d3N WEB. Casi siempre es porque el Apps Script no est\u00e1 publicado para "Cualquier usuario, incluso an\u00f3nimo", o porque la URL /exec es de otra versi\u00f3n. Rev\u00edselo en Apps Script: Implementar \u2192 Administrar implementaciones.');
+      }, 2500);
+    };
     window[cb] = function(res){
       cleanup();
       if(opts.raw){ resolve(res); return; }
@@ -563,7 +579,7 @@ function apiCall(action, payload, opts){
       if(res.ok === false){ reject(new Error(res.error || res.message || 'La nube rechaz\u00f3 la operaci\u00f3n')); return; }
       resolve(res);
     };
-    sc.onerror = function(){ cleanup(); reject(new Error('No se pudo conectar con la nube (revise el Internet o vuelva a desplegar el Apps Script)')); };
+    sc.onerror = function(){ fallar('No se pudo contactar la direcci\u00f3n de la nube. Revise el Internet de esta PC, o que la URL /exec siga existiendo.'); };
     sc.src = src;
     document.head.appendChild(sc);
   });
@@ -723,6 +739,7 @@ async function doLogin(ev){
   var err = document.getElementById('loginError');
   var btn = document.getElementById('btnLogin');
   err.textContent=''; btn.disabled=true; btn.textContent='Verificando...';
+  var avisoLento = setTimeout(function(){ if(btn.disabled) err.textContent='Sigue intentando conectar con la nube... espere unos segundos.'; }, 6000);
   try{
     var r = await storeLogin(u,p);
     if(r && r.ok){
@@ -741,8 +758,10 @@ async function doLogin(ev){
       err.textContent = 'Usuario o contraseña incorrectos.';
     }
   }catch(e){
-    err.textContent = 'Error de conexión: ' + e.message;
+    err.textContent = e.message;
+    diagPrint('No se pudo ingresar.\n\n' + e.message + '\n\nPulse "Probar conexión" para ver el detalle.', 'err');
   }
+  clearTimeout(avisoLento);
   btn.disabled=false; btn.textContent='Ingresar';
   document.getElementById('pwd').value='';
   return false;
@@ -867,7 +886,7 @@ function rebuildProvSelect(){
   var actual = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
   sel.innerHTML='<option value="">— Seleccione —</option>';
   PROVEEDORES.forEach(function(p,i){ var o=document.createElement('option'); o.value=i; o.textContent=p.p; sel.appendChild(o); });
-  if(actual){ for(var i=0;i<sel.options.length;i++){ if(sel.options[i].textContent===actual){ sel.value=sel.options[i].value; break; } } }
+  if(actual){ for(var i=0;i<sel.options.length;i++){ if(claveProv(sel.options[i].textContent)===claveProv(actual)){ sel.value=sel.options[i].value; break; } } }
 }
 async function cargarCatalogos(){
   if(!CLOUD) return;
@@ -880,14 +899,56 @@ function rebuildEmpMap(){
   EMPLEADOS.forEach(function(e){ EMP_MAP[String(e.c).trim()] = e; });
   CLOUD_EMP.forEach(function(x){ x.__cloud=true; EMP_MAP[String(x.c).trim()] = x; });
 }
+/* ==================================================================
+   RTN: los números de RTN hondureños son de 14 dígitos y muchos
+   empiezan con cero. La hoja de Google los guarda como NÚMERO y al
+   devolverlos se come el cero inicial (08019... vuelve como 8019...).
+   Aquí se repone el cero para que se vea y se imprima correcto.
+   ================================================================== */
+var RTN_LARGO = 14;
+function normRTN(v){
+  var t = String(v==null ? '' : v).trim();
+  if(t === '') return '';
+  if(!/^\d+$/.test(t)) return t;                 // trae guiones o letras: se respeta tal cual
+  if(t.length >= RTN_LARGO) return t;            // ya está completo
+  if(t.length < RTN_LARGO - 3) return t;         // demasiado corto: no es un RTN, no se toca
+  while(t.length < RTN_LARGO) t = '0' + t;       // se reponen los ceros perdidos
+  return t;
+}
+/* ¿son el mismo RTN, sin contar los ceros que la hoja se comió? */
+function mismoRTN(a,b){
+  var x=String(a==null?'':a).trim(), y=String(b==null?'':b).trim();
+  if(x===y) return true;
+  if(!/^\d+$/.test(x) || !/^\d+$/.test(y)) return false;
+  return x.replace(/^0+/,'') === y.replace(/^0+/,'');
+}
+/* clave de comparación: ignora mayúsculas, tildes, espacios y puntuación */
+function claveProv(nombre){
+  return String(nombre||'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
 function rebuildProvArray(){
   PROVEEDORES.length=0;
   PROV_BASE.forEach(function(p){ PROVEEDORES.push(p); });
   CLOUD_PROV.forEach(function(x){
     x.__cloud=true;
-    var idx=PROVEEDORES.findIndex(function(z){ return z.p===x.p; });
-    if(idx>=0) PROVEEDORES[idx]=x; else PROVEEDORES.push(x);
+    x.r = normRTN(x.r);                 // repone el cero que la hoja se come
+    var k=claveProv(x.p);
+    var idx=PROVEEDORES.findIndex(function(z){ return claveProv(z.p)===k; });
+    if(idx>=0) PROVEEDORES[idx]=x; else PROVEEDORES.push(x);   // la nube manda sobre el catálogo base
   });
+  /* si la nube trae dos filas del mismo proveedor, se conserva la más reciente */
+  var vistos={};
+  for(var i=PROVEEDORES.length-1;i>=0;i--){
+    var kk=claveProv(PROVEEDORES[i].p);
+    if(vistos[kk] && PROVEEDORES[i].__cloud) PROVEEDORES.splice(i,1);
+    else vistos[kk]=true;
+  }
+}
+function buscarProv(nombre){
+  var k=claveProv(nombre);
+  return PROVEEDORES.filter(function(z){ return claveProv(z.p)===k; })[0] || null;
 }
 function provFill(){
   var i=document.getElementById('m_prov').value;
@@ -895,7 +956,36 @@ function provFill(){
   setVal('m_banco',  p? p.b  : '');
   setVal('m_cuenta', p? p.cu : '');
   setVal('m_centro', p? p.ce : '');
-  setVal('m_rtn',    p? p.r  : '');
+  setVal('m_rtn',    p? normRTN(p.r) : '');
+  avisarProvDesfasado();
+}
+/* Un memorándum viejo o importado puede traer banco/cuenta distintos de los del
+   catálogo actual. Se avisa en vez de cambiarlos por la espalda. */
+function avisarProvDesfasado(){
+  var el=document.getElementById('m_provAviso'); if(!el) return;
+  var sel=document.getElementById('m_prov');
+  var nom=sel.selectedOptions[0]? sel.selectedOptions[0].textContent : '';
+  var p=nom? buscarProv(nom) : null;
+  if(!p){ el.classList.add('hidden'); return; }
+  var difs=[];
+  if(String(p.b ||'').trim()!==val('m_banco'))  difs.push('Banco');
+  if(String(p.cu||'').trim()!==val('m_cuenta')) difs.push('Cuenta');
+  if(String(p.ce||'').trim()!==val('m_centro')) difs.push('Centro de Servicios');
+  if(!mismoRTN(p.r, val('m_rtn')))              difs.push('RTN');
+  if(difs.length===0){ el.classList.add('hidden'); el.innerHTML=''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML='⚠ Este memorándum lleva datos distintos de los del catálogo actual: <b>'+esc(difs.join(', '))+'</b>. '+
+    'Se imprimirá lo que está en pantalla. '+
+    '<button class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="usarProvCatalogo()">Usar los del catálogo</button>';
+}
+function usarProvCatalogo(){
+  var sel=document.getElementById('m_prov');
+  var nom=sel.selectedOptions[0]? sel.selectedOptions[0].textContent : '';
+  var p=nom? buscarProv(nom) : null; if(!p) return;
+  setVal('m_banco',p.b||''); setVal('m_cuenta',p.cu||'');
+  setVal('m_centro',p.ce||''); setVal('m_rtn',normRTN(p.r));
+  avisarProvDesfasado();
+  showMsg('m_msg','ok','✓ Se aplicaron los datos actuales del catálogo.');
 }
 
 /* ==================================================================
@@ -1202,7 +1292,7 @@ function setHeader(t,h){
     ['m_num','m_seq','m_dest','m_fecha','m_banco','m_cuenta','m_centro','m_rtn','m_orden','m_nbenef','m_jefe','m_dir'].forEach(function(id){ if(h[id]!=null) setVal(id,h[id]); });
     if(!val('m_seq')) setVal('m_seq', parseNum(h.m_num));   // memos guardados antes del cambio
     var sel=document.getElementById('m_prov'); sel.value='';
-    for(var i=0;i<sel.options.length;i++){ if(sel.options[i].textContent===h.provName){ sel.value=sel.options[i].value; break; } }
+    for(var i=0;i<sel.options.length;i++){ if(claveProv(sel.options[i].textContent)===claveProv(h.provName)){ sel.value=sel.options[i].value; break; } }
   } else {
     ['r_num','r_seq','r_dest','r_fecha','r_clave','r_emp','r_banco','r_cuenta','r_jefe','r_dir'].forEach(function(id){ if(h[id]!=null) setVal(id,h[id]); });
     if(!val('r_seq')) setVal('r_seq', parseNum(h.r_num));
@@ -1464,7 +1554,7 @@ function aplicarImportado(r){
       }
       if(!hallado && rtn){
         for(var j=0;j<PROVEEDORES.length;j++){
-          if(meta(PROVEEDORES[j].r) && meta(PROVEEDORES[j].r)===rtn){ sel.value=String(j); hallado=true; break; }
+          if(meta(PROVEEDORES[j].r) && mismoRTN(meta(PROVEEDORES[j].r), rtn)){ sel.value=String(j); hallado=true; break; }
         }
       }
       if(hallado) provFill();
@@ -1473,7 +1563,7 @@ function aplicarImportado(r){
     /* los datos del documento mandan sobre el catálogo: así el Word se regenera idéntico */
     if(h.orden)  setVal('m_orden', h.orden);
     if(h.centro) setVal('m_centro', h.centro);
-    if(h.rtn)    setVal('m_rtn', h.rtn);
+    if(h.rtn)    setVal('m_rtn', normRTN(h.rtn));
     if(h.banco)  setVal('m_banco', h.banco);
     if(h.cuenta) setVal('m_cuenta', h.cuenta);
     if(h.nbenef){ var nb=document.getElementById('m_nbenef'); nb.value=h.nbenef; nb.dataset.auto='0'; }
@@ -1490,6 +1580,7 @@ function aplicarImportado(r){
   (r.rows.length? r.rows : [null]).forEach(function(x){ addRow(t, x||undefined); });
   recalc(t);
   if(h.num) setVal(pfx+'_num', h.num);
+  if(t==='memo') avisarProvDesfasado();
 }
 
 
@@ -1580,6 +1671,60 @@ function vigilarCambios(){
       v.addEventListener(ev, function(){ autoGuardarBorrador(t); });
     });
   });
+}
+
+
+/* ==================================================================
+   DIAGN\u00d3STICO DE CONEXI\u00d3N (pantalla de ingreso)
+   ================================================================== */
+function diagPrint(txt, cls){
+  var el=document.getElementById('diagBox'); if(!el) return;
+  el.classList.remove('hidden');
+  el.style.borderColor = cls==='ok' ? '#9fd6b4' : (cls==='err' ? '#f0b4ae' : 'var(--borde)');
+  el.style.background  = cls==='ok' ? '#eef8f2' : (cls==='err' ? '#fdf1f0' : '#f4f6f9');
+  el.textContent = txt;
+}
+async function probarConexion(){
+  var guardada = '';
+  try{ guardada = localStorage.getItem('api_url_dbs') || ''; }catch(e){}
+  var L = [];
+  L.push('Direcci\u00f3n en uso:');
+  L.push('  ' + (API_URL || '(vac\u00eda \u2014 modo local)'));
+  L.push(guardada ? '  Origen: guardada en ESTA PC' : '  Origen: la que trae el archivo');
+  if(!CLOUD){
+    L.push('');
+    L.push('MODO LOCAL: el historial se guarda solo en esta PC y no se comparte.');
+    L.push('Use "Configurar conexi\u00f3n a la nube" y pegue la URL que termina en /exec.');
+    diagPrint(L.join('\n'),'err'); return;
+  }
+  var formatoOk = /^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec$/.test(API_URL);
+  L.push('  Formato: ' + (formatoOk ? 'correcto' : 'SOSPECHOSO (debe empezar con https://script.google.com/macros/s/ y terminar en /exec)'));
+  L.push('');
+  L.push('Probando...');
+  diagPrint(L.join('\n'));
+  var t0 = Date.now();
+  try{
+    await apiCall('login', {user:'__prueba__', pass:'__prueba__'}, {raw:true});
+    L[L.length-1] = 'RESULTADO: la nube respondi\u00f3 bien en ' + ((Date.now()-t0)/1000).toFixed(1) + ' s.';
+    L.push('');
+    L.push('La conexi\u00f3n funciona. Si aun as\u00ed no puede ingresar, revise que su usuario');
+    L.push('y contrase\u00f1a existan en la pesta\u00f1a Usuarios (los administra el administrador).');
+    diagPrint(L.join('\n'),'ok');
+  }catch(e){
+    L[L.length-1] = 'RESULTADO: FALL\u00d3 despu\u00e9s de ' + ((Date.now()-t0)/1000).toFixed(1) + ' s.';
+    L.push('');
+    L.push(e.message);
+    L.push('');
+    L.push('Qu\u00e9 revisar, en orden:');
+    L.push('1. Que esta PC tenga Internet y pueda abrir script.google.com.');
+    L.push('2. Compare esta direcci\u00f3n con la de la PC donde S\u00cd funciona.');
+    L.push('   Si son distintas, use "Configurar conexi\u00f3n a la nube" y pegue la buena.');
+    L.push('3. En Apps Script: Implementar \u2192 Administrar implementaciones \u2192');
+    L.push('   "Qui\u00e9n tiene acceso" debe decir "Cualquier usuario".');
+    L.push('4. Al cambiar el c\u00f3digo use "Nueva versi\u00f3n" en la MISMA implementaci\u00f3n,');
+    L.push('   no "Nueva implementaci\u00f3n" (esa genera otra URL y las dem\u00e1s PC dejan de servir).');
+    diagPrint(L.join('\n'),'err');
+  }
 }
 
 function showMsg(id,cls,text){ var el=document.getElementById(id); el.className='msg '+cls; el.textContent=text; }
@@ -1780,6 +1925,7 @@ function cargarEnFormulario(m){
   var t=m.tipo;
   document.getElementById(pfxOf(t)+'_body').innerHTML='';
   setHeader(t, d.header||{});
+  if(t==='memo') avisarProvDesfasado();
   if(t==='reem') reemClave();
   (d.rows&&d.rows.length? d.rows : [null]).forEach(function(r){ addRow(t, r||undefined); });
   EDITING[t]=m.num; showEditBanner(t);
@@ -1968,7 +2114,7 @@ function renderProv(){
   if(list.length===0){ body.innerHTML='<tr><td colspan="7" class="empty">Sin proveedores'+(q?' que coincidan':'')+'.</td></tr>'; return; }
   list.forEach(function(x){
     var cloud=!!x.__cloud, tr=document.createElement('tr');
-    tr.innerHTML='<td class="wrap"><b>'+esc(x.p||'')+'</b></td><td class="wrap">'+esc(x.b||'')+'</td><td>'+esc(x.cu||'')+'</td><td class="wrap">'+esc(x.ce||'')+'</td><td>'+esc(x.r||'')+'</td>'+
+    tr.innerHTML='<td class="wrap"><b>'+esc(x.p||'')+'</b></td><td class="wrap">'+esc(x.b||'')+'</td><td>'+esc(x.cu||'')+'</td><td class="wrap">'+esc(x.ce||'')+'</td><td>'+esc(normRTN(x.r))+'</td>'+
       '<td>'+(cloud?'<span class="pill reem">nube</span>':'<span class="pill memo">base</span>')+'</td>'+
       '<td><div class="act"><button class="ed">Editar</button>'+(cloud?'<button class="de">Eliminar</button>':'')+'</div></td>';
     var btns=tr.querySelectorAll('button');
@@ -1977,35 +2123,109 @@ function renderProv(){
     body.appendChild(tr);
   });
 }
+var PROV_EDIT = null;   // proveedor que se está editando: {p, base}
 function editarProveedor(x){
-  setVal('p_p',x.p); setVal('p_b',x.b); setVal('p_cu',x.cu); setVal('p_ce',x.ce); setVal('p_r',x.r);
-  document.getElementById('p_formTitle').textContent='Editar proveedor';
+  setVal('p_p',x.p); setVal('p_b',x.b); setVal('p_cu',x.cu); setVal('p_ce',x.ce); setVal('p_r',normRTN(x.r));
+  PROV_EDIT = { p:x.p, base:!x.__cloud };
+  document.getElementById('p_formTitle').textContent='Editar proveedor: '+x.p;
   document.getElementById('p_formTitle').scrollIntoView({behavior:'smooth'});
 }
 async function guardarProveedor(){
   var msg=document.getElementById('p_msg');
-  var rec={ p:val('p_p'), b:val('p_b'), cu:val('p_cu'), ce:val('p_ce'), r:val('p_r') };
+  var rec={ p:val('p_p'), b:val('p_b'), cu:val('p_cu'), ce:val('p_ce'), r:normRTN(val('p_r')) };
   if(!rec.p){ msg.className='msg err'; msg.textContent='El nombre del proveedor es obligatorio.'; return; }
+  if(!CLOUD){ msg.className='msg err'; msg.textContent='La administración de proveedores requiere el modo NUBE.'; return; }
+
+  var edit = PROV_EDIT;
+  var renombrado = !!(edit && claveProv(edit.p) !== claveProv(rec.p));
+  if(renombrado && edit.base){
+    if(!confirm('"'+edit.p+'" viene del catálogo base incluido en el programa y ese nombre no se puede borrar de la nube.\n\n'+
+                'Si continúa quedarán DOS entradas en la lista.\n\n'+
+                'Le conviene más dejar el nombre como estaba y corregir solo banco, cuenta, centro o RTN.\n\n'+
+                '¿Continuar de todos modos?')) return;
+  }
+
   msg.className='msg info'; msg.textContent='Guardando...';
   try{
-    var r=await apiCall('saveProv',rec);
-    if(r&&r.ok===false){ msg.className='msg err'; msg.textContent=r.error||'No se pudo guardar.'; return; }
-    limpiarProveedor(); await cargarProveedores();
-    msg.className='msg ok'; msg.textContent='Proveedor guardado. Ya aparece en la lista del Memorándum.';
+    await apiCallRetry('saveProv', rec);
+    /* si le cambió el nombre a uno de la nube, se elimina el registro anterior */
+    if(renombrado && !edit.base){
+      try{ await apiCallRetry('delProv',{p:edit.p}); }
+      catch(e){ /* si falla, la verificación de abajo lo delata */ }
+    }
+    var nombreAnterior = edit ? edit.p : null;
+    await cargarProveedores();
+
+    /* verificar de verdad: leer de vuelta y comparar campo por campo */
+    var g = buscarProv(rec.p);
+    if(!g){
+      msg.className='msg err';
+      msg.textContent='LA NUBE ACEPTÓ LA PETICIÓN PERO EL PROVEEDOR NO APARECE EN EL CATÁLOGO. Revise la hoja PROVEEDORES en Google Sheets y que el Apps Script esté en su versión más reciente.';
+      return;
+    }
+    var difs=[], avisoCero=false;
+    [['b','Banco'],['cu','Cuenta'],['ce','Centro de Servicios']].forEach(function(par){
+      if(String(g[par[0]]||'').trim() !== String(rec[par[0]]||'').trim()) difs.push(par[1]);
+    });
+    /* El RTN se compara aparte: si solo cambió el cero de la izquierda,
+       la hoja lo guardó como número. El dato sirve, pero conviene avisar. */
+    if(String(g.r||'').trim() !== String(rec.r||'').trim()){
+      if(mismoRTN(g.r, rec.r)) avisoCero = true;
+      else difs.push('RTN');
+    }
+    if(difs.length){
+      msg.className='msg err';
+      msg.textContent='SE GUARDÓ A MEDIAS: la nube no conservó '+difs.join(', ')+'. Revise la hoja PROVEEDORES en Google Sheets.';
+      return;
+    }
+
+    /* que el cambio se vea de inmediato en el Memorándum */
+    var cambiado = refrescarProvEnMemo(nombreAnterior, rec.p);
+    limpiarProveedor();
+    msg.className = avisoCero ? 'msg info' : 'msg ok';
+    msg.textContent='✓ Proveedor guardado y verificado en la nube.'+
+      (cambiado ? '  Los datos del Memorándum se actualizaron con la corrección.' : '  Ya aparece en la lista del Memorándum.')+
+      (avisoCero ? '  Nota: la hoja guardó el RTN como número y le quitó el cero inicial; el programa lo repone solo, pero conviene dar formato de TEXTO a la columna RTN en Google Sheets.' : '');
   }catch(err){ msg.className='msg err'; msg.textContent='No se pudo guardar: '+err.message; }
+}
+
+/* Si el proveedor que se acaba de corregir es el que está elegido en el
+   Memorándum, se vuelven a llenar banco, cuenta, centro y RTN.
+   Sin esto el Word salía con los datos viejos aunque el catálogo ya estuviera bien. */
+function refrescarProvEnMemo(nombreAnterior, nombreNuevo){
+  var sel=document.getElementById('m_prov'); if(!sel) return false;
+  var actual = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+  if(!actual) return false;
+  var esElMismo = claveProv(actual)===claveProv(nombreNuevo) ||
+                  (nombreAnterior && claveProv(actual)===claveProv(nombreAnterior));
+  if(!esElMismo) return false;
+  for(var i=0;i<sel.options.length;i++){
+    if(claveProv(sel.options[i].textContent)===claveProv(nombreNuevo)){
+      sel.value=sel.options[i].value; provFill(); return true;
+    }
+  }
+  return false;
 }
 async function eliminarProveedor(nombre){
   if(!confirm('¿Eliminar de la nube el proveedor "'+nombre+'"? (El catálogo base no se toca)')) return;
   var msg=document.getElementById('p_msg'); msg.className='msg info'; msg.textContent='Eliminando...';
-  try{ await apiCall('delProv',{p:nombre}); await cargarProveedores(); msg.className='msg ok'; msg.textContent='Proveedor eliminado de la nube.'; }
-  catch(err){ msg.className='msg err'; msg.textContent='No se pudo eliminar: '+err.message; }
+  try{
+    await apiCallRetry('delProv',{p:nombre});
+    await cargarProveedores();
+    var sigue = buscarProv(nombre);
+    if(sigue && sigue.__cloud){ msg.className='msg err'; msg.textContent='La nube no lo eliminó. Revíselo en la hoja PROVEEDORES de Google Sheets.'; return; }
+    if(PROV_EDIT && claveProv(PROV_EDIT.p)===claveProv(nombre)) limpiarProveedor();
+    msg.className='msg ok';
+    msg.textContent = sigue ? '✓ Eliminado de la nube. Vuelve a mostrarse con los datos del catálogo base.'
+                            : '✓ Proveedor eliminado de la nube.';
+  }catch(err){ msg.className='msg err'; msg.textContent='No se pudo eliminar: '+err.message; }
 }
-function limpiarProveedor(){ ['p_p','p_b','p_cu','p_ce','p_r'].forEach(function(id){ setVal(id,''); }); document.getElementById('p_formTitle').textContent='Agregar proveedor'; }
+function limpiarProveedor(){ PROV_EDIT=null; ['p_p','p_b','p_cu','p_ce','p_r'].forEach(function(id){ setVal(id,''); }); document.getElementById('p_formTitle').textContent='Agregar proveedor'; }
 async function cargarLoteProv(){
   var msg=document.getElementById('p_msg');
   var filas=parseLote(document.getElementById('p_bulk').value);
   if(filas.length===0){ msg.className='msg err'; msg.textContent='Pega al menos una fila.'; return; }
-  var rows=filas.map(function(p){ return { p:p[0]||'', b:p[1]||'', cu:p[2]||'', ce:p[3]||'', r:p[4]||'' }; }).filter(function(r){ return r.p; });
+  var rows=filas.map(function(p){ return { p:p[0]||'', b:p[1]||'', cu:p[2]||'', ce:p[3]||'', r:normRTN(p[4]||'') }; }).filter(function(r){ return r.p; });
   msg.className='msg info'; msg.textContent='Cargando '+rows.length+' proveedor(es)...';
   try{
     var r=await apiCall('bulkProv',{rows:rows});
