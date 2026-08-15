@@ -360,8 +360,12 @@ var LSKEY = 'enee_financiamiento_v1';
 /* Usuario base del sistema. Los demas se administran desde el boton
    "Usuarios" (solo admin) y se guardan en la hoja "Usuarios". */
 var USUARIOS_DEFAULT = [
-  {id:'admin', nombre:'Administrador', pass:'admin2026', rol:'admin', protegido:true}
+  {id:'admin',     nombre:'Administrador',     pass:'Admin2026',   rol:'admin',   protegido:true},
+  {id:'atlantico', nombre:'Litoral Atlantico', pass:'Atlantico26', rol:'usuario'},
+  {id:'norocc',    nombre:'Noroccidente',      pass:'Norocc2026',  rol:'usuario'},
+  {id:'central',   nombre:'Centralizada',      pass:'Central26',   rol:'usuario'}
 ];
+var SSO_KEY = 'enee_sso_v1';   // sesion compartida con el Generador de Constancias
 var USAR_USUARIOS_SHEETS = true;
 
 var USUARIOS = USUARIOS_DEFAULT.slice();
@@ -558,14 +562,15 @@ function poblarLogin(){
     s.innerHTML += '<option value="'+esc(USUARIOS[i].id)+'">'+esc(USUARIOS[i].nombre)+'</option>';
   }
 }
-function entrar(){
-  var id = document.getElementById('lg-user').value;
-  var pw = document.getElementById('lg-pass').value;
-  var e  = document.getElementById('login-err');
-  if(!id){ e.textContent='Seleccione un usuario.'; return; }
-  var u = null;
-  for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id===id) u = USUARIOS[i];
-  if(!u || u.pass!==pw){ e.textContent='Contrase&ntilde;a incorrecta.'; return; }
+function intentarSSO(){
+  var d = null;
+  try{ d = JSON.parse(localStorage.getItem(SSO_KEY)||'null'); }catch(e){}
+  if(!d || !d.id) return false;
+  if(Date.now() - (d.ts||0) > 12*60*60*1000) return false;   // sesion de mas de 12 h: no vale
+  iniciarSesion({id:d.id, nombre:d.nombre||d.id, pass:'', rol:(d.rol==='admin'?'admin':'usuario')});
+  return true;
+}
+function iniciarSesion(u){
   usuarioActual = u;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('app').style.display='block';
@@ -575,9 +580,21 @@ function entrar(){
   document.getElementById('btn-usuarios').style.display = (u.rol==='admin')? 'inline-block' : 'none';
   cargarDatos(false);
   cargarEmpleados();
+  if(reloadTimer) clearInterval(reloadTimer);
   reloadTimer = setInterval(function(){ try{ cargarDatos(true); }catch(e){} }, 45000);
 }
+function entrar(){
+  var id = document.getElementById('lg-user').value;
+  var pw = document.getElementById('lg-pass').value;
+  var e  = document.getElementById('login-err');
+  if(!id){ e.textContent='Seleccione un usuario.'; return; }
+  var u = null;
+  for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id===id) u = USUARIOS[i];
+  if(!u || u.pass!==pw){ e.textContent='Contrase&ntilde;a incorrecta.'; return; }
+  iniciarSesion(u);
+}
 function salir(){
+  try{ localStorage.removeItem(SSO_KEY); }catch(e){}
   if(reloadTimer) clearInterval(reloadTimer);
   usuarioActual = null;
   document.getElementById('app').style.display='none';
@@ -1343,7 +1360,8 @@ function exportar(){
 document.getElementById('corte').value = hoyYm();
 poblarCuotas();
 poblarLogin();
-cargarUsuarios();
+cargarUsuarios(function(){ if(!usuarioActual) intentarSSO(); });
+intentarSSO();
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){ cerrar('modal-doc'); cerrar('modal-plan'); cerrar('modal-usu'); }
 });
