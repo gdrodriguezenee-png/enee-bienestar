@@ -108,6 +108,18 @@ td.asunto{max-width:300px;}
 .campo-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .modal-btns{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
 .no-field{background:#e8f0f8!important;color:#003366!important;font-weight:700!important;font-family:'Barlow Condensed',sans-serif!important;font-size:16px!important;}
+.no-field.reservado{background:#dff0e8!important;color:#1a7a44!important;border-color:#1a7a44!important;}
+.no-field.provisional{background:#fdf3d8!important;color:#a06a00!important;border-color:#f0a500!important;}
+.res-chip{font-family:'Barlow',sans-serif;font-size:12px;margin:-6px 0 12px;padding:7px 11px;border-radius:7px;display:none;line-height:1.4;}
+.res-chip.show{display:block;}
+.res-chip.ok{background:#dff0e8;color:#1a7a44;border-left:3px solid #1a7a44;}
+.res-chip.wait{background:#fdf3d8;color:#a06a00;border-left:3px solid #f0a500;}
+.res-chip.warn{background:#fde0e0;color:#b02020;border-left:3px solid #cc2233;}
+tbody tr.reservada{background:#fdf3d8!important;color:#a06a00;font-style:italic;}
+tbody tr.reservada td{border-right-color:#f0d090;}
+tbody tr.reservada:hover{background:#fbead0!important;}
+.res-badge{font-family:'Barlow Condensed',sans-serif;font-style:normal;font-size:11px;font-weight:700;background:#f0a500;color:#003366;padding:2px 8px;border-radius:20px;letter-spacing:.4px;}
+.res-info{background:#fdf3d8;color:#a06a00;padding:2px 9px;border-radius:20px;font-weight:600;}
 .u-wrap{max-height:300px;overflow-y:auto;border:1px solid #dde3ed;border-radius:8px;margin-bottom:18px;}
 .u-table{width:100%;border-collapse:collapse;font-size:13px;}
 .u-table thead tr{background:#003366;color:#fff;position:sticky;top:0;}
@@ -197,6 +209,7 @@ td.asunto{max-width:300px;}
     <span>Total: <strong id="total-count">0</strong></span>
     <span id="tipo-label"></span>
     <span><span class="sync-dot s-load" id="sync-dot"></span><span id="sync-txt">Conectando...</span></span>
+    <span id="res-info"></span>
   </div>
 
   <div class="tabla-wrap">
@@ -218,6 +231,8 @@ td.asunto{max-width:300px;}
         </div>
       </div>
     </div>
+
+    <div class="res-chip" id="m-res-estado"></div>
 
     <div id="campos-std">
       <div class="campo"><label>A quien se remite</label><input type="text" id="m-remite" placeholder="Destinatario"></div>
@@ -394,6 +409,16 @@ var reloadTimer = null;
 var guardandoAhora = false;
 var cargandoAhora = false;
 
+/* ===== SISTEMA DE RESERVA DE NUMEROS =====
+   Al presionar "+ Nuevo" el numero queda BLOQUEADO en el servidor
+   (hoja "Reservas") y ningun otro usuario puede tomarlo. */
+var reservaActiva     = null;  // {id, numero, tipo, expira}
+var reservaConsumiendo= false; // true mientras se guarda (no liberar)
+var RESERVAS          = [];    // reservas activas de todos los usuarios
+var resHeartbeat      = null;  // renueva la reserva mientras el modal esta abierto
+var resPollTimer      = null;  // refresca la lista de reservas de otros
+var resSoportado      = true;  // false si el Apps Script aun no tiene la accion
+
 function showLoad(txt){ document.getElementById('load-txt').textContent = txt||'Procesando...'; document.getElementById('loading').classList.add('show'); }
 function hideLoad(){ document.getElementById('loading').classList.remove('show'); }
 function toast(msg, tipo){ var t=document.getElementById('toast'); t.textContent=msg; t.className='toast '+(tipo||'success')+' show'; setTimeout(function(){ t.classList.remove('show'); },3000); }
@@ -532,13 +557,20 @@ function doLogin(){
     if(permitidos2.length>0) cambiarTab(permitidos2[0].id, true);
     // Carga completa UNA sola vez al entrar
     cargarDatos(false);
+    cargarReservas();
     clearInterval(reloadTimer);
     reloadTimer=setInterval(function(){ if(!guardandoAhora && !cargandoAhora){ try{cargarDatos(true);}catch(e){} } },30000);
+    // Reservas: se refrescan mas seguido para ver rapido lo que toman los demas
+    clearInterval(resPollTimer);
+    resPollTimer=setInterval(function(){ try{cargarReservas();}catch(e){} },20000);
   }
 }
 
 function doLogout(){
   clearInterval(reloadTimer);
+  clearInterval(resPollTimer);
+  if(reservaActiva) liberarReserva('liberada');
+  detenerHeartbeat();
   usuarioActual=null;
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -745,6 +777,103 @@ function cargarDatosIndividual(silencioso){
 
 function recargar(){ cargarDatos(false); toast('Datos actualizados'); }
 
+/* ============================================================
+   RESERVA DE NUMEROS (bloqueo entre usuarios)
+   ============================================================ */
+
+// Pide al servidor un numero y lo bloquea para este usuario
+function reservarNumero(tipo, cb){
+  var anio = String(new Date().getFullYear());
+  apiPost({accion:'reservar', tipo:tipo, anio:anio,
+           usuario: usuarioActual ? usuarioActual.nombre : 'Desconocido'},
+    function(err,res){
+      if(err || !res || !res.ok || !res.numero){
+        resSoportado = false;
+        cb(new Error('sin-reserva'));
+        return;
+      }
+      resSoportado = true;
+      cb(null, res);
+    });
+}
+
+// Libera la reserva actual. estado: 'liberada' (cancelo) | 'usada' (guardo)
+function liberarReserva(estado){
+  if(!reservaActiva) return;
+  var id = reservaActiva.id, num = reservaActiva.numero, tp = reservaActiva.tipo;
+  reservaActiva = null;
+  detenerHeartbeat();
+  for(var i=RESERVAS.length-1;i>=0;i--){ if(RESERVAS[i].id===id) RESERVAS.splice(i,1); }
+  pintarReservas();
+  apiPost({accion:'liberarReserva', id:id, estado:estado||'liberada'}, function(){
+    if(tp===tipoActual) render();
+  });
+}
+
+// Mantiene viva la reserva mientras el modal sigue abierto
+function iniciarHeartbeat(){
+  detenerHeartbeat();
+  resHeartbeat = setInterval(function(){
+    if(!reservaActiva){ detenerHeartbeat(); return; }
+    apiPost({accion:'renovarReserva', id:reservaActiva.id}, function(err,res){
+      if(!err && res && res.ok && res.expira) reservaActiva.expira = res.expira;
+    });
+  }, 180000); // cada 3 minutos
+}
+function detenerHeartbeat(){ if(resHeartbeat){ clearInterval(resHeartbeat); resHeartbeat=null; } }
+
+// Trae las reservas activas de todos los usuarios
+function cargarReservas(cb){
+  apiPost({accion:'reservas'}, function(err,res){
+    if(!err && res && res.ok && Array.isArray(res.reservas)){
+      resSoportado = true;
+      RESERVAS = res.reservas;
+      pintarReservas();
+      if(!document.getElementById('modal-doc').classList.contains('show')) render();
+    } else if(err){ resSoportado = false; }
+    if(cb) cb();
+  });
+}
+
+// Reservas activas del tipo/año que se esta viendo
+function reservasDeTipo(tipo, anio){
+  var out=[];
+  for(var i=0;i<RESERVAS.length;i++){
+    var r=RESERVAS[i];
+    if(String(r.tipo)!==String(tipo)) continue;
+    if(anio && String(r.anio)!==String(anio)) continue;
+    out.push(r);
+  }
+  return out;
+}
+
+// Contador en la barra de informacion
+function pintarReservas(){
+  var el=document.getElementById('res-info'); if(!el) return;
+  var act=reservasDeTipo(tipoActual, String(new Date().getFullYear()));
+  if(!act.length){ el.innerHTML=''; return; }
+  var nums=[]; for(var i=0;i<act.length;i++) nums.push('N '+act[i].numero);
+  el.innerHTML='<span class="res-info">&#128274; En uso: '+nums.join(', ')+'</span>';
+}
+
+function esMiReserva(r){ return reservaActiva && r.id===reservaActiva.id; }
+
+// Admin puede liberar un numero que quedo trabado
+function liberarReservaAdmin(id, numero){
+  if(!usuarioActual || usuarioActual.rol!=='admin') return;
+  if(!confirm('Liberar el N '+numero+'?\n\nSolo hazlo si esa persona ya cerro la ventana o se le cayo el sistema. El numero volvera a quedar disponible.')) return;
+  showLoad('Liberando N '+numero+'...');
+  apiPost({accion:'liberarReserva', id:id, estado:'liberada'}, function(err,res){
+    hideLoad();
+    if(!err && res && res.ok){
+      for(var i=RESERVAS.length-1;i>=0;i--){ if(RESERVAS[i].id===id) RESERVAS.splice(i,1); }
+      pintarReservas(); render();
+      toast('N '+numero+' liberado');
+      registrarBitacora('Libero', getTipo(tipoActual).label, numero, 'Reserva liberada por admin');
+    } else toast('No se pudo liberar','error');
+  });
+}
+
 function obtenerSiguienteNo(tipo,cb){
   var anioActual=String(new Date().getFullYear());
   var local=DB[tipo]?DB[tipo].filter(function(d){return (!d.anio||d.anio===anioActual)&&d.no>0;}).map(function(d){return d.no;}):[];
@@ -757,7 +886,10 @@ function obtenerSiguienteNo(tipo,cb){
       return !rAnio||rAnio===anioActual;
     }).map(function(r){return Number(r[0]);});
     var noSheets=nums.length?Math.max.apply(null,nums)+1:1;
-    cb(Math.max(noLocal,noSheets));
+    // Considerar tambien numeros reservados por otros usuarios
+    var res=reservasDeTipo(tipo, anioActual), noRes=0;
+    for(var i=0;i<res.length;i++){ var n=Number(res[i].numero); if(n>noRes) noRes=n; }
+    cb(Math.max(noLocal,noSheets,noRes?noRes+1:0));
   });
 }
 
@@ -861,8 +993,29 @@ function render(){
       tbody.appendChild(tr);
     }
   }
+  // Filas fantasma: numeros apartados por alguien (aun no guardados)
+  var sinFiltros = (!q && !resp && !claus && (!anioFil || anioFil===anioActual2));
+  if(sinFiltros){
+    var act=reservasDeTipo(tipoActual, anioActual2);
+    act.sort(function(a,b){ return Number(b.numero)-Number(a.numero); });
+    for(var k=act.length-1;k>=0;k--){
+      var r=act[k];
+      var mio=esMiReserva(r);
+      var quien = mio ? 'TU' : (r.usuario||'otro usuario');
+      var hora = r.inicio ? String(r.inicio).substring(11,16) : '';
+      var trR=document.createElement('tr');
+      trR.className='reservada';
+      var acc = (usuarioActual && usuarioActual.rol==='admin' && !mio)
+        ? '<button class="btn btn-danger btn-sm" onclick="liberarReservaAdmin(\''+r.id+'\','+r.numero+')">Liberar</button>'
+        : '<span style="color:#a06a00">&#128274;</span>';
+      var medio = '<span class="res-badge">EN USO</span> &nbsp;Numero apartado por <b>'+quien+'</b>'+(hora?' &middot; '+hora:'')+' — nadie mas puede usarlo';
+      trR.innerHTML='<td class="num">'+r.numero+'</td><td colspan="'+(cols-2)+'">'+medio+'</td><td style="white-space:nowrap">'+acc+'</td>';
+      tbody.insertBefore(trR, tbody.firstChild);
+    }
+  }
   document.getElementById('vis-count').textContent=filtrados.length;
   document.getElementById('total-count').textContent=datos.length;
+  pintarReservas();
 }
 
 function ord(col){ if(sortCol===col) sortAsc=!sortAsc; else{sortCol=col;sortAsc=true;} render(); }
@@ -903,25 +1056,61 @@ function abrirModal(idx){
     document.getElementById('m-fact').value=m?(m.fact||''):'';
   }
 
+  var campoNo   = document.getElementById('m-no');
+  var chip      = document.getElementById('m-res-estado');
+  var btnG      = document.getElementById('btn-guardar');
+  campoNo.className='no-field';
+  chip.className='res-chip';
+  chip.innerHTML='';
+
   if(m){
     // EDITAR: guardar número en variable global protegida
     var noOriginal = m.no;
     editNo = noOriginal;
-    document.getElementById('m-no').value=noOriginal;
-    document.getElementById('btn-guardar').disabled=false;
+    campoNo.value=noOriginal;
+    btnG.disabled=false;
     syncStatus('ok','Listo');
   } else {
     editNo = null;
-    // NUEVO: calcular siguiente número
-    var local=datos.map(function(d){return d.no;}).filter(function(n){return n>0;});
-    var noI=local.length?Math.max.apply(null,local)+1:1;
-    document.getElementById('m-no').value=noI;
-    document.getElementById('btn-guardar').disabled=false;
-    syncStatus('load','Verificando N...');
-    obtenerSiguienteNo(tipoActual,function(n){
-      // Solo actualizar si seguimos en modo NUEVO (editNo===null)
-      if(editNo===null && n>=noI){ document.getElementById('m-no').value=n; }
-      syncStatus('ok','Sincronizado');
+    // NUEVO: pedir al servidor un numero y BLOQUEARLO para este usuario
+    campoNo.value='...';
+    btnG.disabled=true;
+    chip.className='res-chip wait show';
+    chip.innerHTML='&#9203; Apartando el numero... espere un momento.';
+    syncStatus('load','Apartando N...');
+    reservarNumero(tipoActual, function(err,res){
+      if(document.getElementById('modal-doc').classList.contains('show')===false) {
+        // El usuario cerro el modal antes de que llegara la respuesta
+        if(!err && res) apiPost({accion:'liberarReserva', id:res.id, estado:'liberada'}, function(){});
+        return;
+      }
+      if(editNo!==null) return; // ya cambio a modo edicion
+      btnG.disabled=false;
+      if(!err && res){
+        reservaActiva={id:res.id, numero:res.numero, tipo:tipoActual, expira:res.expira};
+        campoNo.value=res.numero;
+        campoNo.className='no-field reservado';
+        chip.className='res-chip ok show';
+        chip.innerHTML='&#128274; <b>N '+res.numero+' apartado para ti.</b> Nadie mas puede tomarlo mientras esta ventana este abierta'+
+                       (res.minutos?' (se libera solo despues de '+res.minutos+' min de inactividad).':'.');
+        RESERVAS.push({id:res.id, tipo:tipoActual, numero:res.numero,
+                       usuario:(usuarioActual?usuarioActual.nombre:''), anio:String(new Date().getFullYear())});
+        pintarReservas();
+        iniciarHeartbeat();
+        syncStatus('ok','Sincronizado');
+      } else {
+        // Respaldo: el Apps Script aun no tiene la accion 'reservar'
+        var local=datos.map(function(d){return d.no;}).filter(function(n){return n>0;});
+        var noI=local.length?Math.max.apply(null,local)+1:1;
+        campoNo.value=noI;
+        campoNo.className='no-field provisional';
+        chip.className='res-chip warn show';
+        chip.innerHTML='&#9888; <b>N provisional</b> — no se pudo apartar en el servidor. Otra persona podria tomar este mismo numero. (Falta actualizar el Apps Script.)';
+        syncStatus('err','Sin reserva');
+        obtenerSiguienteNo(tipoActual,function(n){
+          if(editNo===null && n>=noI) campoNo.value=n;
+        });
+      }
     });
   }
   document.getElementById('modal-doc').classList.add('show');
@@ -959,11 +1148,21 @@ function abrirModalDirecto(m){
   // Guardar número original en variable global protegida
   editNo = m.no;
   document.getElementById('m-no').value=m.no;
+  document.getElementById('m-no').className='no-field';
+  document.getElementById('m-res-estado').className='res-chip';
   document.getElementById('btn-guardar').disabled=false;
   syncStatus('ok','Listo');
   document.getElementById('modal-doc').classList.add('show');
 }
-function cerrarModal(){ document.getElementById('modal-doc').classList.remove('show'); editIdx=null; editNo=null; }
+function cerrarModal(){
+  document.getElementById('modal-doc').classList.remove('show');
+  // Si habia un numero apartado y NO se guardo, devolverlo para que otro lo use
+  if(reservaActiva && !reservaConsumiendo) liberarReserva('liberada');
+  detenerHeartbeat();
+  document.getElementById('m-res-estado').className='res-chip';
+  document.getElementById('m-no').className='no-field';
+  editIdx=null; editNo=null;
+}
 function editar(idx){ abrirModal(idx); }
 function editarPorNo(no){
   var datos=DB[tipoActual]||[];
@@ -1010,18 +1209,32 @@ function guardar(){
     if(!remite||!resp){toast('Complete destinatario y responsable','warn');return;}
   }
   if(!noVal){toast('Error en el N de registro','error');return;}
+  // El numero apartado se usa tal cual: no se recalcula ni se cede
+  var reservaGuardar = (!esEdicion && reservaActiva) ? reservaActiva : null;
+  if(reservaGuardar) reservaConsumiendo = true;
   cerrarModal();
   var datos=DB[tipoActual];
   if(!esEdicion){
     guardandoAhora = true;
     showLoad('Guardando...');
-    obtenerSiguienteNo(tipoActual,function(noFinal){
+    var pedirNo = function(cbNo){
+      if(reservaGuardar) cbNo(reservaGuardar.numero);      // numero ya bloqueado
+      else obtenerSiguienteNo(tipoActual, cbNo);           // respaldo sin reserva
+    };
+    pedirNo(function(noFinal){
       var esCirugPost=(tipoActual==='Cirugia');
       var postData={accion:'agregar',tipo:tipoActual,no:noFinal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico};
       if(esCirugPost) postData.cols=[noFinal,remite,clave,centro,fecha,hospital,monto,diagnostico,anioActual];
       postData.anio=anioActual;
       apiPost(postData,function(err,res){
-        if(!err&&res&&res.ok){
+        var okGuardado = (!err && res && res.ok);
+        if(reservaGuardar){
+          // Guardado: la reserva se marca 'usada'. Fallo: se devuelve el numero.
+          apiPost({accion:'liberarReserva', id:reservaGuardar.id, estado: okGuardado?'usada':'liberada'}, function(){});
+          for(var q=RESERVAS.length-1;q>=0;q--){ if(RESERVAS[q].id===reservaGuardar.id) RESERVAS.splice(q,1); }
+          reservaActiva=null; reservaConsumiendo=false; pintarReservas();
+        }
+        if(okGuardado){
           DB[tipoActual].push({no:noFinal,remite:remite,resp:resp,fecha:fecha,asunto:asunto,fact:fact,clave:clave,centro:centro,hospital:hospital,monto:monto,diagnostico:diagnostico,anio:anioActual,nueva:true});
           actualizarTabs(); poblarResp(); render();
           syncStatus('ok','Sincronizado'); toast('Registro N '+noFinal+' guardado');
@@ -1376,6 +1589,20 @@ document.getElementById('buscar').addEventListener('input', render);
 document.getElementById('filtro-resp').addEventListener('change', render);
 document.getElementById('filtro-clausula').addEventListener('change', render);
 document.getElementById('filtro-anio').addEventListener('change', render);
+
+// Si cierran la pestana con un numero apartado, se intenta devolverlo de
+// inmediato; si no alcanza, el servidor lo libera solo por vencimiento.
+window.addEventListener('beforeunload', function(ev){
+  if(!reservaActiva) return;
+  try{
+    var url=SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify({accion:'liberarReserva',id:reservaActiva.id,estado:'liberada'}))+'&_='+Date.now();
+    if(navigator.sendBeacon) navigator.sendBeacon(url);
+    else { var i=new Image(); i.src=url; }
+  }catch(e){}
+  ev.preventDefault();
+  ev.returnValue='Tienes el N '+reservaActiva.numero+' apartado sin guardar.';
+  return ev.returnValue;
+});
 
 // Nota: los datos se cargan al iniciar sesion (completarLogin), no antes.
 // Esto evita 6 peticiones innecesarias al Apps Script al abrir la pagina.
