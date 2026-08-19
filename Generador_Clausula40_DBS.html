@@ -3708,7 +3708,7 @@ function armarDocx(plantillaB64, documentXml){
    Ancho útil = 12240 - 1701 - 1701 = 8838 twips
    ========================================================= */
 var ANCHO_UTIL = 8838;
-var COLS_C40   = [680, 2198, 1410, 1200, 660, 580, 910, 340, 340, 520];
+var COLS_C40   = [700, 4200, 1450, 1300, 700, 640, 1000, 400, 400, 450];
 
 function xesc(s){
   return String(s == null ? '' : s)
@@ -3769,7 +3769,10 @@ function wTabla(filas, cols, opciones){
   var ancho = 0;
   for(var i=0;i<cols.length;i++) ancho += cols[i];
   var t = '<w:tbl><w:tblPr><w:tblW w:w="' + ancho + '" w:type="dxa"/>'
-    + '<w:jc w:val="center"/>' + b
+    + (opciones.sangria
+        ? '<w:jc w:val="left"/><w:tblInd w:w="' + opciones.sangria + '" w:type="dxa"/>'
+        : '<w:jc w:val="center"/>')
+    + b
     + '<w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="60" w:type="dxa"/>'
     + '<w:bottom w:w="40" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar>'
     + '<w:tblLook w:val="04A0"/></w:tblPr><w:tblGrid>';
@@ -3781,7 +3784,7 @@ function wFila(celdas, o){
   o = o || {};
   var pr = '<w:trPr><w:jc w:val="center"/>';
   if(o.repetir) pr += '<w:tblHeader/>';
-  pr += '<w:trHeight w:val="' + (o.alto || 300) + '" w:hRule="atLeast"/>';
+  pr += '<w:trHeight w:val="' + (o.alto || 260) + '" w:hRule="atLeast"/>';
   pr += '</w:trPr>';
   return '<w:tr>' + pr + celdas.join('') + '</w:tr>';
 }
@@ -3867,7 +3870,7 @@ function documentXmlC40(d, cfg){
     wCelda(wTexto(d.totalTxt, {b:true, sz:S, jc:'right'}), cols[6], {fondo:'F2F2F2'}),
     wCelda(wTexto('', {sz:S}), anchoDer, {span:3, fondo:'F2F2F2'})
   ]));
-  cuerpo.push(wTabla(filas, cols));
+  cuerpo.push(wTabla(filas, cols, {sangria:-1201}));
 
   /* Documentación adjunta */
   cuerpo.push(wTexto('Se adjunta la siguiente documentación.',
