@@ -3848,6 +3848,31 @@ function wFila(celdas, o){
 }
 
 /* -------- Documento completo -------- */
+/* Línea "Etiqueta:  <tab>  Valor" con sangría francesa, para que un valor
+   largo que baje de renglón quede alineado bajo el primero. */
+function wLinea(etiqueta, valor, sangria, o){
+  o = o || {};
+  var p = '<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="' + sangria + '"/></w:tabs>'
+    + '<w:spacing w:before="0" w:after="' + (o.after == null ? 0 : o.after)
+    + '" w:line="240" w:lineRule="auto"/>'
+    + '<w:ind w:left="' + sangria + '" w:hanging="' + sangria + '"/>'
+    + wRpr({b:true}) + '</w:pPr>'
+    + '<w:r>' + wRpr({b:true}) + '<w:t xml:space="preserve">' + xesc(etiqueta) + '</w:t>'
+    + '<w:tab/></w:r>'
+    + '<w:r>' + wRpr({b:true}) + '<w:t xml:space="preserve">' + xesc(valor) + '</w:t></w:r>'
+    + '</w:p>';
+  return p;
+}
+/* Segundo renglón del bloque (por ejemplo el cargo), alineado al valor. */
+function wSegunda(valor, sangria, o){
+  o = o || {};
+  if(!String(valor||'').trim()) return '';
+  return '<w:p><w:pPr><w:spacing w:before="0" w:after="' + (o.after == null ? 0 : o.after)
+    + '" w:line="240" w:lineRule="auto"/>'
+    + '<w:ind w:left="' + sangria + '"/>' + wRpr({b:true}) + '</w:pPr>'
+    + '<w:r>' + wRpr({b:true}) + '<w:t xml:space="preserve">' + xesc(valor) + '</w:t></w:r></w:p>';
+}
+
 function documentXmlC40(d, cfg){
   var S = 16;                       // 8 pt para la tabla
   var cols = COLS_C40;
@@ -3857,26 +3882,15 @@ function documentXmlC40(d, cfg){
   cuerpo.push(wTexto('MEMORANDO ' + d.no,
     {b:true, sz:28, color:'747474', jc:'center', line:360, after:160}));
 
-  /* Bloque Para / De / Asunto / Fecha (tabla sin bordes) */
-  var etiqueta = 1450, valor = ANCHO_UTIL - etiqueta;
-  var enc = [];
-  enc.push(wFila([
-    wCelda(wTexto('Para:', {b:true, after:0}), etiqueta),
-    wCelda(wTexto(d.para, {b:true, after:0}) + wTexto(d.cargo, {b:true, after:80}), valor)
-  ]));
-  enc.push(wFila([
-    wCelda(wTexto('De:', {b:true, after:0}), etiqueta),
-    wCelda(wTexto(d.de, {b:true, after:80}), valor)
-  ]));
-  enc.push(wFila([
-    wCelda(wTexto('Asunto:', {b:true, after:0}), etiqueta),
-    wCelda(wTexto(d.asunto, {b:true, after:80}), valor)
-  ]));
-  enc.push(wFila([
-    wCelda(wTexto('Fecha:', {b:true, after:0}), etiqueta),
-    wCelda(wTexto(d.fechaTxt, {b:true, after:0}), valor)
-  ]));
-  cuerpo.push(wTabla(enc, [etiqueta, valor], {sinBordes:true}));
+  /* Bloque Para / De / Asunto / Fecha
+     Se arma con párrafos y una tabulación, no con tabla: así no aparecen
+     líneas ni bordes de celda entre el nombre y su cargo. */
+  var SANGRIA = 1450;
+  cuerpo.push(wLinea('Para:', d.para, SANGRIA, {after:0}));
+  cuerpo.push(wSegunda(d.cargo, SANGRIA, {after:110}));
+  cuerpo.push(wLinea('De:', d.de, SANGRIA, {after:110}));
+  cuerpo.push(wLinea('Asunto:', d.asunto, SANGRIA, {after:110}));
+  cuerpo.push(wLinea('Fecha:', d.fechaTxt, SANGRIA, {after:60}));
 
   /* Línea divisoria */
   cuerpo.push(wPar('', {borde:true, after:120, sz:8}));
