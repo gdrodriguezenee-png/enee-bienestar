@@ -75,6 +75,7 @@
   table.ben input{width:100%;border:none;padding:6px 5px;outline:none;background:transparent;text-align:center}
   table.ben input:focus{background:#eef6ff}
   table.ben input.clave{background:var(--amarillo);font-weight:600;min-width:74px}
+  table.ben input.aviso{background:#fff4e6;border:1px solid #f0c987;color:var(--naranja);font-weight:600}
   table.ben input.emp{min-width:230px;text-align:left}
   table.ben input.benef{min-width:140px;text-align:left}
   table.ben input.dni{min-width:126px}
@@ -958,6 +959,7 @@ function provFill(){
   setVal('m_centro', p? p.ce : '');
   setVal('m_rtn',    p? normRTN(p.r) : '');
   avisarProvDesfasado();
+  if(document.getElementById('m_body')) chkFactura(null,'memo');   // el aviso depende del proveedor
 }
 /* Un memorándum viejo o importado puede traer banco/cuenta distintos de los del
    catálogo actual. Se avisa en vez de cambiarlos por la espalda. */
@@ -1104,13 +1106,26 @@ function claveFill(inp){
   tr.querySelector('.ua').value  = e? e.ua: '';
   recalc('memo');   // actualizar N° de Beneficiarios (claves distintas)
 }
-/* -------- N° de FACTURA: no permitir repetidos -------- */
-function facturasHistorial(){
-  // Set de facturas ya usadas en memorándums guardados (excepto el que se está editando)
+/* -------- N° de FACTURA: aviso de repetidos --------
+   Un mismo número de factura puede repetirse legítimamente entre proveedores
+   distintos: cada casa médica lleva su propia numeración y todas empiezan
+   en 1. Por eso el historial solo se compara contra documentos del MISMO
+   tipo y del MISMO proveedor (o del mismo empleado, en los reembolsos). */
+function titularDe(tipo, m){
+  // Para 'memo' el detalle guarda el proveedor; para 'reem', el empleado.
+  return claveProv(m ? m.detalle : (tipo==='memo' ? selText('m_prov') : val('r_emp')));
+}
+function facturasHistorial(t){
   var set={};
+  var titularActual = titularDe(t, null);
+  var numEnPantalla = String(val(pfxOf(t)+'_num')||'');
+  if(!titularActual) return set;          // sin proveedor elegido no hay con qué comparar
   HIST_CACHE.forEach(function(m){
+    if(m.tipo !== t) return;                                     // otro tipo de documento
+    if(EDITING[m.tipo] && String(EDITING[m.tipo])===String(m.num)) return;   // el que editamos
+    if(numEnPantalla && String(m.num)===numEnPantalla) return;   // el mismo que está en pantalla
+    if(titularDe(t, m) !== titularActual) return;                // otro proveedor / otro empleado
     var d = unpackData(m);
-    if(EDITING[m.tipo] && String(EDITING[m.tipo])===String(m.num)) return;  // el que editamos no cuenta
     (d.rows||[]).forEach(function(r){
       var f=fmtFactura(r.fac); if(f) set[f]=m.num;
     });
@@ -1124,22 +1139,23 @@ function chkFactura(inp,t){
   filas.forEach(function(tr){
     var el=tr.querySelector('.fac'); if(!el) return;
     var f=fmtFactura(el.value);
-    el.classList.remove('dup'); el.title='';
+    el.classList.remove('dup'); el.classList.remove('aviso'); el.title='';
     if(!f) return;
     if(vistos[f]){ el.classList.add('dup'); el.title='Factura repetida en este cuadro'; vistos[f].classList.add('dup'); vistos[f].title='Factura repetida en este cuadro'; dupEnCuadro=true; }
     else vistos[f]=el;
   });
-  // Comparar contra el historial ya guardado
-  var hist=facturasHistorial(), dupHist=null;
+  // Comparar contra el historial: solo mismo tipo y mismo proveedor/empleado
+  var hist=facturasHistorial(t), dupHist=null;
   filas.forEach(function(tr){
     var el=tr.querySelector('.fac'); if(!el) return;
     var f=fmtFactura(el.value); if(!f) return;
-    if(hist[f]){ el.classList.add('dup'); el.title='Ya usada en el memorándum '+hist[f]; dupHist=hist[f]; }
+    if(hist[f]){ el.classList.add('aviso'); el.title='El mismo proveedor ya facturó este número en el memorándum '+hist[f]; dupHist=hist[f]; }
   });
-  if(dupEnCuadro) showMsg(pfx+'_msg','err','⚠ Hay N° de factura repetidos en el cuadro (marcados en rojo).');
-  else if(dupHist) showMsg(pfx+'_msg','err','⚠ Una factura ya fue usada en el memorándum '+dupHist+'.');
+  if(dupEnCuadro) showMsg(pfx+'_msg','err','⚠ Hay N° de factura repetidos DENTRO de este cuadro (marcados en rojo). Corríjalos para poder generar.');
+  else if(dupHist) showMsg(pfx+'_msg','info','ℹ Aviso: este proveedor ya usó ese N° de factura en el memorándum '+dupHist+'. Si es correcto, puede generar igual.');
   else { var el=document.getElementById(pfx+'_msg'); if(el.textContent.indexOf('factura')>=0){ el.className='msg'; el.textContent=''; } }
-  return !dupEnCuadro && !dupHist;
+  /* Solo bloquea el repetido dentro del propio cuadro; el del historial es un aviso. */
+  return !dupEnCuadro;
 }
 function nbenefManual(inp){
   // Si el usuario escribe a mano, se respeta; si lo deja vacío, vuelve a automático
