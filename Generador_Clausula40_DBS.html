@@ -1202,28 +1202,57 @@ function completarDesdeCatalogo(i){
 /* =========================================================
    CATÁLOGO DE EMPLEADOS
    ========================================================= */
+var TOPE_CATALOGO = 60;   // máximo de filas que se dibujan a la vez
 function renderEmp(){
-  var q = ($('e-buscar').value||'').toLowerCase();
+  var q   = ($('e-buscar').value||'').trim().toLowerCase();
   var dep = $('e-dep').value;
-  var h = '', n = 0;
+
+  /* Sin búsqueda ni filtro no se dibuja la lista: con miles de empleados
+     no sirve de nada y hace lenta la pantalla. */
+  if(!q && !dep){
+    $('e-tb').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#8899aa">'
+      + 'Escriba una clave, un nombre o una identidad para buscar,<br>'
+      + 'o elija una dependencia en la lista.</td></tr>';
+    $('e-cont').textContent = EMPLEADOS.length + ' empleados en el catálogo';
+    poblarDeps();
+    return;
+  }
+
+  var h = '', n = 0, dibujadas = 0;
   for(var i=0;i<EMPLEADOS.length;i++){
     var e = EMPLEADOS[i];
-    var txt = (e.clave+' '+e.nombre+' '+e.identidad+' '+(e.dependencia||'')).toLowerCase();
-    if(q && txt.indexOf(q) === -1) continue;
     if(dep && (e.dependencia||'') !== dep) continue;
+    if(q){
+      var txt = (e.clave+' '+e.nombre+' '+e.identidad+' '+(e.dependencia||'')).toLowerCase();
+      if(txt.indexOf(q) === -1) continue;
+    }
     n++;
+    if(dibujadas >= TOPE_CATALOGO) continue;
+    dibujadas++;
     h += '<tr><td>'+esc(e.clave)+'</td><td>'+esc(e.nombre)+'</td><td>'+esc(e.identidad)+'</td>'
       + '<td>'+esc(e.estatus||'')+'</td><td>'+esc(e.dependencia||'')+'</td>'
       + '<td>'+esc(e.ga||'')+'</td><td>'+esc(e.ue||'')+'</td><td>'+esc(e.ua||'')+'</td>'
       + '<td><button class="sec" onclick="editarEmpleado('+i+')">Editar</button> '
       + '<button class="bdel" onclick="borrarEmpleado('+i+')">&times;</button></td></tr>';
   }
-  if(!n) h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">Sin resultados.</td></tr>';
+  if(!n){
+    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
+      + 'Sin resultados para esa búsqueda.</td></tr>';
+    $('e-cont').textContent = '0 de ' + EMPLEADOS.length + ' empleados';
+  } else if(n > dibujadas){
+    $('e-cont').textContent = 'Mostrando ' + dibujadas + ' de ' + n
+      + ' coincidencias. Afine la búsqueda para ver el resto.';
+  } else {
+    $('e-cont').textContent = n + ' de ' + EMPLEADOS.length + ' empleados';
+  }
   $('e-tb').innerHTML = h;
-  $('e-cont').textContent = n + ' de ' + EMPLEADOS.length + ' empleados';
   poblarDeps();
 }
+var _depsFirma = null;
 function poblarDeps(){
+  // Con miles de empleados no vale la pena rehacer la lista en cada tecla.
+  if(_depsFirma === EMPLEADOS.length) return;
+  _depsFirma = EMPLEADOS.length;
   var s = $('e-dep'), act = s.value, vistos = {}, h = '<option value="">Todas las dependencias</option>';
   for(var i=0;i<EMPLEADOS.length;i++){
     var d = EMPLEADOS[i].dependencia || '';
