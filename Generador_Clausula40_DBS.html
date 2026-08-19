@@ -242,7 +242,6 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <input id="f-asunto" value="PAGO DE CLÁUSULA N.º 40">
         </div>
         <datalist id="dl-dep"></datalist>
-        <datalist id="dl-claves"></datalist>
         <datalist id="dl-para"><option value="Lic. Ana Lourdes Aguilar"></datalist>
       </div>
 
@@ -329,7 +328,10 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <select id="e-dep" style="max-width:230px" onchange="renderEmp()"><option value="">Todas las dependencias</option></select>
           <button class="ok" onclick="nuevoEmpleado()">Nuevo empleado</button>
           <button class="sec" onclick="abrirPegarEmp()">Pegar desde Excel</button>
+          <button class="sec" onclick="cargarEmpleadosSheets()">Traer de Google Sheets</button>
+          <button class="sec" onclick="subirEmpleadosSheets()">Subir a Google Sheets</button>
           <button class="sec" onclick="exportarEmp()">Exportar CSV</button>
+          <span class="estado"><span class="dot" id="dot-emp"></span><span id="txt-emp">Local</span></span>
         </div>
         <div class="tabla-wrap">
           <table>
@@ -840,7 +842,7 @@ function renderFilas(){
     var tot = num(f.cenas) * num(f.valor);
     h += '<tr>'
       + '<td class="idx">'+(i+1)+'</td>'
-      + '<td><input list="dl-claves" value="'+esc(f.clave)+'" placeholder="clave" '
+      + '<td><input value="'+esc(f.clave)+'" placeholder="clave" '
         + 'onchange="setF('+i+',\'clave\',this.value); buscarPorClave('+i+')"></td>'
       + '<td><input value="'+esc(f.nombre)+'" onchange="setF('+i+',\'nombre\',this.value)"></td>'
       + '<td><input value="'+esc(f.identidad)+'" onchange="setF('+i+',\'identidad\',this.value)"></td>'
@@ -1236,13 +1238,6 @@ function poblarDatalists(){
     if(d && !vistos[d]){ vistos[d]=1; h += '<option value="'+esc(d)+'">'; }
   }
   $('dl-dep').innerHTML = h;
-
-  var c = '';
-  for(var k=0;k<EMPLEADOS.length;k++){
-    c += '<option value="' + esc(EMPLEADOS[k].clave) + '">'
-       + esc(EMPLEADOS[k].nombre) + '</option>';
-  }
-  $('dl-claves').innerHTML = c;
 }
 function nuevoEmpleado(){
   $('em-tit').textContent = 'Nuevo empleado';
@@ -1739,6 +1734,7 @@ function sincronizar(silencioso){
     }
     cargando(false);
   });
+  cargarEmpleadosSheets(null, silencioso);
 }
 function fusionarMemos(filas){
   var existentes = {};
@@ -1772,6 +1768,68 @@ function enviarMemoSheets(reg){
     estadoSync(ok, ok ? 'Guardado en Sheets' : 'Guardado solo local');
     if(ok) registrarBitacora('Agrego', reg.no, 'L ' + fmt(reg.total) + ' — ' + reg.dep);
   });
+}
+function estadoEmp(ok, txt){
+  if(!$('dot-emp')) return;
+  $('dot-emp').className = 'dot' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  $('txt-emp').textContent = txt;
+}
+/* Trae el catálogo desde la hoja Empleados40. La hoja manda: lo que esté
+   ahí reemplaza la copia local de este navegador. */
+function cargarEmpleadosSheets(cb, silencioso){
+  if(!CFG.url){
+    estadoEmp(null, 'Solo local (sin URL configurada)');
+    if(!silencioso) toast('Configure primero la URL del Apps Script.','err');
+    if(cb) cb(false);
+    return;
+  }
+  estadoEmp(null, 'Consultando la hoja…');
+  apiGet(CFG.hojaEmp, function(datos){
+    if(!datos || !datos.filas){
+      estadoEmp(false, 'Sin conexión con la hoja de empleados');
+      if(!silencioso) toast('No se pudo leer la hoja ' + CFG.hojaEmp + '.','err');
+      if(cb) cb(false);
+      return;
+    }
+    var f = datos.filas, ini = 0, lista = [], i;
+    if(f.length && String(f[0][0]||'').trim().toUpperCase() === 'CLAVE') ini = 1;
+    for(i=ini;i<f.length;i++){
+      var r = f[i];
+      if(!r || !String(r[0]==null?'':r[0]).trim()) continue;
+      lista.push({
+        clave:       String(r[0]).trim(),
+        nombre:      String(r[1]==null?'':r[1]).toUpperCase().trim(),
+        identidad:   String(r[2]==null?'':r[2]).trim(),
+        estatus:     normalizarEstatus(r[3]) || 'PERMANENTE',
+        dependencia: String(r[4]==null?'':r[4]).toUpperCase().trim(),
+        ga:          String(r[5]==null?'':r[5]).trim(),
+        ue:          String(r[6]==null?'':r[6]).trim(),
+        ua:          String(r[7]==null?'':r[7]).trim()
+      });
+    }
+    if(lista.length){
+      EMPLEADOS = lista;
+      guardarLS(LS.emp, EMPLEADOS);
+      renderEmp(); poblarDatalists();
+      estadoEmp(true, lista.length + ' empleados desde la hoja · '
+        + new Date().toLocaleTimeString('es-HN'));
+      if(!silencioso) toast(lista.length + ' empleados cargados desde Google Sheets.','ok');
+    } else {
+      // La hoja está vacía: se sube el catálogo local para inicializarla.
+      enviarEmpleadosSheets();
+      estadoEmp(true, 'Hoja vacía: se subió el catálogo local (' + EMPLEADOS.length + ')');
+      if(!silencioso) toast('La hoja estaba vacía. Se subió el catálogo de este equipo.','ok');
+    }
+    if(cb) cb(true);
+  });
+}
+function subirEmpleadosSheets(){
+  if(!CFG.url){ toast('Configure primero la URL del Apps Script.','err'); return; }
+  if(!confirm('Se reemplazará el contenido de la hoja ' + CFG.hojaEmp + ' con los '
+    + EMPLEADOS.length + ' empleados de este equipo. ¿Continuar?')) return;
+  enviarEmpleadosSheets();
+  estadoEmp(true, 'Catálogo enviado a la hoja (' + EMPLEADOS.length + ')');
+  toast('Catálogo subido a Google Sheets.','ok');
 }
 function enviarEmpleadosSheets(){
   var cols = [['CLAVE','NOMBRE','IDENTIDAD','ESTATUS','DEPENDENCIA','GA','UE','UA']];
