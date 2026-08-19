@@ -242,6 +242,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <input id="f-asunto" value="PAGO DE CLÁUSULA N.º 40">
         </div>
         <datalist id="dl-dep"></datalist>
+        <datalist id="dl-claves"></datalist>
         <datalist id="dl-para"><option value="Lic. Ana Lourdes Aguilar"></datalist>
       </div>
 
@@ -839,7 +840,8 @@ function renderFilas(){
     var tot = num(f.cenas) * num(f.valor);
     h += '<tr>'
       + '<td class="idx">'+(i+1)+'</td>'
-      + '<td><input value="'+esc(f.clave)+'" onchange="setF('+i+',\'clave\',this.value); buscarPorClave('+i+')"></td>'
+      + '<td><input list="dl-claves" value="'+esc(f.clave)+'" placeholder="clave" '
+        + 'onchange="setF('+i+',\'clave\',this.value); buscarPorClave('+i+')"></td>'
       + '<td><input value="'+esc(f.nombre)+'" onchange="setF('+i+',\'nombre\',this.value)"></td>'
       + '<td><input value="'+esc(f.identidad)+'" onchange="setF('+i+',\'identidad\',this.value)"></td>'
       + '<td><select onchange="setF('+i+',\'estatus\',this.value)">'
@@ -881,17 +883,57 @@ function setF(i, campo, val){
 function buscarPorClave(i){
   var c = String(FILAS[i].clave||'').trim();
   if(!c) return;
+  var e = empleadoPorClave(c);
+  if(e){
+    FILAS[i].nombre    = e.nombre;
+    FILAS[i].identidad = e.identidad;
+    FILAS[i].estatus   = normalizarEstatus(e.estatus) || 'PERMANENTE';
+    FILAS[i].ga = e.ga; FILAS[i].ue = e.ue; FILAS[i].ua = e.ua;
+    renderFilas();
+    return;
+  }
+  // No está en el catálogo: se avisa y se escribe a mano una sola vez.
+  if(!FILAS[i].nombre){
+    toast('La clave ' + c + ' no está en el catálogo. Escriba los datos y se '
+        + 'guardarán solos para la próxima vez.', 'err');
+  }
+}
+function empleadoPorClave(c){
+  c = String(c||'').trim();
+  if(!c) return null;
   for(var k=0;k<EMPLEADOS.length;k++){
-    if(String(EMPLEADOS[k].clave).trim() === c){
-      var e = EMPLEADOS[k];
-      FILAS[i].nombre    = e.nombre;
-      FILAS[i].identidad = e.identidad;
-      FILAS[i].estatus   = normalizarEstatus(e.estatus) || 'PERMANENTE';
-      FILAS[i].ga = e.ga; FILAS[i].ue = e.ue; FILAS[i].ua = e.ua;
-      renderFilas();
-      return;
+    if(String(EMPLEADOS[k].clave).trim() === c) return EMPLEADOS[k];
+  }
+  return null;
+}
+/* Aprende de lo que se escribe: las filas completas que no estén en el
+   catálogo se agregan solas, y las que ya están se actualizan. */
+function aprenderEmpleados(){
+  var dep = String($('f-dep').value||'').trim().toUpperCase();
+  var nuevos = 0, cambios = false;
+  for(var i=0;i<FILAS.length;i++){
+    var f = FILAS[i];
+    var clave = String(f.clave||'').trim();
+    if(!clave || !String(f.nombre||'').trim()) continue;
+    var e = empleadoPorClave(clave);
+    if(!e){
+      EMPLEADOS.push({
+        clave:clave, nombre:String(f.nombre).toUpperCase(), identidad:f.identidad,
+        estatus:normalizarEstatus(f.estatus) || 'PERMANENTE',
+        dependencia:dep, ga:f.ga, ue:f.ue, ua:f.ua});
+      nuevos++; cambios = true;
+    } else {
+      if(!e.identidad && f.identidad){ e.identidad = f.identidad; cambios = true; }
+      if(!e.ga && f.ga){ e.ga = f.ga; e.ue = f.ue; e.ua = f.ua; cambios = true; }
+      if(!e.dependencia && dep){ e.dependencia = dep; cambios = true; }
     }
   }
+  if(cambios){
+    guardarLS(LS.emp, EMPLEADOS);
+    renderEmp(); poblarDatalists();
+    if(CFG.url) enviarEmpleadosSheets();
+  }
+  return nuevos;
 }
 function aplicarValorCena(){
   var v = num($('f-valcena').value);
@@ -1194,6 +1236,13 @@ function poblarDatalists(){
     if(d && !vistos[d]){ vistos[d]=1; h += '<option value="'+esc(d)+'">'; }
   }
   $('dl-dep').innerHTML = h;
+
+  var c = '';
+  for(var k=0;k<EMPLEADOS.length;k++){
+    c += '<option value="' + esc(EMPLEADOS[k].clave) + '">'
+       + esc(EMPLEADOS[k].nombre) + '</option>';
+  }
+  $('dl-claves').innerHTML = c;
 }
 function nuevoEmpleado(){
   $('em-tit').textContent = 'Nuevo empleado';
@@ -1390,7 +1439,9 @@ function generarWord(){
     var blob = new Blob([bytes],
       {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     bajarBlob(blob, 'MEMORANDO_' + d.no.replace(/[^\w\-]/g,'_') + '.docx');
+    var nuevos = aprenderEmpleados();
     guardarMemo(true);
+    if(nuevos) toast(nuevos + ' empleado(s) nuevo(s) agregado(s) al catálogo.','ok');
     toast('Word descargado y memorando ' + d.no + ' registrado en el historial.','ok');
   }catch(e){
     console.error(e);
@@ -1540,6 +1591,7 @@ function guardarMemo(automatico){
     registrado: new Date().toLocaleString('es-HN'),
     detalle: d.filas
   };
+  aprenderEmpleados();
   HISTORIAL.unshift(reg);
   guardarLS(LS.hist, HISTORIAL);
   // El correlativo solo avanza la primera vez que se registra este memorando
