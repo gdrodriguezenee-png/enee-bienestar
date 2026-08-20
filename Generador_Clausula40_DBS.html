@@ -403,8 +403,9 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
         <div class="tabla-wrap">
           <table>
             <thead><tr>
-              <th style="width:150px">Usuario</th><th>Nombre completo</th>
-              <th style="width:120px">Rol</th><th style="width:110px">Estado</th>
+              <th style="width:140px">Usuario</th><th style="width:150px">Primer nombre</th>
+              <th>Nombre completo</th><th style="width:100px">Iniciales</th>
+              <th style="width:110px">Rol</th><th style="width:100px">Estado</th>
               <th style="width:190px"></th>
             </tr></thead>
             <tbody id="u-tb"></tbody>
@@ -489,7 +490,28 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <input id="us-id" placeholder="sara">
           <div class="hint">Sin espacios ni mayúsculas.</div>
         </div>
-        <div><label>Nombre completo</label><input id="us-nom" placeholder="Sara"></div>
+        <div>
+          <label>Primer nombre</label>
+          <input id="us-nom" placeholder="Sara">
+          <div class="hint">Es el que aparece en la lista de ingreso.</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Contraseña</label>
+        <input type="text" id="us-pass" placeholder="Mínimo 4 caracteres">
+        <div class="hint" id="us-passhint">Al editar, deje el campo vacío para conservar la actual.</div>
+      </div>
+      <div class="grid g2" style="margin-top:12px">
+        <div>
+          <label>Nombre completo</label>
+          <input id="us-completo" placeholder="Sara Elena Martínez" oninput="sugerirIniciales()">
+          <div class="hint">De aquí salen las iniciales del memorando.</div>
+        </div>
+        <div>
+          <label>Iniciales en el memorando</label>
+          <input id="us-ini" placeholder="S.E.M" maxlength="10">
+          <div class="hint">Es lo que sale bajo "CC. Archivo" en el Word.</div>
+        </div>
       </div>
       <div class="grid g2" style="margin-top:12px">
         <div><label>Rol</label>
@@ -498,11 +520,6 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
         <div><label>Estado</label>
           <select id="us-act"><option value="1">Activo</option><option value="0">Inactivo</option></select>
         </div>
-      </div>
-      <div style="margin-top:12px">
-        <label>Contraseña</label>
-        <input type="text" id="us-pass" placeholder="Mínimo 4 caracteres">
-        <div class="hint" id="us-passhint">Al editar, deje el campo vacío para conservar la actual.</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -528,15 +545,30 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
    la pestaña Configuración.
 ------------------------------------------- */
 var USUARIOS_INICIALES = [
-  {id:'gustavo', nombre:'Gustavo D.',     pass:'gustavo2026', rol:'admin',   activo:true},
-  {id:'sara',    nombre:'Sara',           pass:'sara2026',    rol:'usuario', activo:true},
-  {id:'wendy',   nombre:'Wendy',          pass:'wendy2026',   rol:'usuario', activo:true},
-  {id:'oponce',  nombre:'O. Ponce',       pass:'oponce2026',  rol:'usuario', activo:true},
-  {id:'rosa',    nombre:'Rosa',           pass:'rosa2026',    rol:'usuario', activo:true},
-  {id:'adriana', nombre:'Adriana',        pass:'adriana2026', rol:'usuario', activo:true},
-  {id:'carmen',  nombre:'Carmen Caceres', pass:'carmen2026',  rol:'usuario', activo:true},
-  {id:'admin',   nombre:'Administrador',  pass:'admin2026',   rol:'admin',   activo:true}
+  {id:'gustavo', nombre:'Gustavo', completo:'Gustavo David Rodriguez', pass:'gustavo2026', rol:'admin',   activo:true, iniciales:'G.D.R'},
+  {id:'sara',    nombre:'Sara',    completo:'Sara',           pass:'sara2026',    rol:'usuario', activo:true, iniciales:'S'},
+  {id:'wendy',   nombre:'Wendy',   completo:'Wendy',          pass:'wendy2026',   rol:'usuario', activo:true, iniciales:'W'},
+  {id:'oponce',  nombre:'Ponce',   completo:'O. Ponce',       pass:'oponce2026',  rol:'usuario', activo:true, iniciales:'O.P'},
+  {id:'rosa',    nombre:'Rosa',    completo:'Rosa',           pass:'rosa2026',    rol:'usuario', activo:true, iniciales:'R'},
+  {id:'adriana', nombre:'Adriana', completo:'Adriana',        pass:'adriana2026', rol:'usuario', activo:true, iniciales:'A'},
+  {id:'carmen',  nombre:'Carmen',  completo:'Carmen Caceres', pass:'carmen2026',  rol:'usuario', activo:true, iniciales:'C.C'},
+  {id:'admin',   nombre:'Admin',   completo:'Administrador',  pass:'admin2026',   rol:'admin',   activo:true, iniciales:'ADM'}
 ];
+/* Iniciales a partir del nombre completo:
+   "Gustavo David Rodriguez" -> "G.D.R"   (se omiten DE, DEL, LA, LOS, Y…) */
+function inicialesDe(completo){
+  var omitir = {'DE':1,'DEL':1,'LA':1,'LAS':1,'LOS':1,'Y':1,'DA':1,'SAN':1};
+  var p = String(completo||'').trim().split(/\s+/), r = [];
+  for(var i=0;i<p.length && r.length<4;i++){
+    var c = p[i].replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ]/g,'');
+    if(!c || omitir[c.toUpperCase()]) continue;
+    r.push(c.charAt(0).toUpperCase());
+  }
+  return r.join('.');
+}
+function sugerirIniciales(){
+  $('us-ini').value = inicialesDe($('us-completo').value);
+}
 var USUARIOS = [];
 
 /* ---------------- BACKEND ----------------
@@ -552,6 +584,11 @@ var LS = {
   cfg:'c40_cfg', emp:'c40_empleados', hist:'c40_historial',
   draft:'c40_borrador', user:'c40_usuario', usuarios:'c40_usuarios'
 };
+/* Cada usuario tiene su propio borrador: al entrar con otra cuenta no se
+   arrastra lo que dejó escrito la anterior. */
+function claveBorrador(){
+  return LS.draft + '_' + (usuarioActual ? usuarioActual.id : 'anon');
+}
 var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio',
              'agosto','septiembre','octubre','noviembre','diciembre'];
 var ROMANOS = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
@@ -736,7 +773,20 @@ function cargarTodo(){
   if(!USUARIOS || !USUARIOS.length){
     USUARIOS = JSON.parse(JSON.stringify(USUARIOS_INICIALES));
     guardarLS(LS.usuarios, USUARIOS);
+  } else {
+    var arreglado = false;
+    for(var u=0;u<USUARIOS.length;u++){
+      var us = USUARIOS[u];
+      if(!us.completo){                       // versión anterior: un solo campo
+        us.completo = us.nombre || us.id;
+        us.nombre   = String(us.completo).trim().split(/\s+/)[0];
+        arreglado = true;
+      }
+      if(!us.iniciales){ us.iniciales = inicialesDe(us.completo); arreglado = true; }
+    }
+    if(arreglado) guardarLS(LS.usuarios, USUARIOS);
   }
+  localStorage.removeItem('c40_borrador');   // borrador viejo, era común a todos
 }
 function buscarUsuario(id){
   for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id === id) return USUARIOS[i];
@@ -749,6 +799,12 @@ function hayOtroAdmin(id){
   return false;
 }
 function esAdmin(){ return usuarioActual && usuarioActual.rol === 'admin'; }
+/* Iniciales que van al pie del memorando, bajo "CC. Archivo". */
+function inicialesUsuario(){
+  if(!usuarioActual) return '';
+  return usuarioActual.iniciales
+      || inicialesDe(usuarioActual.completo || usuarioActual.nombre);
+}
 function semillaAObj(a, dep){
   return {clave:a[0], nombre:a[1], identidad:a[2], estatus:'PERMANENTE',
           dependencia:dep, ga:a[3], ue:a[4], ua:a[5]};
@@ -989,7 +1045,8 @@ function armarNo(){
 
 /* -------- BORRADOR -------- */
 function guardarBorrador(){
-  guardarLS(LS.draft, {
+  if(!usuarioActual) return;
+  guardarLS(claveBorrador(), {
     no:$('f-no').value, corr:$('f-corr').value, fecha:$('f-fecha').value,
     para:$('f-para').value, cargo:$('f-cargo').value, de:$('f-de').value,
     dep:$('f-dep').value, mespago:$('f-mespago').value, aniopago:$('f-aniopago').value,
@@ -997,7 +1054,7 @@ function guardarBorrador(){
   });
 }
 function restaurarBorrador(){
-  var d = leerLS(LS.draft, null);
+  var d = leerLS(claveBorrador(), null);
   var hoy = hoyISO();
   $('f-fecha').value = (d && d.fecha) || hoy;
   $('f-corr').value  = (d && d.corr)  || CFG.correlativo || 1;
@@ -1012,8 +1069,17 @@ function restaurarBorrador(){
     $('f-asunto').value  = d.asunto || 'PAGO DE CLÁUSULA N.º 40';
     FILAS = d.filas || [];
   } else {
+    // Sin borrador propio: el formulario arranca limpio, sin arrastrar
+    // nada de la sesión anterior.
+    $('f-para').value    = 'Lic. Ana Lourdes Aguilar';
+    $('f-cargo').value   = 'Gerencia de Finanzas Corporativas';
+    $('f-de').value      = 'Departamento de Bienestar Social';
+    $('f-dep').value     = '';
+    $('f-valcena').value = 180;
+    $('f-asunto').value  = 'PAGO DE CLÁUSULA N.º 40';
     $('f-mespago').value = String(new Date().getMonth()+1);
     $('f-aniopago').value = new Date().getFullYear();
+    FILAS = [];
   }
   armarNo();
   renderFilas();
@@ -1459,7 +1525,10 @@ function generarWord(){
     letras:d.letras, adjuntos:(CFG.adjuntos||ADJ_DEF), filas:filas
   };
   try{
-    var bytes = armarDocx(PLANTILLA_B64, documentXmlC40(dd, CFG));
+    var ini = usuarioActual
+      ? (usuarioActual.iniciales || inicialesDe(usuarioActual.completo || usuarioActual.nombre))
+      : '';
+    var bytes = armarDocx(PLANTILLA_B64, documentXmlC40(dd, CFG), ini);
     var blob = new Blob([bytes],
       {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     bajarBlob(blob, 'MEMORANDO_' + d.no.replace(/[^\w\-]/g,'_') + '.docx');
@@ -1915,6 +1984,8 @@ function pintarUsuarios(){
     h += '<tr>'
       + '<td><b>' + esc(u.id) + '</b>' + (yo ? ' <span class="badge">usted</span>' : '') + '</td>'
       + '<td>' + esc(u.nombre) + '</td>'
+      + '<td>' + esc(u.completo || u.nombre) + '</td>'
+      + '<td>' + esc(u.iniciales || inicialesDe(u.completo || u.nombre)) + '</td>'
       + '<td>' + esc(u.rol) + '</td>'
       + '<td>' + (u.activo === false
           ? '<span style="color:#cc2233;font-weight:600">Inactivo</span>'
@@ -1932,8 +2003,8 @@ function nuevoUsuario(){
   $('us-tit').textContent = 'Nuevo usuario';
   $('us-idx').value = '';
   $('us-id').value = ''; $('us-id').removeAttribute('readonly');
-  $('us-nom').value = ''; $('us-rol').value = 'usuario';
-  $('us-act').value = '1'; $('us-pass').value = '';
+  $('us-nom').value = ''; $('us-completo').value = ''; $('us-rol').value = 'usuario';
+  $('us-act').value = '1'; $('us-pass').value = ''; $('us-ini').value = '';
   $('us-passhint').textContent = 'Mínimo 4 caracteres. Obligatoria para un usuario nuevo.';
   abrir('m-user');
 }
@@ -1944,8 +2015,10 @@ function editarUsuario(i){
   $('us-idx').value = i;
   $('us-id').value = u.id; $('us-id').setAttribute('readonly','readonly');
   $('us-nom').value = u.nombre;
+  $('us-completo').value = u.completo || u.nombre;
   $('us-rol').value = u.rol;
   $('us-act').value = (u.activo === false) ? '0' : '1';
+  $('us-ini').value = u.iniciales || inicialesDe(u.completo || u.nombre);
   $('us-pass').value = '';
   $('us-passhint').textContent = 'Deje el campo vacío para conservar la contraseña actual.';
   abrir('m-user');
@@ -1954,23 +2027,26 @@ function guardarUsuario(){
   var i    = $('us-idx').value;
   var id   = $('us-id').value.trim().toLowerCase().replace(/\s+/g,'');
   var nom  = $('us-nom').value.trim();
+  var comp = $('us-completo').value.trim() || nom;
   var rol  = $('us-rol').value;
   var act  = $('us-act').value === '1';
   var pass = $('us-pass').value;
+  var ini  = $('us-ini').value.trim().toUpperCase() || inicialesDe(comp);
 
-  if(!id || !nom){ toast('Usuario y nombre son obligatorios.','err'); return; }
+  if(!id || !nom){ toast('Usuario y primer nombre son obligatorios.','err'); return; }
   if(i === '' && pass.length < 4){ toast('La contraseña debe tener al menos 4 caracteres.','err'); return; }
   if(pass && pass.length < 4){ toast('La contraseña debe tener al menos 4 caracteres.','err'); return; }
 
   if(i === ''){
     if(buscarUsuario(id)){ toast('Ya existe un usuario con ese nombre de acceso.','err'); return; }
-    USUARIOS.push({id:id, nombre:nom, pass:pass, rol:rol, activo:act});
+    USUARIOS.push({id:id, nombre:nom, completo:comp, pass:pass, rol:rol,
+                   activo:act, iniciales:ini});
   } else {
     var k = parseInt(i,10), u = USUARIOS[k];
     if((u.rol === 'admin' && rol !== 'admin' || !act) && !hayOtroAdmin(u.id) && u.rol === 'admin'){
       toast('Debe quedar al menos un admin activo.','err'); return;
     }
-    u.nombre = nom; u.rol = rol; u.activo = act;
+    u.nombre = nom; u.completo = comp; u.rol = rol; u.activo = act; u.iniciales = ini;
     if(pass) u.pass = pass;
     if(usuarioActual && usuarioActual.id === u.id) usuarioActual = u;
   }
@@ -3583,73 +3659,105 @@ var PLANTILLA_B64 = [
 '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',
-'6YHQzZoO4S2j19lO2XZB8+1K+qw6DtpLXTZP1Mu/lYb/ZaGfSj5T9PjvNn8BUEsDBBQAAAAIAMeUE115P5RslAIAAPcLAAAQAAAA',
-'d29yZC9mb290ZXIxLnhtbOVW247aMBB971dEfockFNAq2rDahrLalwot2w8wjkks4otskyz9+o7JBSjtCpZeVmpeAmPPmeMzZ6zc',
-'3r3wwiupNkyKGIX9AHlUEJkykcXo6/Osd4M8Y7FIcSEFjdGWGnQ3+XBbRSurPUgWJqoUiVFurYp835Cccmz6nBEtjVzZPpHcl6sV',
-'I9SvpE79QRAGu19KS0KNgUoJFiU2qIEjL+ehpRpXkOwAhz7Jsbb0pcXgp4ykogIWV1JzbOGvznyO9XqjeoCpsGVLVjC7Bbhg3MLI',
-'GG20iBqIXkfDpUQ1jebVZuhz6tYpU0k2nAq7q+hrWgAHKUzOVCcFfysaLOYtSPnaIUpeoK6N4fC6Pk7rjuwBz6HftJEXNfPXEcPg',
-'jI44iC7jHArHNVsmHDOxL/wmaQ7EDUeXAQxOAMaGXgYxaiB8s+X70ahUdl2XH7TcqD0auw7tUaw7LHHZARu3HDrYXEdmkWMFo8xJ',
-'9JgJqfGyAEbQew/a5+064LkpQRO4/5RXRXBtpk8xAiZJkIw+oTY01z8JTukKbwp7ujI/CO2Q59q9mEjdBpblkNO7GY6R78JECrjo',
-'7AYXC4WJuwBdVNc5egarBtKwIQw6k2C+1Ay7Svm9MMcRAmo9M06N94VW3pPkWLQlCqlhQ4mLGM12j9tvQVGauLUYLTFZZ2AEkYZ1',
-'jvnWJoQ3daTAImtj1PQ+L1zYb6j63TH1sWiD8ehjUiv8W8+05zcI2khifoy9yhkUcEaLDOgOvlCaGqpLiiae22Lrjf/0SH+E/oEz',
-'35PLhqddDAfXyJAkfe9ek5yV8lgR59W/MvHvf7TfKvovx/1/MZfXPQ/9af/pYn+dWunAN2phtwVtSc0ZTanKmMANMzXvivi77/bJ',
-'d1BLAwQUAAAACADHlBNdH0mKxxoBAABNAgAAFAAAAHdvcmQvd2ViU2V0dGluZ3MueG1sldJLawIxEADge39FyF2zSpWyuAqlWAp9',
-'QR/3mJ3V0EwmZGLX7a9vurUtxYveMpnMx0yS2WKHTrxDZEu+kqNhIQV4Q7X160q+PC8HF1Jw0r7WjjxUsgOWi/nZrC1bWD1BSvkg',
-'i4x4LtFUcpNSKJViswHUPKQAPicbiqhTDuNaoY5v2zAwhEEnu7LOpk6Ni2Iq90w8RqGmsQauyGwRfOrrVQSXRfK8sYF/tPYYraVY',
-'h0gGmPM86L491Nb/MqPzAwiticTUpGEeZt9RT+XyUdGv0P0Bk9OA8QEwZTiNmOwJxR3CTgo05c3aU9Qrl6U8kshdiR6W8/ykFJJF',
-'+wFLipeRWoaovrbzvXYP/vXuto+0c9Q+3l/nQP37BfNPUEsDBAoAAAAAAMeUE10AAAAAAAAAAAAAAAALAAAAd29yZC9fcmVscy9Q',
-'SwMEFAAAAAgAx5QTXa4F7igtAQAAvgUAABwAAAB3b3JkL19yZWxzL2RvY3VtZW50LnhtbC5yZWxzrZTNTsMwEITvPEXkO3FSoPyo',
-'Ti8IqVcID+DEmx+R2JG9BfL2WA1pXKisHnzciTzzadbOZvvdd9EnaNMqyUgaJyQCWSrRypqR9/zl+oFEBrkUvFMSGBnBkG12tXmF',
-'jqM9Y5p2MJE1kYaRBnF4otSUDfTcxGoAab9USvcc7ahrOvDyg9dAV0myptr1INmJZ7QTjOidsPH5OMAl3qqq2hKeVbnvQeKZCFop',
-'haCtI9c1ICPTnMbWiNDz+Tch8w0g2mLNQjArPoT7kAgNcOFWMM3eClZBK8CxA7eAw+yLT0PGy31fgLaNLwRHyQexDgkBUkh78ZwW',
-'ZsWHcBf6JfxhOEreZSQhKdCehYXgME6i90LehmT4guLt37N0RB/IY9iVSMx50YG7kl9phqAnv93sB1BLAwQUAAAACADHlBNdAIbS',
-'sLEAAAAgAQAAGwAAAHdvcmQvX3JlbHMvaGVhZGVyMS54bWwucmVsc43PvwrCMBAG8N2nCLfbtA4i0rSLCK6iD3Ak1zTa/CGJYt/e',
-'gIsFB8e74/t9XNu/7MSeFJPxTkBT1cDISa+M0wKul+N6ByxldAon70jATAn6btWeacJcMmk0IbGCuCRgzDnsOU9yJIup8oFcuQw+',
-'WsxljJoHlHfUxDd1veXx24BuYbKTEhBPqgF2mQP9Y/thMJIOXj4sufyjghtbuguIUVMWYEkZ/Cyb6hY08K7li8e6N1BLAwQKAAAA',
-'AADHlBNdAAAAAAAAAAAAAAAACQAAAGRvY1Byb3BzL1BLAwQUAAAACADHlBNdbIReE9kBAADcAwAAEAAAAGRvY1Byb3BzL2FwcC54',
-'bWydU0tu2zAQ3fcUAvcxLSdODYNmUDgosmgbA1aSNUuNbKIUSZBjI+6deoperEOpVuWmq3L15s1w+OZDcffa2uIIMRnvVqycTFkB',
-'TvvauN2KPVUfrxasSKhcrax3sGInSOxOvhOb6ANENJAKyuDSiu0Rw5LzpPfQqjQhtyNP42OrkMy4475pjIZ7rw8tOOSz6fSWwyuC',
-'q6G+CkNC1mdcHvF/k9ZeZ33puToFyidFBW2wCkF+yTet4AMhKo/KVqYFWd4QP1hio3aQZCl4D8SLj3WSs8Vc8B6K9V5FpZGaJ8v5',
-'+2vBR4T4EII1WiH1VX42OvrkGyweO7VFTiD4OERQBVvQh2jwJKeCj03xybgshV7oEWmLahdV2Cd5nQUOlthqZWFNxctG2QSC/yHE',
-'A6g8140yWeARl0fQ6GORzHea7IwVX1WC3LIVO6polEPWh/VGh21IGGX18wcerBd8YDo4Dhxjc5P72IPLQD6oIHyprzJoIT02VB3+',
-'Q245lttpYCOBb5Sd3/gr69q3QTlqMR8QtfhbegqVv8/78buLl+Ro8i8G99ugdJ7PYj4f78DIJbbEQk1DHcYyEOKBSog2P0B33Q7q',
-'c8xbR96q5/6zyvJ2MqXTrdGZo10YvpH8BVBLAwQUAAAACADHlBNdzEBMPHkBAAAbAwAAEQAAAGRvY1Byb3BzL2NvcmUueG1sjZJL',
-'TwMhEIDv/ooN9y3sNq1ms13jIz1p0sQajTeEaUUXlsDo2n8v+2yrPXibYT4+YIb88luX0Rc4ryqzIMmEkQiMqKQy2wV5XC/jCxJ5',
-'5EbysjKwIDvw5LI4y4XNROVg5SoLDhX4KIiMz4RdkDdEm1HqxRto7ieBMKG4qZzmGFK3pZaLD74FmjI2pxqQS46cNsLYjkbSK6UY',
-'lfbTla1ACgolaDDoaTJJ6J5FcNqf3NBWDkitcGfhJDoUR/rbqxGs63pST1s03D+hz/d3D+1TY2WaVgkgRS5FhgpLKHK6D0PkP1/f',
-'QWC3PCYhFg44Vq64klqZaHXTAsNi0+4P2NWVkz5sPcoCJsELpyyGGXbio4VAl9zjfRjqRoG83h2c8bfW4A6+VPMhiouWGNNBtXLK',
-'IMgiZek8ZmnM5utklk2TjLGX0TlAeT+T7jEgo9DLrOv8UHma3tyul6T3ncdJumbTLOl9v/bvhbq/9X+Ms8bI0mPjIOhaevyfix9Q',
-'SwMEFAAAAAgAx5QTXYYvp+qOAQAA3wcAABMAAABbQ29udGVudF9UeXBlc10ueG1stZXLbsIwEEX3/YrI24oYuqiqisCij2WLVPoB',
-'Jp4kpvFD9vD6+04IRBUCggrZREpm7r1n7EgzHK91GS3BB2VNwgZxn0VgUiuVyRP2PX3vPbEooDBSlNZAwjYQ2Hh0N5xuHISIxCYk',
-'rEB0z5yHtAAtQmwdGKpk1muB9Opz7kT6I3LgD/3+I0+tQTDYw8qDjYavkIlFidHbmj7XIB7KwKKXurHKSphwrlSpQKrzpZEHKb1d',
-'QkzKbU8olAv31MD40YSqcjrgtG7u8gOd0tVkcwd5Jfmkw/RKQjQRHj+Epga+sl5yadOFJlF8PvnIaDbLVAqNvnJz3qYQAt2SLuOm',
-'ooUy+5FPcpiFnoEn5e1BGutWiICbEsLtCWrf9nhAJEEXADvnVoQVzL46o/hj3gqSWYvGYhe30Vi3QoCRHTHsnVsRChAS/OD2BLXx',
-'RffQSX5tfEE+5YlZCV0Q7KxbIZA2CNTP609ia3Mukjon3rpAG8n/Y+z9yqnUPRrYgUd1/k9rEsn66vmg2koS5JFsvt3Po19QSwME',
-'CgAAAAAAx5QTXQAAAAAAAAAAAAAAAAYAAABfcmVscy9QSwMEFAAAAAgAx5QTXbDnKBLnAAAATQIAAAsAAABfcmVscy8ucmVsc62S',
-'zUoEMQyA7z5FyX0nsyuIyHb2IsLeRMYHCG1mpjj9oY26+/ZWUHRgXfbgsWny5UvIdnfws3rjXFwMGtZNC4qDidaFUcNz/7C6BVWE',
-'gqU5BtZw5AK77mr7xDNJrSmTS0VVSCgaJpF0h1jMxJ5KExOH+jPE7EnqM4+YyLzQyLhp2xvMvxnQLZhqbzXkvb0G1R8TX8KOw+AM',
-'30fz6jnIiRbIB+Fg2a5SrvVZXB1G9ZRHFg02mscaLkgpNRUNeNpoc7nR39OiZyFLQmhi5vM+nxnnhNb/uaJlxo/Ne8wW7Vf42wYX',
-'V9B9AFBLAQIeAwoAAAAAAMeUE10AAAAAAAAAAAAAAAAFAAAAAAAAAAAAEADtQQAAAAB3b3JkL1BLAQIeAxQAAAAIAMeUE13rUZY1',
-'RAUAAB0UAAAQAAAAAAAAAAEAAACkgSMAAAB3b3JkL2hlYWRlcjEueG1sUEsBAh4DFAAAAAgAx5QTXStK6lGtDwAAGKgAAA8AAAAA',
-'AAAAAQAAAKSBlQUAAHdvcmQvc3R5bGVzLnhtbFBLAQIeAxQAAAAIAMeUE108B8btAgMAAIQQAAASAAAAAAAAAAEAAACkgW8VAAB3',
-'b3JkL251bWJlcmluZy54bWxQSwECHgMUAAAACADHlBNdHnldI0IBAAA/AgAAEQAAAAAAAAABAAAApIGhGAAAd29yZC9kb2N1bWVu',
-'dC54bWxQSwECHgMKAAAAAADHlBNdAAAAAAAAAAAAAAAACwAAAAAAAAAAABAA7UESGgAAd29yZC9tZWRpYS9QSwECHgMUAAAACADH',
-'lBNd1gn3t2eXAQCX3AEAFQAAAAAAAAAAAAAApIE7GgAAd29yZC9tZWRpYS9pbWFnZTEuanBnUEsBAh4DCgAAAAAAx5QTXQAAAAAA',
-'AAAAAAAAAAsAAAAAAAAAAAAQAO1B1bEBAHdvcmQvdGhlbWUvUEsBAh4DFAAAAAgAx5QTXW4SScieBgAAziAAABUAAAAAAAAAAQAA',
-'AKSB/rEBAHdvcmQvdGhlbWUvdGhlbWUxLnhtbFBLAQIeAxQAAAAIAMeUE11cFxbuvQQAAAIOAAARAAAAAAAAAAEAAACkgc+4AQB3',
-'b3JkL3NldHRpbmdzLnhtbFBLAQIeAxQAAAAIAMeUE12p6fW6UAIAAE8KAAASAAAAAAAAAAEAAACkgbu9AQB3b3JkL2ZvbnRUYWJs',
-'ZS54bWxQSwECHgMUAAAACADHlBNd1ZDwn/YBAAAjBwAAEgAAAAAAAAABAAAApIE7wAEAd29yZC9mb290bm90ZXMueG1sUEsBAh4D',
-'FAAAAAgAx5QTXVOKH6H1AQAAHQcAABEAAAAAAAAAAQAAAKSBYcIBAHdvcmQvZW5kbm90ZXMueG1sUEsBAh4DFAAAAAgAx5QTXXk/',
-'lGyUAgAA9wsAABAAAAAAAAAAAQAAAKSBhcQBAHdvcmQvZm9vdGVyMS54bWxQSwECHgMUAAAACADHlBNdH0mKxxoBAABNAgAAFAAA',
-'AAAAAAABAAAApIFHxwEAd29yZC93ZWJTZXR0aW5ncy54bWxQSwECHgMKAAAAAADHlBNdAAAAAAAAAAAAAAAACwAAAAAAAAAAABAA',
-'7UGTyAEAd29yZC9fcmVscy9QSwECHgMUAAAACADHlBNdrgXuKC0BAAC+BQAAHAAAAAAAAAABAAAApIG8yAEAd29yZC9fcmVscy9k',
-'b2N1bWVudC54bWwucmVsc1BLAQIeAxQAAAAIAMeUE10AhtKwsQAAACABAAAbAAAAAAAAAAEAAACkgSPKAQB3b3JkL19yZWxzL2hl',
-'YWRlcjEueG1sLnJlbHNQSwECHgMKAAAAAADHlBNdAAAAAAAAAAAAAAAACQAAAAAAAAAAABAA7UENywEAZG9jUHJvcHMvUEsBAh4D',
-'FAAAAAgAx5QTXWyEXhPZAQAA3AMAABAAAAAAAAAAAQAAAKSBNMsBAGRvY1Byb3BzL2FwcC54bWxQSwECHgMUAAAACADHlBNdzEBM',
-'PHkBAAAbAwAAEQAAAAAAAAABAAAApIE7zQEAZG9jUHJvcHMvY29yZS54bWxQSwECHgMUAAAACADHlBNdhi+n6o4BAADfBwAAEwAA',
-'AAAAAAABAAAApIHjzgEAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIeAwoAAAAAAMeUE10AAAAAAAAAAAAAAAAGAAAAAAAAAAAAEADt',
-'QaLQAQBfcmVscy9QSwECHgMUAAAACADHlBNdsOcoEucAAABNAgAACwAAAAAAAAABAAAApIHG0AEAX3JlbHMvLnJlbHNQSwUGAAAA',
-'ABgAGADRBQAA1tEBAAAA'
+'6YHQzZoO4S2j19lO2XZB8+1K+qw6DtpLXTZP1Mu/lYb/ZaGfSj5T9PjvNn8BUEsDBAoAAAAAAMeUE115P5Rs9wsAAPcLAAAQAAAA',
+'d29yZC9mb290ZXIxLnhtbDw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9IlVURi04IiBzdGFuZGFsb25lPSJ5ZXMiPz4KPHc6',
+'ZnRyIHhtbG5zOndwYz0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS9vZmZpY2Uvd29yZC8yMDEwL3dvcmRwcm9jZXNzaW5n',
+'Q2FudmFzIiB4bWxuczpjeD0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS9vZmZpY2UvZHJhd2luZy8yMDE0L2NoYXJ0ZXgi',
+'IHhtbG5zOm1jPSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvbWFya3VwLWNvbXBhdGliaWxpdHkvMjAwNiIgeG1s',
+'bnM6bz0idXJuOnNjaGVtYXMtbWljcm9zb2Z0LWNvbTpvZmZpY2U6b2ZmaWNlIiB4bWxuczpyPSJodHRwOi8vc2NoZW1hcy5vcGVu',
+'eG1sZm9ybWF0cy5vcmcvb2ZmaWNlRG9jdW1lbnQvMjAwNi9yZWxhdGlvbnNoaXBzIiB4bWxuczptPSJodHRwOi8vc2NoZW1hcy5v',
+'cGVueG1sZm9ybWF0cy5vcmcvb2ZmaWNlRG9jdW1lbnQvMjAwNi9tYXRoIiB4bWxuczp2PSJ1cm46c2NoZW1hcy1taWNyb3NvZnQt',
+'Y29tOnZtbCIgeG1sbnM6d3AxND0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS9vZmZpY2Uvd29yZC8yMDEwL3dvcmRwcm9j',
+'ZXNzaW5nRHJhd2luZyIgeG1sbnM6d3A9Imh0dHA6Ly9zY2hlbWFzLm9wZW54bWxmb3JtYXRzLm9yZy9kcmF3aW5nbWwvMjAwNi93',
+'b3JkcHJvY2Vzc2luZ0RyYXdpbmciIHhtbG5zOncxMD0idXJuOnNjaGVtYXMtbWljcm9zb2Z0LWNvbTpvZmZpY2U6d29yZCIgeG1s',
+'bnM6dz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3dvcmRwcm9jZXNzaW5nbWwvMjAwNi9tYWluIiB4bWxuczp3',
+'MTQ9Imh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vb2ZmaWNlL3dvcmQvMjAxMC93b3JkbWwiIHhtbG5zOncxNT0iaHR0cDov',
+'L3NjaGVtYXMubWljcm9zb2Z0LmNvbS9vZmZpY2Uvd29yZC8yMDEyL3dvcmRtbCIgeG1sbnM6dzE2c2U9Imh0dHA6Ly9zY2hlbWFz',
+'Lm1pY3Jvc29mdC5jb20vb2ZmaWNlL3dvcmQvMjAxNS93b3JkbWwvc3ltZXgiIHhtbG5zOndwZz0iaHR0cDovL3NjaGVtYXMubWlj',
+'cm9zb2Z0LmNvbS9vZmZpY2Uvd29yZC8yMDEwL3dvcmRwcm9jZXNzaW5nR3JvdXAiIHhtbG5zOndwaT0iaHR0cDovL3NjaGVtYXMu',
+'bWljcm9zb2Z0LmNvbS9vZmZpY2Uvd29yZC8yMDEwL3dvcmRwcm9jZXNzaW5nSW5rIiB4bWxuczp3bmU9Imh0dHA6Ly9zY2hlbWFz',
+'Lm1pY3Jvc29mdC5jb20vb2ZmaWNlL3dvcmQvMjAwNi93b3JkbWwiIHhtbG5zOndwcz0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0',
+'LmNvbS9vZmZpY2Uvd29yZC8yMDEwL3dvcmRwcm9jZXNzaW5nU2hhcGUiIG1jOklnbm9yYWJsZT0idzE0IHcxNSB3MTZzZSB3cDE0',
+'Ij48dzpwIHc6cnNpZFI9IjAwNkMwQzVCIiB3OnJzaWRSUHI9IjAwNkMwQzVCIiB3OnJzaWRSRGVmYXVsdD0iMDA2QzBDNUIiIHc6',
+'cnNpZFA9IjAwNkMwQzVCIj48dzpwUHI+PHc6aW5kIHc6cmlnaHQ9Ii04NDYiLz48dzpjb250ZXh0dWFsU3BhY2luZy8+PHc6clBy',
+'Pjx3OnJGb250cyB3OmFzY2lpPSJDYW1icmlhIiB3OmhBbnNpPSJDYW1icmlhIiB3OmNzPSJUaW1lcyBOZXcgUm9tYW4iLz48dzpj',
+'b2xvciB3OnZhbD0iRkZGRkZGIiB3OnRoZW1lQ29sb3I9ImJhY2tncm91bmQxIi8+PHc6c3ogdzp2YWw9IjE4Ii8+PHc6bGFuZyB3',
+'OnZhbD0iZXMtRVMiLz48L3c6clByPjwvdzpwUHI+PHc6ciB3OnJzaWRSUHI9IjAwMjY1M0M0Ij48dzpyUHI+PHc6ckZvbnRzIHc6',
+'YXNjaWk9IkNhbWJyaWEiIHc6aEFuc2k9IkNhbWJyaWEiIHc6Y3M9IlRpbWVzIE5ldyBSb21hbiIvPjx3OnN6IHc6dmFsPSIyMCIv',
+'Pjx3OnN6Q3Mgdzp2YWw9IjIwIi8+PHc6bGFuZyB3OnZhbD0iZXMtRVMiLz48L3c6clByPjx3OnQgeG1sOnNwYWNlPSJwcmVzZXJ2',
+'ZSI+IDwvdzp0PjwvdzpyPjx3OnIgdzpyc2lkUlByPSIwMDI2NTNDNCI+PHc6clByPjx3OnJGb250cyB3OmFzY2lpPSJDYW1icmlh',
+'IiB3OmhBbnNpPSJDYW1icmlhIiB3OmNzPSJUaW1lcyBOZXcgUm9tYW4iLz48dzpzeiB3OnZhbD0iMjAiLz48dzpsYW5nIHc6dmFs',
+'PSJlcy1FUyIvPjwvdzpyUHI+PHc6dCB4bWw6c3BhY2U9InByZXNlcnZlIj4gPC93OnQ+PC93OnI+PHc6ciB3OnJzaWRSUHI9IjAw',
+'NkMwQzVCIj48dzpyUHI+PHc6ckZvbnRzIHc6YXNjaWk9IkNhbWJyaWEiIHc6aEFuc2k9IkNhbWJyaWEiIHc6Y3M9IlRpbWVzIE5l',
+'dyBSb21hbiIvPjx3OmNvbG9yIHc6dmFsPSJGRkZGRkYiIHc6dGhlbWVDb2xvcj0iYmFja2dyb3VuZDEiLz48dzpzeiB3OnZhbD0i',
+'MTQiLz48dzpzekNzIHc6dmFsPSIxMiIvPjx3Omxhbmcgdzp2YWw9ImVzLUVTIi8+PC93OnJQcj48dzp0IHhtbDpzcGFjZT0icHJl',
+'c2VydmUiPkNDLiBBcmNoaXZvIDwvdzp0PjwvdzpyPjwvdzpwPjx3OnAgdzpyc2lkUj0iMDA2QzBDNUIiIHc6cnNpZFJQcj0iMDA2',
+'QzBDNUIiIHc6cnNpZFJEZWZhdWx0PSIwMDZDMEM1QiIgdzpyc2lkUD0iMDA2QzBDNUIiPjx3OnBQcj48dzpjb250ZXh0dWFsU3Bh',
+'Y2luZy8+PHc6clByPjx3OnJGb250cyB3OmFzY2lpPSJDYW1icmlhIiB3OmhBbnNpPSJDYW1icmlhIiB3OmNzPSJUaW1lcyBOZXcg',
+'Um9tYW4iLz48dzpjb2xvciB3OnZhbD0iRkZGRkZGIiB3OnRoZW1lQ29sb3I9ImJhY2tncm91bmQxIi8+PHc6c3ogdzp2YWw9IjE0',
+'Ii8+PHc6c3pDcyB3OnZhbD0iMTIiLz48dzpsYW5nIHc6dmFsPSJlcy1FUyIvPjwvdzpyUHI+PC93OnBQcj48dzpyIHc6cnNpZFJQ',
+'cj0iMDA2QzBDNUIiPjx3OnJQcj48dzpyRm9udHMgdzphc2NpaT0iQ2FtYnJpYSIgdzpoQW5zaT0iQ2FtYnJpYSIgdzpjcz0iVGlt',
+'ZXMgTmV3IFJvbWFuIi8+PHc6Y29sb3Igdzp2YWw9IkZGRkZGRiIgdzp0aGVtZUNvbG9yPSJiYWNrZ3JvdW5kMSIvPjx3OnN6IHc6',
+'dmFsPSIxNCIvPjx3OnN6Q3Mgdzp2YWw9IjEyIi8+PHc6bGFuZyB3OnZhbD0iZXMtRVMiLz48L3c6clByPjx3OnQgeG1sOnNwYWNl',
+'PSJwcmVzZXJ2ZSI+ICAgICAgICAgIEcuRC5SPC93OnQ+PC93OnI+PC93OnA+PHc6cCB3OnJzaWRSPSIwMDZDMEM1QiIgdzpyc2lk',
+'UkRlZmF1bHQ9IjAwNkMwQzVCIj48dzpwUHI+PHc6cFN0eWxlIHc6dmFsPSJQaWVkZXBnaW5hIi8+PC93OnBQcj48L3c6cD48L3c6',
+'ZnRyPlBLAwQUAAAACADHlBNdH0mKxxoBAABNAgAAFAAAAHdvcmQvd2ViU2V0dGluZ3MueG1sldJLawIxEADge39FyF2zSpWyuAql',
+'WAp9QR/3mJ3V0EwmZGLX7a9vurUtxYveMpnMx0yS2WKHTrxDZEu+kqNhIQV4Q7X160q+PC8HF1Jw0r7WjjxUsgOWi/nZrC1bWD1B',
+'Svkgi4x4LtFUcpNSKJViswHUPKQAPicbiqhTDuNaoY5v2zAwhEEnu7LOpk6Ni2Iq90w8RqGmsQauyGwRfOrrVQSXRfK8sYF/tPYY',
+'raVYh0gGmPM86L491Nb/MqPzAwiticTUpGEeZt9RT+XyUdGv0P0Bk9OA8QEwZTiNmOwJxR3CTgo05c3aU9Qrl6U8kshdiR6W8/yk',
+'FJJF+wFLipeRWoaovrbzvXYP/vXuto+0c9Q+3l/nQP37BfNPUEsDBAoAAAAAAMeUE10AAAAAAAAAAAAAAAALAAAAd29yZC9fcmVs',
+'cy9QSwMEFAAAAAgAx5QTXa4F7igtAQAAvgUAABwAAAB3b3JkL19yZWxzL2RvY3VtZW50LnhtbC5yZWxzrZTNTsMwEITvPEXkO3FS',
+'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',
+'AAAAABgAGADRBQAAOdsBAAAA'
 ].join('');
 
 /* =========================================================
@@ -3771,21 +3879,39 @@ function escribirZip(entradas){
   return salida;
 }
 
-/* -------- Armar el .docx final -------- */
-function armarDocx(plantillaB64, documentXml){
+function bytesTxt(b){
+  if(typeof TextDecoder !== 'undefined') return new TextDecoder('utf-8').decode(b);
+  var s = '';
+  for(var i=0;i<b.length;i++) s += String.fromCharCode(b[i]);
+  return decodeURIComponent(escape(s));
+}
+/* -------- Armar el .docx final --------
+   Se reemplaza el cuerpo del documento y, en el pie, las iniciales
+   de quien elabora el memorando. */
+function armarDocx(plantillaB64, documentXml, iniciales){
   var entradas = leerZip(b64Bytes(plantillaB64));
   var nuevo = txtBytes(documentXml);
   for(var i=0;i<entradas.length;i++){
-    if(entradas[i].nombre === 'word/document.xml'){
-      entradas[i].metodo = 0;                 // sin comprimir
-      entradas[i].datos  = nuevo;
-      entradas[i].comp   = nuevo.length;
-      entradas[i].orig   = nuevo.length;
-      entradas[i].crc    = crc32(nuevo);
-      entradas[i].flags  = 0;
+    var e = entradas[i];
+    if(e.nombre === 'word/document.xml'){
+      reemplazarEntrada(e, nuevo);
+    } else if(e.nombre === 'word/footer1.xml' && iniciales){
+      // Esta parte va sin comprimir en la plantilla justo para poder editarla.
+      if(e.metodo === 0){
+        var pie = bytesTxt(e.datos).replace(/G\.D\.R/g, iniciales);
+        reemplazarEntrada(e, txtBytes(pie));
+      }
     }
   }
   return escribirZip(entradas);
+}
+function reemplazarEntrada(e, bytes){
+  e.metodo = 0;                 // sin comprimir
+  e.datos  = bytes;
+  e.comp   = bytes.length;
+  e.orig   = bytes.length;
+  e.crc    = crc32(bytes);
+  e.flags  = 0;
 }
 
 
@@ -3874,6 +4000,28 @@ function wFila(celdas, o){
   pr += '<w:trHeight w:val="' + (o.alto || 260) + '" w:hRule="atLeast"/>';
   pr += '</w:trPr>';
   return '<w:tr>' + pr + celdas.join('') + '</w:tr>';
+}
+
+/* -------- Pie de página: "CC. Archivo" y las iniciales de quien elabora --------
+   En la plantilla original decía G.D.R fijo; ahora cambia según el usuario. */
+function footerXmlC40(iniciales){
+  var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  function linea(txt, sangriaDer){
+    return '<w:p><w:pPr>'
+      + (sangriaDer ? '<w:ind w:right="-846"/>' : '')
+      + '<w:contextualSpacing/><w:rPr>'
+      + '<w:rFonts w:ascii="Cambria" w:hAnsi="Cambria" w:cs="Times New Roman"/>'
+      + '<w:color w:val="FFFFFF"/><w:sz w:val="14"/><w:szCs w:val="12"/></w:rPr></w:pPr>'
+      + '<w:r><w:rPr>'
+      + '<w:rFonts w:ascii="Cambria" w:hAnsi="Cambria" w:cs="Times New Roman"/>'
+      + '<w:color w:val="FFFFFF"/><w:sz w:val="14"/><w:szCs w:val="12"/></w:rPr>'
+      + '<w:t xml:space="preserve">' + xesc(txt) + '</w:t></w:r></w:p>';
+  }
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:ftr ' + NS + '>'
+    + linea('CC. Archivo ', true)
+    + linea('          ' + (iniciales || ''), false)
+    + '<w:p/></w:ftr>';
 }
 
 /* -------- Documento completo -------- */
