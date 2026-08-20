@@ -888,7 +888,7 @@ function iniciarHeartbeat(){
     apiPost({accion:'renovarReserva', id:reservaActiva.id}, function(err,res){
       if(!err && res && res.ok && res.expira) reservaActiva.expira = res.expira;
     });
-  }, 180000); // cada 3 minutos
+  }, 120000); // cada 2 minutos
 }
 function detenerHeartbeat(){ if(resHeartbeat){ clearInterval(resHeartbeat); resHeartbeat=null; } }
 
@@ -926,15 +926,37 @@ function pintarReservas(){
   el.innerHTML='<span class="res-info">&#128274; En uso: '+nums.join(', ')+'</span>';
 }
 
-function esMiReserva(r){ return reservaActiva && r.id===reservaActiva.id; }
+function esMiReserva(r){ return !!(reservaActiva && r.id===reservaActiva.id); }
+
+// La reserva quedo a mi nombre (por ejemplo, de una ventana que se cerro)
+function esDeEsteUsuario(r){
+  if(!usuarioActual || !r.usuario) return false;
+  return String(r.usuario).trim().toLowerCase() === String(usuarioActual.nombre).trim().toLowerCase();
+}
+
+// Minutos que faltan para que el servidor la libere solo
+function minutosParaVencer(r){
+  if(!r.expira) return null;
+  var t = String(r.expira).trim().replace(' ','T');
+  var d = new Date(t);
+  if(isNaN(d.getTime())) return null;
+  var m = Math.ceil((d.getTime() - Date.now())/60000);
+  return m > 0 ? m : 0;
+}
 
 // Admin puede liberar un numero que quedo trabado
-function liberarReservaAdmin(id, numero){
-  if(!usuarioActual || usuarioActual.rol!=='admin') return;
+function liberarReservaAdmin(id, numero, esPropia){
+  if(!usuarioActual) return;
+  if(!esPropia && usuarioActual.rol!=='admin') return;
   confirmar({
     icono:'&#128275;', titulo:'Liberar numero',
-    mensaje:'Vas a liberar el <b>N '+numero+'</b>, que otra persona tiene apartado.',
-    nota:'Hazlo solo si ya cerro la ventana o se le cayo el sistema. Si lo esta usando, perdera lo que este escribiendo.',
+    mensaje: esPropia
+      ? 'Vas a liberar el <b>N '+numero+'</b>, que quedo apartado a tu nombre.'
+      : 'Vas a liberar el <b>N '+numero+'</b>, que otra persona tiene apartado.',
+    nota: esPropia
+      ? 'Quedara disponible para quien lo necesite. Si lo tienes abierto en otra ventana, ahi se perdera lo que estes escribiendo.'
+      : 'Hazlo solo si ya cerro la ventana o se le cayo el sistema. Si lo esta usando, perdera lo que este escribiendo.',
+    notaSuave: !!esPropia,
     textoSi:'Si, liberar', textoNo:'No, dejarlo'
   }, function(){ liberarReservaAdminConfirmado(id, numero); });
 }
@@ -947,7 +969,7 @@ function liberarReservaAdminConfirmado(id, numero){
       for(var i=RESERVAS.length-1;i>=0;i--){ if(RESERVAS[i].id===id) RESERVAS.splice(i,1); }
       pintarReservas(); render();
       toast('N '+numero+' liberado');
-      registrarBitacora('Libero', getTipo(tipoActual).label, numero, 'Reserva liberada por admin');
+      registrarBitacora('Libero', getTipo(tipoActual).label, numero, 'Numero apartado liberado');
     } else toast('No se pudo liberar','error');
   });
 }
@@ -1078,15 +1100,27 @@ function render(){
     act.sort(function(a,b){ return Number(b.numero)-Number(a.numero); });
     for(var k=act.length-1;k>=0;k--){
       var r=act[k];
-      var mio=esMiReserva(r);
-      var quien = mio ? 'TU' : (r.usuario||'otro usuario');
+      var mio     = esMiReserva(r);        // la tengo abierta AHORA en esta ventana
+      var aMiNombre = esDeEsteUsuario(r);  // esta a mi nombre (quizas de una ventana ya cerrada)
       var hora = r.inicio ? String(r.inicio).substring(11,16) : '';
+      var falta = minutosParaVencer(r);
       var trR=document.createElement('tr');
       trR.className='reservada';
-      var acc = (usuarioActual && usuarioActual.rol==='admin' && !mio)
-        ? '<button class="btn btn-danger btn-sm" onclick="liberarReservaAdmin(\''+r.id+'\','+r.numero+')">Liberar</button>'
+      // Puede liberarlo: el dueño (si ya no lo tiene abierto) o el administrador
+      var puedeLiberar = !mio && (aMiNombre || (usuarioActual && usuarioActual.rol==='admin'));
+      var acc = puedeLiberar
+        ? '<button class="btn btn-danger btn-sm" onclick="liberarReservaAdmin(\''+r.id+'\','+r.numero+','+(aMiNombre?'true':'false')+')">Liberar</button>'
         : '<span style="color:#a06a00">&#128274;</span>';
-      var medio = '<span class="res-badge">EN USO</span> &nbsp;Numero apartado por <b>'+quien+'</b>'+(hora?' &middot; '+hora:'')+' — nadie mas puede usarlo';
+      var medio;
+      if(mio){
+        medio = '<span class="res-badge">EN USO</span> &nbsp;<b>Lo tienes abierto ahora</b> — nadie mas puede usarlo';
+      } else if(aMiNombre){
+        medio = '<span class="res-badge">EN USO</span> &nbsp;Quedo apartado <b>a tu nombre</b>'+(hora?' &middot; '+hora:'')+
+                ' — puedes liberarlo'+(falta!==null?' o se libera solo en '+falta+' min':'');
+      } else {
+        medio = '<span class="res-badge">EN USO</span> &nbsp;Numero apartado por <b>'+(r.usuario||'otro usuario')+'</b>'+(hora?' &middot; '+hora:'')+
+                ' — nadie mas puede usarlo'+(falta!==null?' &middot; se libera solo en '+falta+' min':'');
+      }
       trR.innerHTML='<td class="num">'+r.numero+'</td><td colspan="'+(cols-2)+'">'+medio+'</td><td style="white-space:nowrap">'+acc+'</td>';
       tbody.insertBefore(trR, tbody.firstChild);
     }
