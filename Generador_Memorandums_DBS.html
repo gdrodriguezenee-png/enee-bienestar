@@ -747,7 +747,13 @@ var PERMISOS = [
 ];
 var PERMS_POR_DEFECTO = 'memo,reem,dev,hist,imp';
 var MIS_PERMISOS = {};
+var BACKEND_PERMS = true;   // ¿el Apps Script entiende la columna perms?
 
+/* Compara dos listas de permisos sin importar el orden ni los espacios */
+function normPerms(txt){
+  return String(txt==null?'':txt).split(',').map(function(x){ return x.trim().toLowerCase(); })
+         .filter(Boolean).sort().join(',');
+}
 function permsAObjeto(txt){
   var o = {};
   String(txt==null?'':txt).split(',').forEach(function(x){ x=x.trim().toLowerCase(); if(x) o[x]=true; });
@@ -2123,7 +2129,8 @@ function leerPermisosForm(){
 }
 function resumenPerms(u){
   if((u.rol||'user') === 'admin') return 'Todo';
-  var o = permsAObjeto(u.perms!=null ? u.perms : PERMS_POR_DEFECTO);
+  if(u.perms === undefined || u.perms === null) return 'Todo (el Apps Script no guarda permisos)';
+  var o = permsAObjeto(u.perms);
   var n = PERMISOS.filter(function(p){ return o[p.k]; }).map(function(p){ return p.nom; });
   return n.length ? n.join(', ') : '(sin accesos)';
 }
@@ -2134,6 +2141,14 @@ async function cargarUsuarios(){
   try{
     var users=await storeUsers();
     msg.className='msg'; msg.textContent='';
+    if(!document.querySelector('#u_permsBox .uperm')) pintarPermisosForm(PERMS_POR_DEFECTO);
+    /* \u00bfEl Apps Script tiene la columna "perms"? Si ning\u00fan usuario la trae,
+       los permisos no se est\u00e1n guardando y hay que avisar en vez de fingir. */
+    BACKEND_PERMS = users.some(function(u){ return u.perms !== undefined && u.perms !== null; });
+    if(!BACKEND_PERMS && users.length){
+      msg.className='msg err';
+      msg.textContent='\u26a0 EL APPS SCRIPT NO EST\u00c1 GUARDANDO LOS PERMISOS. Marcar las casillas no tendr\u00e1 efecto hasta que actualice el c\u00f3digo del Apps Script (necesita la columna "perms" en la hoja de usuarios) y publique una NUEVA VERSI\u00d3N de la misma implementaci\u00f3n.';
+    }
     var body=document.getElementById('u_body'); body.innerHTML='';
     users.forEach(function(u){
       var tr=document.createElement('tr');
@@ -2159,10 +2174,23 @@ async function guardarUsuario(){
     var permsSel = rolSel==='admin' ? PERMISOS.map(function(p){ return p.k; }).join(',') : leerPermisosForm();
     await storeSaveUser({ user:user, pass:val('u_pass'), nombre:val('u_nombre'), rol:rolSel, perms:permsSel });
     limpiarUsuario(); await cargarUsuarios();
+
+    /* Releer y comparar: la nube pudo aceptar la petici\u00f3n y descartar los permisos */
+    var guardado = (await storeUsers()).filter(function(x){ return String(x.user).toLowerCase()===user.toLowerCase(); })[0];
+    if(!guardado){
+      msg.className='msg err'; msg.textContent='El usuario no aparece despu\u00e9s de guardar. Revise la hoja de usuarios en Google Sheets.'; return;
+    }
+    if(rolSel!=='admin' && normPerms(guardado.perms) !== normPerms(permsSel)){
+      msg.className='msg err';
+      msg.textContent='SE GUARD\u00d3 EL USUARIO, PERO NO LOS PERMISOS. Se pidi\u00f3 "'+(permsSel||'(ninguno)')+
+        '" y la nube devolvi\u00f3 "'+(normPerms(guardado.perms)||'(ninguno)')+'". Actualice el c\u00f3digo del Apps Script y publique una NUEVA VERSI\u00d3N de la misma implementaci\u00f3n.';
+      return;
+    }
     msg.className='msg ok';
     msg.textContent = (CURRENT.user && user.toLowerCase()===CURRENT.user.toLowerCase())
-      ? 'Usuario guardado. Cambi\u00f3 su propio acceso: vuelva a entrar para que surta efecto.'
-      : 'Usuario guardado.';
+      ? '\u2713 Usuario guardado y verificado. Cambi\u00f3 su propio acceso: vuelva a entrar para que surta efecto.'
+      : '\u2713 Usuario guardado y verificado. '+(rolSel==='admin' ? 'Es administrador: ve todo.'
+          : user+' ver\u00e1 '+resumenPerms({rol:rolSel,perms:permsSel})+' la pr\u00f3xima vez que entre.');
   }catch(e){ msg.className='msg err'; msg.textContent='No se pudo guardar: '+e.message; }
 }
 async function eliminarUsuario(user){
