@@ -302,6 +302,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <input id="h-buscar" placeholder="Buscar por N.º, dependencia o mes…" style="max-width:320px" oninput="renderHist()">
           <select id="h-anio" style="max-width:150px" onchange="renderHist()"><option value="">Todos los años</option></select>
           <button class="sec" onclick="sincronizar()">Sincronizar</button>
+          <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
         </div>
@@ -1760,12 +1761,69 @@ function cargarMemo(id){
   toast('Memorando ' + m.no + ' cargado.','ok');
 }
 function borrarMemo(id){
-  if(!confirm('¿Eliminar este memorando del historial?')) return;
+  var m = null, pos = -1;
   for(var i=0;i<HISTORIAL.length;i++){
-    if(HISTORIAL[i].id === id){ HISTORIAL.splice(i,1); break; }
+    if(HISTORIAL[i].id === id){ m = HISTORIAL[i]; pos = i; break; }
   }
+  if(!m) return;
+  if(!confirm('¿Eliminar el memorando ' + m.no + '?\n\n'
+    + 'También se borrará de la hoja de Google Sheets.')) return;
+
+  HISTORIAL.splice(pos, 1);
   guardarLS(LS.hist, HISTORIAL);
   renderHist();
+
+  if(!CFG.url){ toast('Memorando eliminado.','ok'); return; }
+  cargando(true, 'Eliminando de Google Sheets…');
+  apiPost({accion:'eliminar', tipo:CFG.hoja, clave:m.no}, function(ok){
+    cargando(false);
+    if(ok){
+      estadoSync(true, 'Eliminado de Sheets');
+      registrarBitacora('Elimino', m.no, 'L ' + fmt(m.total) + ' — ' + m.dep);
+      toast('Memorando ' + m.no + ' eliminado aquí y en la hoja.','ok');
+    } else {
+      estadoSync(false, 'No se pudo borrar en Sheets');
+      toast('Se borró en este equipo, pero no en la hoja: al sincronizar volverá '
+          + 'a aparecer. Revise la conexión y la versión del Apps Script.','err');
+    }
+  });
+}
+/* Quita del historial los memorandos repetidos (mismo número), conservando
+   el registro más reciente, y deja la hoja igual que el historial. */
+function quitarDuplicados(){
+  var vistos = {}, limpio = [], quitados = 0;
+  for(var i=0;i<HISTORIAL.length;i++){
+    var no = String(HISTORIAL[i].no||'').trim();
+    if(!no){ limpio.push(HISTORIAL[i]); continue; }
+    if(vistos[no]){ quitados++; continue; }
+    vistos[no] = 1;
+    limpio.push(HISTORIAL[i]);
+  }
+  if(!quitados){ toast('No hay memorandos repetidos.','ok'); return; }
+  if(!confirm('Se encontraron ' + quitados + ' memorandos repetidos.\n\n'
+    + 'Se conservará el registro más reciente de cada número y la hoja de '
+    + 'Google Sheets quedará igual que este historial. ¿Continuar?')) return;
+
+  HISTORIAL = limpio;
+  guardarLS(LS.hist, HISTORIAL);
+  renderHist();
+  if(!CFG.url){ toast(quitados + ' repetidos eliminados.','ok'); return; }
+
+  var filas = [['NO_MEMORANDO','FECHA','DEPENDENCIA','MES_PAGO','ANIO_PAGO','EMPLEADOS',
+                'CENAS','VALOR_CENA','TOTAL','USUARIO','REGISTRADO','DETALLE_JSON']];
+  for(var k=0;k<HISTORIAL.length;k++){
+    var m = HISTORIAL[k];
+    filas.push([m.no, m.fecha, m.dep, m.mesPago, m.anioPago, m.empleados, m.cenas,
+                m.valorCena, m.total, m.usuario||'', m.registrado||'',
+                JSON.stringify(m.detalle||[])]);
+  }
+  cargando(true, 'Actualizando la hoja…');
+  apiPost({accion:'reescribir', tipo:CFG.hoja, filas:filas}, function(ok){
+    cargando(false);
+    estadoSync(ok, ok ? 'Hoja actualizada' : 'No se pudo actualizar la hoja');
+    toast(ok ? (quitados + ' repetidos eliminados aquí y en la hoja.')
+             : 'Se limpió aquí, pero no se pudo actualizar la hoja.', ok ? 'ok' : 'err');
+  });
 }
 function exportarHistorial(){
   var f = ['NO,FECHA,DEPENDENCIA,MES PAGO,ANIO,EMPLEADOS,CENAS,VALOR CENA,TOTAL,USUARIO'];
@@ -1844,6 +1902,7 @@ function fusionarMemos(filas){
     var f = filas[j];
     if(!f || !f[0]) continue;
     if(existentes[f[0]]) continue;
+    existentes[f[0]] = true;   // evita traer dos veces el mismo número
     var det = [];
     try{ det = JSON.parse(f[11] || '[]'); }catch(e){ det = []; }
     HISTORIAL.push({
@@ -1858,7 +1917,7 @@ function fusionarMemos(filas){
 }
 function enviarMemoSheets(reg){
   apiPost({
-    accion:'agregar', tipo:CFG.hoja,
+    accion:'guardar', tipo:CFG.hoja,
     cols:[reg.no, reg.fecha, reg.dep, reg.mesPago, reg.anioPago, reg.empleados,
           reg.cenas, reg.valorCena, reg.total, reg.usuario, reg.registrado,
           JSON.stringify(reg.detalle)]
