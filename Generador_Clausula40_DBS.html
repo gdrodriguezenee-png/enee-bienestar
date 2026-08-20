@@ -364,6 +364,8 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
             <input id="c-hoja" value="Clausula40">
             <label style="margin-top:11px">Hoja del catálogo de empleados</label>
             <input id="c-hojaemp" value="Empleados40">
+            <label style="margin-top:11px">Hoja de accesos de usuarios</label>
+            <input id="c-hojausr" value="Usuarios40">
           </div>
         </div>
         <div class="grid g3" style="margin-top:13px">
@@ -399,6 +401,9 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
         <div class="acciones" style="margin-bottom:13px">
           <button class="ok" onclick="nuevoUsuario()">Nuevo usuario</button>
           <button class="sec" onclick="cambiarMiClave()">Cambiar mi contraseña</button>
+          <button class="sec" onclick="cargarUsuariosSheets()">Traer de Google Sheets</button>
+          <button class="sec" onclick="subirUsuariosSheets()">Subir a Google Sheets</button>
+          <span class="estado"><span class="dot" id="dot-usr"></span><span id="txt-usr">Local</span></span>
           <span class="hint" id="u-aviso"></span>
         </div>
         <div class="tabla-wrap">
@@ -415,6 +420,13 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
         <div class="hint">
           El rol <b>admin</b> puede crear, editar y eliminar usuarios y modificar la
           configuración. El rol <b>usuario</b> solo genera y consulta memorandos.
+        </div>
+        <div class="warn" style="margin-top:12px">
+          Los accesos se guardan en la hoja <b id="u-hoja">Usuarios40</b> del mismo
+          Google Sheets, así que son los mismos en todas las computadoras: si crea o
+          desactiva a alguien, aplica para todo el equipo.<br>
+          Tenga presente que <b>las contraseñas quedan legibles en esa hoja</b>.
+          Comparta el archivo solo con quien deba administrarlas.
         </div>
       </div>
     </section>
@@ -754,6 +766,7 @@ function cargarTodo(){
   if(!CFG.adjuntos) CFG.adjuntos = ADJ_DEF.slice();
   if(!CFG.hoja)     CFG.hoja = 'Clausula40';
   if(!CFG.hojaEmp)  CFG.hojaEmp = 'Empleados40';
+  if(!CFG.hojaUsr)  CFG.hojaUsr = 'Usuarios40';
   if(!CFG.jefe)     CFG.jefe = 'LIC. CINTHIA ISABEL MURILLO';
   if(!CFG.jefeCargo)CFG.jefeCargo = 'Jefe Depto. De Bienestar Social';
   if(!CFG.vb)       CFG.vb = 'LIC. PAOLA ISEL ARRIAZA';
@@ -1891,6 +1904,7 @@ function sincronizar(silencioso){
     cargando(false);
   });
   cargarEmpleadosSheets(null, silencioso);
+  cargarUsuariosSheets(null, silencioso);
 }
 function fusionarMemos(filas){
   var existentes = {};
@@ -1925,6 +1939,92 @@ function enviarMemoSheets(reg){
     estadoSync(ok, ok ? 'Guardado en Sheets' : 'Guardado solo local');
     if(ok) registrarBitacora('Agrego', reg.no, 'L ' + fmt(reg.total) + ' — ' + reg.dep);
   });
+}
+function estadoUsr(ok, txt){
+  if(!$('dot-usr')) return;
+  $('dot-usr').className = 'dot' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  $('txt-usr').textContent = txt;
+}
+/* Trae los accesos desde la hoja Usuarios40. La hoja manda: así todo el
+   equipo usa la misma lista y un usuario desactivado lo queda en todas
+   las computadoras. */
+function cargarUsuariosSheets(cb, silencioso){
+  if(!CFG.url){
+    estadoUsr(null, 'Solo local (sin URL configurada)');
+    if(!silencioso) toast('Configure primero la URL del Apps Script.','err');
+    if(cb) cb(false);
+    return;
+  }
+  estadoUsr(null, 'Consultando la hoja…');
+  apiGet(CFG.hojaUsr, function(datos){
+    if(!datos || !datos.filas){
+      estadoUsr(false, 'Sin conexión con la hoja de usuarios');
+      if(!silencioso) toast('No se pudo leer la hoja ' + CFG.hojaUsr + '.','err');
+      if(cb) cb(false);
+      return;
+    }
+    var f = datos.filas, ini = 0, lista = [], i;
+    if(f.length && String(f[0][0]||'').trim().toUpperCase() === 'USUARIO') ini = 1;
+    for(i=ini;i<f.length;i++){
+      var r = f[i];
+      var id = String(r && r[0]!=null ? r[0] : '').trim().toLowerCase();
+      if(!id) continue;
+      var act = String(r[5]==null?'':r[5]).trim().toUpperCase();
+      lista.push({
+        id:        id,
+        nombre:    String(r[1]==null?'':r[1]).trim() || id,
+        completo:  String(r[2]==null?'':r[2]).trim() || String(r[1]==null?'':r[1]).trim(),
+        iniciales: String(r[3]==null?'':r[3]).trim(),
+        rol:       String(r[4]==null?'':r[4]).trim().toLowerCase() === 'admin' ? 'admin' : 'usuario',
+        activo:    !(act === 'NO' || act === 'FALSE' || act === '0' || act === 'INACTIVO'),
+        pass:      String(r[6]==null?'':r[6])
+      });
+    }
+    var hayAdmin = false;
+    for(i=0;i<lista.length;i++) if(lista[i].rol === 'admin' && lista[i].activo) hayAdmin = true;
+
+    if(lista.length && hayAdmin){
+      USUARIOS = lista;
+      guardarLS(LS.usuarios, USUARIOS);
+      if(usuarioActual){
+        var yo = buscarUsuario(usuarioActual.id);
+        if(yo) usuarioActual = yo;
+      }
+      pintarUsuarios(); pintarLogin();
+      estadoUsr(true, lista.length + ' usuarios desde la hoja · '
+        + new Date().toLocaleTimeString('es-HN'));
+      if(!silencioso) toast(lista.length + ' usuarios cargados desde Google Sheets.','ok');
+    } else if(!lista.length){
+      // Hoja vacía: se sube la lista local para inicializarla.
+      enviarUsuariosSheets();
+      estadoUsr(true, 'Hoja vacía: se subieron los usuarios de este equipo');
+      if(!silencioso) toast('La hoja estaba vacía. Se subieron los usuarios de este equipo.','ok');
+    } else {
+      estadoUsr(false, 'La hoja no tiene ningún admin activo: se conservan los locales');
+      if(!silencioso) toast('La hoja no tiene ningún admin activo. No se aplicó el cambio.','err');
+    }
+    if(cb) cb(true);
+  });
+}
+function enviarUsuariosSheets(){
+  if(!CFG.url) return;
+  var filas = [['USUARIO','NOMBRE','NOMBRE_COMPLETO','INICIALES','ROL','ACTIVO','CLAVE_ACCESO']];
+  for(var i=0;i<USUARIOS.length;i++){
+    var u = USUARIOS[i];
+    filas.push([u.id, u.nombre, u.completo || u.nombre,
+                u.iniciales || inicialesDe(u.completo || u.nombre),
+                u.rol, (u.activo === false ? 'NO' : 'SI'), u.pass]);
+  }
+  apiPost({accion:'reescribir', tipo:CFG.hojaUsr, filas:filas}, function(ok){
+    estadoUsr(ok, ok ? 'Accesos guardados en la hoja' : 'No se pudo escribir en la hoja');
+  });
+}
+function subirUsuariosSheets(){
+  if(!CFG.url){ toast('Configure primero la URL del Apps Script.','err'); return; }
+  if(!confirm('Se reemplazará el contenido de la hoja ' + CFG.hojaUsr + ' con los '
+    + USUARIOS.length + ' accesos de este equipo. ¿Continuar?')) return;
+  enviarUsuariosSheets();
+  toast('Accesos subidos a Google Sheets.','ok');
 }
 function estadoEmp(ok, txt){
   if(!$('dot-emp')) return;
@@ -2010,6 +2110,8 @@ function pintarConfig(){
   $('c-url').value      = CFG.url || '';
   $('c-hoja').value     = CFG.hoja;
   $('c-hojaemp').value  = CFG.hojaEmp;
+  $('c-hojausr').value  = CFG.hojaUsr;
+  if($('u-hoja')) $('u-hoja').textContent = CFG.hojaUsr;
   $('c-jefe').value     = CFG.jefe;
   $('c-jefecargo').value= CFG.jefeCargo;
   $('c-vb').value       = CFG.vb;
@@ -2021,6 +2123,7 @@ function guardarConfig(){
   CFG.url       = $('c-url').value.trim();
   CFG.hoja      = $('c-hoja').value.trim() || 'Clausula40';
   CFG.hojaEmp   = $('c-hojaemp').value.trim() || 'Empleados40';
+  CFG.hojaUsr   = $('c-hojausr').value.trim() || 'Usuarios40';
   CFG.jefe      = $('c-jefe').value.trim();
   CFG.jefeCargo = $('c-jefecargo').value.trim();
   CFG.vb        = $('c-vb').value.trim();
@@ -2110,6 +2213,7 @@ function guardarUsuario(){
     if(usuarioActual && usuarioActual.id === u.id) usuarioActual = u;
   }
   guardarLS(LS.usuarios, USUARIOS);
+  enviarUsuariosSheets();
   cerrar('m-user'); pintarUsuarios(); pintarLogin();
   if(usuarioActual){
     $('hd-nom').textContent = usuarioActual.nombre;
@@ -2129,6 +2233,7 @@ function borrarUsuario(i){
   if(!confirm('¿Eliminar el acceso de ' + u.nombre + '?')) return;
   USUARIOS.splice(i,1);
   guardarLS(LS.usuarios, USUARIOS);
+  enviarUsuariosSheets();
   pintarUsuarios(); pintarLogin();
 }
 function cambiarMiClave(){
@@ -2141,6 +2246,7 @@ function cambiarMiClave(){
   if(!n || n.length < 4){ toast('La contraseña debe tener al menos 4 caracteres.','err'); return; }
   usuarioActual.pass = n;
   guardarLS(LS.usuarios, USUARIOS);
+  enviarUsuariosSheets();
   toast('Contraseña actualizada.','ok');
 }
 function respaldar(){
@@ -4223,6 +4329,9 @@ function documentXmlC40(d, cfg){
     for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id === u.id) usuarioActual = USUARIOS[i];
   }
   if(usuarioActual) iniciarApp();
+  // Los accesos viven en la hoja: se traen al abrir para que la lista de
+  // ingreso esté al día aunque nadie haya entrado todavía.
+  if(CFG.url) cargarUsuariosSheets(null, true);
   $('lg-pass').addEventListener('keydown', function(e){ if(e.key === 'Enter') entrar(); });
 })();
 </script>
