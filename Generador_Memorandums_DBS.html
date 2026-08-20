@@ -90,6 +90,18 @@
   table.ben tr.tot td{background:#eef2f6;font-weight:700;text-align:right;padding:8px 8px}
   table.ben .num{width:34px;text-align:center;font-weight:600;color:var(--suave)}
   .rmv{background:var(--rojo);color:#fff;border:none;border-radius:5px;width:24px;height:24px;font-weight:700;line-height:1}
+  .permsbox{display:flex;flex-wrap:wrap;gap:8px 16px;background:#f7f9fc;border:1px solid var(--borde);
+    border-radius:8px;padding:11px 13px}
+  .permsbox label{display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer;font-weight:500}
+  .permsbox input{width:16px;height:16px;cursor:pointer;margin:0}
+  .permsbox .nota{width:100%;font-size:12.5px;color:var(--suave);margin:0}
+  .rowact{display:flex;gap:2px;align-items:center;justify-content:center}
+  .mv{background:#eef2f7;color:var(--azul);border:1px solid var(--borde);border-radius:5px;
+      width:20px;height:24px;font-size:10px;line-height:1;cursor:pointer;padding:0}
+  .mv:hover:not(:disabled){background:var(--azul);color:#fff;border-color:var(--azul)}
+  .mv:disabled{opacity:.25;cursor:default}
+  tr.movida td{animation:destello .7s ease-out}
+  @keyframes destello{from{background:#fff3c4}to{background:transparent}}
   .tbl-wrap{overflow-x:auto}
 
   .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
@@ -386,7 +398,7 @@
       <div id="u_msg" class="msg"></div>
       <div class="tbl-wrap">
         <table class="list">
-          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Accesos</th><th>Acciones</th></tr></thead>
           <tbody id="u_body"></tbody>
         </table>
       </div>
@@ -397,7 +409,11 @@
         <div class="fg"><label>Usuario (para iniciar sesión)</label><input id="u_user" placeholder="jperez"></div>
         <div class="fg"><label>Contraseña</label><input id="u_pass" placeholder="(deje vacío para no cambiar)"></div>
         <div class="fg"><label>Nombre completo</label><input id="u_nombre" placeholder="Juan Pérez"></div>
-        <div class="fg"><label>Rol</label><select id="u_rol"><option value="user">Usuario</option><option value="admin">Administrador</option></select></div>
+        <div class="fg"><label>Rol</label><select id="u_rol" onchange="pintarPermisosForm()"><option value="user">Usuario</option><option value="admin">Administrador</option></select></div>
+      </div>
+      <div class="fg" style="margin-top:6px">
+        <label>Qué puede ver y hacer este usuario</label>
+        <div id="u_permsBox" class="permsbox"></div>
       </div>
       <div class="actions" style="margin-top:14px">
         <button class="btn-gen" onclick="guardarUsuario()">Guardar usuario</button>
@@ -668,7 +684,7 @@ function lsSet(a){ localStorage.setItem(LS_KEY, JSON.stringify(a)); }
 async function storeLogin(u,p){
   if(CLOUD) return await apiCall('login',{user:u,pass:p},{raw:true});
   var a = USERS[u.toLowerCase()];
-  return (a && a.pass===p) ? {ok:true, nombre:a.nombre, rol:a.rol||'user'} : {ok:false};
+  return (a && a.pass===p) ? {ok:true, nombre:a.nombre, rol:a.rol||'user', perms:a.perms} : {ok:false};
 }
 async function storeList(){
   if(CLOUD){ var r = await apiCall('list'); return r.memos || []; }
@@ -711,6 +727,61 @@ async function storeUsers(){ if(CLOUD){ var r=await apiCall('listUsers'); return
 async function storeSaveUser(u){ return await apiCall('saveUser', u); }
 async function storeDelUser(user){ return await apiCall('delUser', {user:user}); }
 
+
+/* ==================================================================
+   PERMISOS
+   El administrador decide qu\u00e9 pesta\u00f1as y qu\u00e9 botones ve cada usuario.
+   Se guardan en la columna "perms" de la hoja de usuarios, como una
+   lista separada por comas:  memo,reem,hist,imp
+   Un administrador siempre lo ve todo, sin importar lo que diga perms.
+   ================================================================== */
+var PERMISOS = [
+  {k:'memo', nom:'Memor\u00e1ndum',  tab:'tabMemo'},
+  {k:'reem', nom:'Reembolso',   tab:'tabReem'},
+  {k:'dev',  nom:'Devoluci\u00f3n',  tab:'tabDev'},
+  {k:'hist', nom:'Historial',   tab:'tabHist'},
+  {k:'imp',  nom:'Importar Word ya hecho'},
+  {k:'del',  nom:'Eliminar del historial'}
+];
+var PERMS_POR_DEFECTO = 'memo,reem,dev,hist,imp';
+var MIS_PERMISOS = {};
+
+function permsAObjeto(txt){
+  var o = {};
+  String(txt==null?'':txt).split(',').forEach(function(x){ x=x.trim().toLowerCase(); if(x) o[x]=true; });
+  return o;
+}
+/* \u00bfPuede el usuario actual usar esto? */
+function puede(k){
+  if(CURRENT.rol === 'admin') return true;
+  return !!MIS_PERMISOS[k];
+}
+function aplicarPermisos(){
+  var esAdmin = CURRENT.rol === 'admin';
+  PERMISOS.forEach(function(p){
+    if(!p.tab) return;
+    var el = document.getElementById(p.tab); if(!el) return;
+    el.classList.toggle('hidden', !puede(p.k));
+  });
+  /* Empleados, Proveedores y Usuarios siguen siendo exclusivos del
+     administrador y solo en modo nube. */
+  ['tabEmp','tabProv','tabUsers'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.classList.toggle('hidden', !(esAdmin && CLOUD));
+  });
+  /* botones de Importar Word ya hecho */
+  document.querySelectorAll('button').forEach(function(b){
+    var oc = b.getAttribute('onclick') || '';
+    if(oc.indexOf('fileImp') >= 0) b.classList.toggle('hidden', !puede('imp'));
+  });
+  /* si la pesta\u00f1a abierta ya no est\u00e1 permitida, pasar a la primera disponible */
+  var actual = document.querySelector('.tab.active');
+  if(!actual || actual.classList.contains('hidden')){
+    var libre = PERMISOS.filter(function(p){
+      return p.tab && !document.getElementById(p.tab).classList.contains('hidden');
+    })[0];
+    if(libre) showTab(libre.k);
+  }
+}
 /* ==================================================================
    LOGIN
    ================================================================== */
@@ -745,15 +816,12 @@ async function doLogin(ev){
     var r = await storeLogin(u,p);
     if(r && r.ok){
       CURRENT = { user:u, nombre:r.nombre||u, rol:r.rol||'user' };
+      MIS_PERMISOS = permsAObjeto(r.perms!=null ? r.perms : PERMS_POR_DEFECTO);
       document.getElementById('login').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
       document.getElementById('userLabel').textContent = '\u{1F464} ' + CURRENT.nombre + '  (' + CURRENT.rol + ')';
       document.getElementById('modoBadge').textContent = CLOUD ? '☁ Nube' : '\u{1F4BB} Local';
-      if(CURRENT.rol==='admin' && CLOUD){
-        document.getElementById('tabUsers').classList.remove('hidden');
-        document.getElementById('tabEmp').classList.remove('hidden');
-        document.getElementById('tabProv').classList.remove('hidden');
-      }
+      aplicarPermisos();
       initApp();
     } else {
       err.textContent = 'Usuario o contraseña incorrectos.';
@@ -999,7 +1067,11 @@ function addRow(t, data){
   var tr=document.createElement('tr');
   if(t==='memo'){
     tr.innerHTML=
-      '<td><button class="rmv" onclick="delRow(this,\'memo\')">×</button></td>'+
+      '<td><div class="rowact">'+
+        '<button class="mv up" title="Subir esta fila" onclick="moveRow(this,\'memo\',-1)">▲</button>'+
+        '<button class="mv dn" title="Bajar esta fila" onclick="moveRow(this,\'memo\',1)">▼</button>'+
+        '<button class="rmv" onclick="delRow(this,\'memo\')">×</button>'+
+      '</div></td>'+
       '<td class="num"></td>'+
       '<td><input class="clave" oninput="claveFill(this)" placeholder="clave"></td>'+
       '<td><input class="ro emp" readonly></td>'+
@@ -1015,7 +1087,11 @@ function addRow(t, data){
       '<td><input class="money penee" data-auto="1" oninput="peneeManual(this,\'memo\')" placeholder="0.00"></td>';
   } else {
     tr.innerHTML=
-      '<td><button class="rmv" onclick="delRow(this,\'reem\')">×</button></td>'+
+      '<td><div class="rowact">'+
+        '<button class="mv up" title="Subir esta fila" onclick="moveRow(this,\'reem\',-1)">▲</button>'+
+        '<button class="mv dn" title="Bajar esta fila" onclick="moveRow(this,\'reem\',1)">▼</button>'+
+        '<button class="rmv" onclick="delRow(this,\'reem\')">×</button>'+
+      '</div></td>'+
       '<td><input class="ro clave" readonly></td>'+
       '<td><input class="ro emp" readonly></td>'+
       '<td><input class="benef" list="benefOpciones" oninput="benefChange(this,\'reem\')" placeholder="Empleado / Hija..."></td>'+
@@ -1051,7 +1127,11 @@ function addRowDev(data){
   var tb=document.getElementById('d_body');
   var tr=document.createElement('tr');
   tr.innerHTML=
-    '<td><button class="rmv" onclick="delRow(this,\'dev\')">×</button></td>'+
+    '<td><div class="rowact">'+
+        '<button class="mv up" title="Subir esta fila" onclick="moveRow(this,\'dev\',-1)">▲</button>'+
+        '<button class="mv dn" title="Bajar esta fila" onclick="moveRow(this,\'dev\',1)">▼</button>'+
+        '<button class="rmv" onclick="delRow(this,\'dev\')">×</button>'+
+      '</div></td>'+
     '<td class="num"></td>'+
     '<td><input class="memodev" placeholder="UBSNO-135-06-25-VI-2025"></td>'+
     '<td><input class="benef" placeholder="Nombre del beneficiario"></td>'+
@@ -1091,10 +1171,35 @@ function delRow(btn,t){
   else btn.closest('tr').remove();
   renumber(t); recalc(t);
 }
+
+/* -------- Reordenar filas del cuadro sin perder lo escrito --------
+   Se mueve la fila completa (el <tr>), as\u00ed que los valores, el estado
+   autom\u00e1tico/manual de cada casilla y los datos del empleado viajan con ella. */
+function moveRow(btn, t, dir){
+  var tr = btn.closest('tr');
+  var destino = dir < 0 ? tr.previousElementSibling : tr.nextElementSibling;
+  if(!destino) return;                       // ya est\u00e1 en el extremo
+  if(dir < 0) tr.parentNode.insertBefore(tr, destino);
+  else        tr.parentNode.insertBefore(destino, tr);
+  tr.classList.remove('movida'); void tr.offsetWidth; tr.classList.add('movida');
+  renumber(t); recalc(t);
+  var f = tr.querySelector(dir < 0 ? '.up' : '.dn');
+  if(f && !f.disabled) f.focus();             // permite seguir pulsando sin buscar el bot\u00f3n
+}
+/* Apaga la flecha que no tiene a d\u00f3nde ir */
+function refrescarFlechas(t){
+  var tb = document.getElementById(pfxOf(t)+'_body'); if(!tb) return;
+  var filas = tb.querySelectorAll('tr');
+  filas.forEach(function(tr, i){
+    var up = tr.querySelector('.up'), dn = tr.querySelector('.dn');
+    if(up) up.disabled = (i === 0);
+    if(dn) dn.disabled = (i === filas.length - 1);
+  });
+}
 function renumber(t){
-  if(t==='dev'){ document.querySelectorAll('#d_body tr').forEach(function(tr,i){ tr.querySelector('.num').textContent=i+1; }); return; }
-  if(t!=='memo') return;
-  document.querySelectorAll('#m_body tr').forEach(function(tr,i){ tr.querySelector('.num').textContent=i+1; });
+  if(t==='dev'){ document.querySelectorAll('#d_body tr').forEach(function(tr,i){ tr.querySelector('.num').textContent=i+1; }); refrescarFlechas('dev'); return; }
+  if(t==='memo') document.querySelectorAll('#m_body tr').forEach(function(tr,i){ tr.querySelector('.num').textContent=i+1; });
+  refrescarFlechas(t);
 }
 function claveFill(inp){
   var tr=inp.closest('tr');
@@ -1927,12 +2032,12 @@ function renderHist(){
       '<td><div class="act">'+
         '<button class="ed" title="Editar">Editar</button>'+
         '<button class="re" title="Regenerar Word">Regenerar</button>'+
-        '<button class="de" title="Eliminar">Eliminar</button>'+
+        (puede('del') ? '<button class="de" title="Eliminar">Eliminar</button>' : '')+
       '</div></td>';
     var btns=tr.querySelectorAll('button');
     btns[0].onclick=function(){ editarMemo(m); };
     btns[1].onclick=function(){ regenerar(m); };
-    btns[2].onclick=function(){ eliminarMemo(m); };
+    if(btns[2]) btns[2].onclick=function(){ eliminarMemo(m); };
     body.appendChild(tr);
   });
 }
@@ -1993,6 +2098,33 @@ function exportCSV(){
 /* ==================================================================
    USUARIOS (solo modo NUBE, rol admin)
    ================================================================== */
+
+/* casillas del formulario de usuarios */
+function pintarPermisosForm(marcados){
+  var box = document.getElementById('u_permsBox'); if(!box) return;
+  var esAdmin = document.getElementById('u_rol').value === 'admin';
+  var sel = permsAObjeto(marcados!=null ? marcados : PERMS_POR_DEFECTO);
+  var h = '';
+  PERMISOS.forEach(function(p){
+    h += '<label><input type="checkbox" class="uperm" value="'+p.k+'"'+
+         (esAdmin||sel[p.k] ? ' checked':'')+(esAdmin?' disabled':'')+'> '+esc(p.nom)+'</label>';
+  });
+  h += esAdmin
+     ? '<p class="nota">Un administrador siempre ve todo; estas casillas no aplican.</p>'
+     : '<p class="nota">Empleados, Proveedores y Usuarios son exclusivos del administrador.</p>';
+  box.innerHTML = h;
+}
+function leerPermisosForm(){
+  var out = [];
+  document.querySelectorAll('#u_permsBox .uperm').forEach(function(c){ if(c.checked) out.push(c.value); });
+  return out.join(',');
+}
+function resumenPerms(u){
+  if((u.rol||'user') === 'admin') return 'Todo';
+  var o = permsAObjeto(u.perms!=null ? u.perms : PERMS_POR_DEFECTO);
+  var n = PERMISOS.filter(function(p){ return o[p.k]; }).map(function(p){ return p.nom; });
+  return n.length ? n.join(', ') : '(sin accesos)';
+}
 async function cargarUsuarios(){
   var msg=document.getElementById('u_msg');
   if(!CLOUD){ msg.className='msg info'; msg.textContent='La gestión de usuarios requiere el modo NUBE. En modo local, edite la lista USERS dentro del archivo HTML.'; document.getElementById('u_body').innerHTML=''; return; }
@@ -2004,9 +2136,13 @@ async function cargarUsuarios(){
     users.forEach(function(u){
       var tr=document.createElement('tr');
       tr.innerHTML='<td><b>'+esc(u.user)+'</b></td><td>'+esc(u.nombre||'')+'</td><td>'+esc(u.rol||'user')+'</td>'+
+        '<td class="wrap" style="font-size:12.5px;color:var(--suave)">'+esc(resumenPerms(u))+'</td>'+
         '<td><div class="act"><button class="ed">Editar</button><button class="de">Eliminar</button></div></td>';
       var btns=tr.querySelectorAll('button');
-      btns[0].onclick=function(){ setVal('u_user',u.user); setVal('u_pass',''); setVal('u_nombre',u.nombre||''); document.getElementById('u_rol').value=u.rol||'user'; document.getElementById('u_formTitle').textContent='Editar usuario: '+u.user; };
+      btns[0].onclick=function(){ setVal('u_user',u.user); setVal('u_pass',''); setVal('u_nombre',u.nombre||'');
+        document.getElementById('u_rol').value=u.rol||'user';
+        pintarPermisosForm(u.perms!=null ? u.perms : PERMS_POR_DEFECTO);
+        document.getElementById('u_formTitle').textContent='Editar usuario: '+u.user; };
       btns[1].onclick=function(){ eliminarUsuario(u.user); };
       body.appendChild(tr);
     });
@@ -2017,9 +2153,14 @@ async function guardarUsuario(){
   var user=val('u_user'); if(!user){ msg.className='msg err'; msg.textContent='Ingrese el nombre de usuario.'; return; }
   msg.className='msg info'; msg.textContent='Guardando...';
   try{
-    await storeSaveUser({ user:user, pass:val('u_pass'), nombre:val('u_nombre'), rol:document.getElementById('u_rol').value });
+    var rolSel = document.getElementById('u_rol').value;
+    var permsSel = rolSel==='admin' ? PERMISOS.map(function(p){ return p.k; }).join(',') : leerPermisosForm();
+    await storeSaveUser({ user:user, pass:val('u_pass'), nombre:val('u_nombre'), rol:rolSel, perms:permsSel });
     limpiarUsuario(); await cargarUsuarios();
-    msg.className='msg ok'; msg.textContent='Usuario guardado.';
+    msg.className='msg ok';
+    msg.textContent = (CURRENT.user && user.toLowerCase()===CURRENT.user.toLowerCase())
+      ? 'Usuario guardado. Cambi\u00f3 su propio acceso: vuelva a entrar para que surta efecto.'
+      : 'Usuario guardado.';
   }catch(e){ msg.className='msg err'; msg.textContent='No se pudo guardar: '+e.message; }
 }
 async function eliminarUsuario(user){
@@ -2028,7 +2169,9 @@ async function eliminarUsuario(user){
   try{ var r=await storeDelUser(user); if(r&&r.ok===false){ msg.className='msg err'; msg.textContent=r.error||'No se pudo eliminar.'; return; } await cargarUsuarios(); msg.className='msg ok'; msg.textContent='Usuario eliminado.'; }
   catch(e){ msg.className='msg err'; msg.textContent='No se pudo eliminar: '+e.message; }
 }
-function limpiarUsuario(){ setVal('u_user',''); setVal('u_pass',''); setVal('u_nombre',''); document.getElementById('u_rol').value='user'; document.getElementById('u_formTitle').textContent='Agregar usuario'; }
+function limpiarUsuario(){ setVal('u_user',''); setVal('u_pass',''); setVal('u_nombre','');
+  document.getElementById('u_rol').value='user'; pintarPermisosForm(PERMS_POR_DEFECTO);
+  document.getElementById('u_formTitle').textContent='Agregar usuario'; }
 
 /* ==================================================================
    EMPLEADOS (catálogo — modo NUBE, rol admin)
