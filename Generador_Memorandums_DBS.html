@@ -740,6 +740,8 @@ var PERMISOS = [
   {k:'reem', nom:'Reembolso',   tab:'tabReem'},
   {k:'dev',  nom:'Devoluci\u00f3n',  tab:'tabDev'},
   {k:'hist', nom:'Historial',   tab:'tabHist'},
+  {k:'emp',  nom:'Empleados',   tab:'tabEmp',  nube:true},
+  {k:'prov', nom:'Proveedores', tab:'tabProv', nube:true},
   {k:'imp',  nom:'Importar Word ya hecho'},
   {k:'del',  nom:'Eliminar del historial'}
 ];
@@ -761,13 +763,13 @@ function aplicarPermisos(){
   PERMISOS.forEach(function(p){
     if(!p.tab) return;
     var el = document.getElementById(p.tab); if(!el) return;
-    el.classList.toggle('hidden', !puede(p.k));
+    /* Los cat\u00e1logos viven en la nube: sin modo nube no hay nada que mostrar. */
+    var visible = puede(p.k) && (!p.nube || CLOUD);
+    el.classList.toggle('hidden', !visible);
   });
-  /* Empleados, Proveedores y Usuarios siguen siendo exclusivos del
-     administrador y solo en modo nube. */
-  ['tabEmp','tabProv','tabUsers'].forEach(function(id){
-    var el = document.getElementById(id); if(el) el.classList.toggle('hidden', !(esAdmin && CLOUD));
-  });
+  /* Usuarios sigue siendo exclusivo del administrador. */
+  var tu = document.getElementById('tabUsers');
+  if(tu) tu.classList.toggle('hidden', !(esAdmin && CLOUD));
   /* botones de Importar Word ya hecho */
   document.querySelectorAll('button').forEach(function(b){
     var oc = b.getAttribute('onclick') || '';
@@ -2111,7 +2113,7 @@ function pintarPermisosForm(marcados){
   });
   h += esAdmin
      ? '<p class="nota">Un administrador siempre ve todo; estas casillas no aplican.</p>'
-     : '<p class="nota">Empleados, Proveedores y Usuarios son exclusivos del administrador.</p>';
+     : '<p class="nota">Empleados y Proveedores necesitan modo nube. La pesta\u00f1a Usuarios es exclusiva del administrador.</p>';
   box.innerHTML = h;
 }
 function leerPermisosForm(){
