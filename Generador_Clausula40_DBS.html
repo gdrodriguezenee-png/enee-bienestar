@@ -67,6 +67,7 @@ header .sp{flex:1}
 .tab-btn[data-t="Nuevo"].active{color:#1a7a44}
 .tab-btn[data-t="Historial"].active{color:#003366}
 .tab-btn[data-t="Empleados"].active{color:#7a3a00}
+.tab-btn[data-t="Informe"].active{color:#7a0030}
 .tab-btn[data-t="Config"].active{color:#5a0080}
 main{padding:20px 22px 60px;max-width:1500px;margin:0 auto}
 .vista{display:none}.vista.on{display:block}
@@ -198,6 +199,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
     <button class="tab-btn active" data-t="Nuevo"      onclick="irTab('Nuevo')">Nuevo memorando</button>
     <button class="tab-btn"        data-t="Historial"  onclick="irTab('Historial')">Historial</button>
     <button class="tab-btn"        data-t="Empleados"  onclick="irTab('Empleados')">Catálogo</button>
+    <button class="tab-btn"        data-t="Informe"    onclick="irTab('Informe')">Informe mensual</button>
     <button class="tab-btn"        data-t="Config"     onclick="irTab('Config')">Configuración</button>
   </div>
 
@@ -222,7 +224,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <div><label>Remitido por</label><input id="f-de" value="Departamento de Bienestar Social"></div>
         </div>
         <div class="grid g4" style="margin-top:13px">
-          <div><label>Dependencia de los empleados</label><input id="f-dep" list="dl-dep" placeholder="ALUMBRADO PUBLICO C.S." oninput="calcular()"></div>
+          <div><label>Dependencia de los empleados</label><input id="f-dep" list="dl-dep" placeholder="ALUMBRADO PUBLICO C.S." oninput="calcular(); sugerirGerencia()"></div>
           <div><label>Mes que corresponde el pago</label>
             <select id="f-mespago" onchange="calcular()">
               <option value="1">enero</option><option value="2">febrero</option><option value="3">marzo</option>
@@ -232,6 +234,13 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
             </select>
           </div>
           <div><label>Año del pago</label><input id="f-aniopago" type="number" oninput="calcular()"></div>
+          <div><label>Gerencia</label>
+            <select id="f-gerencia" onchange="guardarBorrador()">
+              <option>Distribución</option><option>Generación</option>
+              <option>Transmisión</option><option>Holding</option>
+            </select>
+            <div class="hint">Agrupa el informe mensual.</div>
+          </div>
           <div><label>Valor de la cena (L.)</label>
             <input id="f-valcena" type="number" step="0.01" value="180" onchange="aplicarValorCena()">
             <div class="hint">Cambiar aquí lo aplica a todas las filas</div>
@@ -346,6 +355,80 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           </table>
         </div>
         <div class="hint" id="e-cont">0 empleados</div>
+      </div>
+    </section>
+
+    <!-- ---------- INFORME MENSUAL ---------- -->
+    <section class="vista" id="v-Informe">
+      <div class="card">
+        <h3>Informe mensual de trámites</h3>
+        <div class="grid g4">
+          <div><label>Elaborado por</label><select id="i-usuario" onchange="renderInforme()"></select></div>
+          <div><label>Mes</label>
+            <select id="i-mes" onchange="renderInforme()">
+              <option value="1">enero</option><option value="2">febrero</option><option value="3">marzo</option>
+              <option value="4">abril</option><option value="5">mayo</option><option value="6">junio</option>
+              <option value="7">julio</option><option value="8">agosto</option><option value="9">septiembre</option>
+              <option value="10">octubre</option><option value="11">noviembre</option><option value="12">diciembre</option>
+            </select>
+          </div>
+          <div><label>Año</label><input id="i-anio" type="number" oninput="renderInforme()"></div>
+          <div><label>Área</label><input id="i-area" oninput="guardarConfigInforme()"></div>
+        </div>
+        <div class="grid g2" style="margin-top:13px">
+          <div><label>Encabezado del Excel (línea 1)</label><input id="i-dir" oninput="guardarConfigInforme()"></div>
+          <div><label>Encabezado del Excel (línea 2)</label><input id="i-dep" oninput="guardarConfigInforme()"></div>
+        </div>
+        <h3 style="margin-top:20px">Datos del informe en Word</h3>
+        <div class="grid g3">
+          <div><label>Fecha del informe</label><input id="i-fecha" type="date" onchange="guardarConfigInforme()"></div>
+          <div><label>Dirigido a</label><input id="i-para" oninput="guardarConfigInforme()"></div>
+          <div><label>Cargo</label><input id="i-paracargo" oninput="guardarConfigInforme()"></div>
+        </div>
+        <div style="margin-top:13px">
+          <label>Firmantes (uno por línea)</label>
+          <textarea id="i-firmas" rows="3" oninput="guardarConfigInforme()"></textarea>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          Toma los memorandos del historial según la <b>fecha de elaboración</b>.
+          La columna Observación se escribe aquí y queda guardada.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Trámites del período</h3>
+        <div class="acciones" style="margin-bottom:13px">
+          <button class="ok" onclick="generarInformeWord()">Descargar Word</button>
+          <button class="gold" onclick="generarInformeExcel()">Descargar Excel</button>
+          <button class="sec" onclick="imprimirInforme()">Imprimir / PDF</button>
+        </div>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:80px">Cláusula</th>
+              <th style="width:170px">Memorando / Notas / Oficio / Circular</th>
+              <th>Asunto</th>
+              <th style="width:120px;text-align:right">Monto</th>
+              <th style="width:130px">Fecha de elaboración</th>
+              <th style="width:110px;text-align:right">N.º de beneficiarios</th>
+              <th style="width:135px">Gerencia</th>
+              <th style="width:200px">Observación</th>
+            </tr></thead>
+            <tbody id="i-tb"></tbody>
+            <tfoot><tr>
+              <td colspan="3" style="text-align:right">TOTAL</td>
+              <td id="i-monto" style="text-align:right">0.00</td>
+              <td style="text-align:right">TOTAL</td>
+              <td id="i-benef" style="text-align:right">0</td>
+              <td colspan="2"></td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <div class="resumen" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi"><div class="lbl">Trámites</div><div class="val" id="i-k-tram">0</div></div>
+          <div class="kpi"><div class="lbl">Beneficiarios</div><div class="val" id="i-k-benef">0</div></div>
+          <div class="kpi verde"><div class="lbl">Monto del mes</div><div class="val" id="i-k-monto">L 0.00</div></div>
+        </div>
       </div>
     </section>
 
@@ -861,6 +944,7 @@ function iniciarApp(){
   renderEmp();
   renderHist();
   poblarDatalists();
+  pintarInforme();
   if(CFG.url) sincronizar(true);
 }
 
@@ -868,6 +952,7 @@ function iniciarApp(){
    NAVEGACIÓN
    ========================================================= */
 function irTab(t){
+  if(t === 'Informe'){ poblarUsuariosInforme(); renderInforme(); }
   var b = document.querySelectorAll('.tab-btn');
   for(var i=0;i<b.length;i++) b[i].className = 'tab-btn' + (b[i].getAttribute('data-t')===t ? ' active' : '');
   var v = document.querySelectorAll('.vista');
@@ -1029,6 +1114,11 @@ function cargarDependencia(){
 }
 
 /* -------- CÁLCULOS (fórmulas) -------- */
+/* Propone la gerencia a partir de la dependencia escrita. */
+function sugerirGerencia(){
+  if(!$('f-gerencia') || $('f-gerencia').dataset.tocado) return;
+  $('f-gerencia').value = inferirGerencia($('f-dep').value);
+}
 function calcular(){
   var cenas = 0, total = 0;
   for(var i=0;i<FILAS.length;i++){
@@ -1064,7 +1154,8 @@ function guardarBorrador(){
     no:$('f-no').value, corr:$('f-corr').value, fecha:$('f-fecha').value,
     para:$('f-para').value, cargo:$('f-cargo').value, de:$('f-de').value,
     dep:$('f-dep').value, mespago:$('f-mespago').value, aniopago:$('f-aniopago').value,
-    valcena:$('f-valcena').value, asunto:$('f-asunto').value, filas:FILAS
+    valcena:$('f-valcena').value, asunto:$('f-asunto').value,
+    gerencia:$('f-gerencia').value, filas:FILAS
   });
 }
 function restaurarBorrador(){
@@ -1081,6 +1172,7 @@ function restaurarBorrador(){
     $('f-aniopago').value= d.aniopago || new Date().getFullYear();
     $('f-valcena').value = d.valcena || 180;
     $('f-asunto').value  = d.asunto || 'PAGO DE CLÁUSULA N.º 40';
+    $('f-gerencia').value = d.gerencia || inferirGerencia(d.dep);
     FILAS = d.filas || [];
   } else {
     // Sin borrador propio: el formulario arranca limpio, sin arrastrar
@@ -1693,6 +1785,7 @@ function guardarMemo(automatico){
     mesPago: d.mesPago, anioPago: d.anioPago,
     empleados: d.empleados, cenas: d.cenas, total: d.total,
     valorCena: d.valorCena, letras: d.letras,
+    gerencia: $('f-gerencia') ? $('f-gerencia').value : inferirGerencia(d.dep),
     para: d.para, cargo: d.cargo, asunto: d.asunto,
     usuario: usuarioActual ? usuarioActual.nombre : '',
     registrado: new Date().toLocaleString('es-HN'),
@@ -1768,6 +1861,7 @@ function cargarMemo(id){
   $('f-aniopago').value = m.anioPago;
   $('f-valcena').value = m.valorCena || 180;
   $('f-asunto').value = m.asunto || 'PAGO DE CLÁUSULA N.º 40';
+  $('f-gerencia').value = gerenciaDe(m);
   FILAS = (m.detalle||[]).slice();
   renderFilas();
   irTab('Nuevo');
@@ -4053,13 +4147,21 @@ function bytesTxt(b){
 /* -------- Armar el .docx final --------
    Se reemplaza el cuerpo del documento y, en el pie, las iniciales
    de quien elabora el memorando. */
-function armarDocx(plantillaB64, documentXml, iniciales){
+/* El tercer parámetro puede ser:
+   - un texto: las iniciales que sustituyen a G.D.R en el pie (memorandos)
+   - un objeto: partes del docx a reemplazar completas, por ejemplo
+     {'word/header1.xml': xml} (informe mensual) */
+function armarDocx(plantillaB64, documentXml, opcion){
   var entradas = leerZip(b64Bytes(plantillaB64));
+  var partes    = (opcion && typeof opcion === 'object') ? opcion : {};
+  var iniciales = (typeof opcion === 'string') ? opcion : null;
   var nuevo = txtBytes(documentXml);
   for(var i=0;i<entradas.length;i++){
     var e = entradas[i];
     if(e.nombre === 'word/document.xml'){
       reemplazarEntrada(e, nuevo);
+    } else if(partes[e.nombre] !== undefined){
+      reemplazarEntrada(e, txtBytes(partes[e.nombre]));
     } else if(e.nombre === 'word/footer1.xml' && iniciales){
       // Esta parte va sin comprimir en la plantilla justo para poder editarla.
       if(e.metodo === 0){
@@ -4317,6 +4419,537 @@ function documentXmlC40(d, cfg){
     + '<w:body>' + cuerpo.join('') + sect + '</w:body></w:document>';
 }
 
+
+
+/* Encabezado con el membrete pero sin las líneas de Dirección/Departamento:
+   es el que usa el informe mensual. */
+var HEADER_SOLO_MEMBRETE = [
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:wpc="http://schemas.microsoft.com/office/w',
+'ord/2010/wordprocessingCanvas" xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:mc="h',
+'ttp://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" ',
+'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlf',
+'ormats.org/officeDocument/2006/math" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wp14="http://schemas.micros',
+'oft.com/office/word/2010/wordprocessingDrawing" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wor',
+'dprocessingDrawing" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:w="http://schemas.openxmlformats.o',
+'rg/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:w15="htt',
+'p://schemas.microsoft.com/office/word/2012/wordml" xmlns:w16se="http://schemas.microsoft.com/office/word/2015/',
+'wordml/symex" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wpi="http://',
+'schemas.microsoft.com/office/word/2010/wordprocessingInk" xmlns:wne="http://schemas.microsoft.com/office/word/',
+'2006/wordml" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" mc:Ignorable="w14 w',
+'15 w16se wp14"><w:p w:rsidR="002653C4" w:rsidRDefault="002653C4" w:rsidP="002653C4"><w:pPr><w:spacing w:after=',
+'"0"/><w:jc w:val="center"/><w:rPr><w:rFonts w:ascii="Cambria" w:hAnsi="Cambria"/><w:b/><w:color w:val="A6A6A6"',
+' w:themeColor="background1" w:themeShade="A6"/><w:sz w:val="28"/><w:szCs w:val="18"/></w:rPr></w:pPr><w:r><w:r',
+'Pr><w:noProof/><w:lang w:eastAsia="es-HN"/></w:rPr><w:drawing><wp:anchor distT="0" distB="0" distL="114300" di',
+'stR="114300" simplePos="0" relativeHeight="251658240" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="',
+'1" wp14:anchorId="41F4315B" wp14:editId="1E094063"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page',
+'"><wp:align>right</wp:align></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>-329185</wp:po',
+'sOffset></wp:positionV><wp:extent cx="7770686" cy="10489997"/><wp:effectExtent l="0" t="0" r="1905" b="6985"/>',
+'<wp:wrapNone/><wp:docPr id="5" name="Imagen 5"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://sch',
+'emas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="ht',
+'tp://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/dra',
+'wingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicP',
+'r><pic:cNvPr id="570456334" name="Imagen 5"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="',
+'1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId1"><a:extLst><a:ext uri="{28A0092B-C50C-407',
+'E-A947-70E740481C1C}"><a14:useLocalDpi xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" val="',
+'0"/></a:ext></a:extLst></a:blip><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr bwMode="auto"><a:',
+'xfrm><a:off x="0" y="0"/><a:ext cx="7779487" cy="10501877"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prs',
+'tGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic><wp14:sizeRelH relat',
+'iveFrom="page"><wp14:pctWidth>0</wp14:pctWidth></wp14:sizeRelH><wp14:sizeRelV relativeFrom="page"><wp14:pctHei',
+'ght>0</wp14:pctHeight></wp14:sizeRelV></wp:anchor></w:drawing></w:r></w:p></w:hdr>'
+].join('');
+
+/* =========================================================
+   INFORME MENSUAL DE TRÁMITES
+   Toma del historial los memorandos elaborados por un usuario
+   en un mes y arma el cuadro que pide Talento Humano.
+   ========================================================= */
+function pintarInforme(){
+  var hoy = new Date();
+  if(!$('i-anio').value) $('i-anio').value = hoy.getFullYear();
+  $('i-mes').value  = String(hoy.getMonth()+1);
+  $('i-area').value = CFG.area || 'Trabajo social';
+  // Si quedó guardado el nombre anterior de la Dirección, se corrige solo.
+  if(CFG.infDir === 'DIRECCIÓN DE TALENTO HUMANO'){
+    CFG.infDir = 'DIRECCIÓN DE DESARROLLO HUMANO';
+    guardarLS(LS.cfg, CFG);
+  }
+  $('i-dir').value  = CFG.infDir || 'DIRECCIÓN DE DESARROLLO HUMANO';
+  $('i-dep').value  = CFG.infDep || 'DEPARTAMENTO DE BIENESTAR SOCIAL';
+  $('i-fecha').value     = CFG.infFecha || hoyISO();
+  $('i-para').value      = CFG.infPara || 'Lic. Cinthia Murillo';
+  $('i-paracargo').value = CFG.infParaCargo || 'Jefe del Depto. De Bienestar Social.';
+  $('i-firmas').value    = (CFG.infFirmas || ['Adriana Salinas','Rosa García','Daniela Cruz']).join('\n');
+  poblarUsuariosInforme();
+  renderInforme();
+}
+function poblarUsuariosInforme(){
+  var sel = $('i-usuario'), act = sel.value, vistos = {}, h = '';
+  for(var i=0;i<USUARIOS.length;i++){
+    var n = USUARIOS[i].completo || USUARIOS[i].nombre;
+    if(!vistos[n]){ vistos[n] = 1; h += '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }
+  }
+  // Nombres que aparecen en el historial pero ya no están en la lista de accesos
+  for(var k=0;k<HISTORIAL.length;k++){
+    var u = HISTORIAL[k].usuario || '';
+    if(u && !vistos[u]){ vistos[u] = 1; h += '<option value="'+esc(u)+'">'+esc(u)+'</option>'; }
+  }
+  h += '<option value="__todos">Todos los usuarios</option>';
+  sel.innerHTML = h;
+  if(act && vistos[act]) sel.value = act;
+  else if(usuarioActual) sel.value = usuarioActual.completo || usuarioActual.nombre;
+}
+function guardarConfigInforme(){
+  CFG.area   = $('i-area').value;
+  CFG.infDir = $('i-dir').value;
+  CFG.infDep = $('i-dep').value;
+  CFG.infFecha     = $('i-fecha').value;
+  CFG.infPara      = $('i-para').value;
+  CFG.infParaCargo = $('i-paracargo').value;
+  CFG.infFirmas    = String($('i-firmas').value||'').split('\n');
+  guardarLS(LS.cfg, CFG);
+}
+/* Los memorandos del período elegido. */
+function memosInforme(){
+  var quien = $('i-usuario').value;
+  var mes   = parseInt($('i-mes').value,10);
+  var anio  = String($('i-anio').value||'').trim();
+  var lista = [];
+  for(var i=0;i<HISTORIAL.length;i++){
+    var m = HISTORIAL[i];
+    var f = String(m.fecha||'').split('-');
+    if(f.length !== 3) continue;
+    if(parseInt(f[1],10) !== mes) continue;
+    if(f[0] !== anio) continue;
+    if(quien !== '__todos' && String(m.usuario||'') !== quien) continue;
+    lista.push(m);
+  }
+  lista.sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); });
+  return lista;
+}
+function asuntoInforme(m){
+  return 'Pago de cláusula N.º 40, alimentación por prolongación de jornada — ' + (m.dep||'');
+}
+function renderInforme(){
+  if(!$('i-tb')) return;
+  var lista = memosInforme(), h = '', monto = 0, benef = 0;
+  for(var i=0;i<lista.length;i++){
+    var m = lista[i];
+    monto += num(m.total);
+    benef += num(m.empleados);
+    h += '<tr>'
+      + '<td style="text-align:center">40</td>'
+      + '<td><b>' + esc(m.no) + '</b></td>'
+      + '<td>' + esc(asuntoInforme(m)) + '</td>'
+      + '<td style="text-align:right;font-weight:600;color:#1a7a44">L ' + fmt(m.total) + '</td>'
+      + '<td style="text-align:center">' + esc(fechaCorta(m.fecha)) + '</td>'
+      + '<td style="text-align:right">' + num(m.empleados) + '</td>'
+      + '<td><select onchange="setGerencia(\'' + m.id + '\', this.value)">'
+      + opcionesGerencia(gerenciaDe(m)) + '</select></td>'
+      + '<td><input value="' + esc(m.observacion||'') + '" placeholder="—" '
+      + 'onchange="setObservacion(\'' + m.id + '\', this.value)"></td>'
+      + '</tr>';
+  }
+  if(!lista.length){
+    h = '<tr><td colspan="8" style="text-align:center;padding:26px;color:#8899aa">'
+      + 'No hay memorandos elaborados en ese mes.</td></tr>';
+  }
+  $('i-tb').innerHTML   = h;
+  $('i-monto').textContent = fmt(monto);
+  $('i-benef').textContent = benef;
+  $('i-k-tram').textContent  = lista.length;
+  $('i-k-benef').textContent = benef;
+  $('i-k-monto').textContent = 'L ' + fmt(monto);
+}
+function setObservacion(id, texto){
+  for(var i=0;i<HISTORIAL.length;i++){
+    if(HISTORIAL[i].id === id){ HISTORIAL[i].observacion = texto; break; }
+  }
+  guardarLS(LS.hist, HISTORIAL);
+}
+function fechaCorta(iso){
+  var p = String(iso||'').split('-');
+  return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : (iso||'');
+}
+function tituloInforme(){
+  var mes = MESES[parseInt($('i-mes').value,10)-1] || '';
+  return 'MES DE ' + mes.toUpperCase() + ' ' + $('i-anio').value;
+}
+
+/* -------- Excel del informe -------- */
+function celM(v, tipo, estilo, unir){
+  return '<Cell' + (estilo ? ' ss:StyleID="'+estilo+'"' : '')
+    + (unir ? ' ss:MergeAcross="'+unir+'"' : '') + '>'
+    + '<Data ss:Type="'+tipo+'">' + esc(v) + '</Data></Cell>';
+}
+function celFM(formula, tipo, estilo, unir){
+  return '<Cell ss:Formula="' + esc(formula) + '"' + (estilo ? ' ss:StyleID="'+estilo+'"' : '')
+    + (unir ? ' ss:MergeAcross="'+unir+'"' : '') + '>'
+    + '<Data ss:Type="'+tipo+'"></Data></Cell>';
+}
+function generarInformeExcel(){
+  var lista = memosInforme();
+  if(!lista.length){ toast('No hay memorandos en ese mes.','err'); return; }
+  guardarConfigInforme();
+
+  var B = '<Borders>'
+    + '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>'
+    + '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>'
+    + '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>'
+    + '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>'
+    + '</Borders>';
+  var x = [];
+  x.push('<?xml version="1.0"?>');
+  x.push('<?mso-application progid="Excel.Sheet"?>');
+  x.push('<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
+    + 'xmlns:o="urn:schemas-microsoft-com:office:office" '
+    + 'xmlns:x="urn:schemas-microsoft-com:office:excel" '
+    + 'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">');
+  x.push('<Styles>'
+    + '<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/>'
+    + '<Font ss:FontName="Arial" ss:Size="10"/></Style>'
+    + '<Style ss:ID="tit"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>'
+    + '<Font ss:FontName="Arial" ss:Size="12" ss:Bold="1"/></Style>'
+    + '<Style ss:ID="sub"><Font ss:FontName="Arial" ss:Size="11" ss:Bold="1"/></Style>'
+    + '<Style ss:ID="hd"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>'
+    + B + '<Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/>'
+    + '<Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/></Style>'
+    + '<Style ss:ID="c"><Alignment ss:Vertical="Center" ss:WrapText="1"/>' + B + '</Style>'
+    + '<Style ss:ID="cc"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' + B + '</Style>'
+    + '<Style ss:ID="mon"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/>' + B
+    + '<NumberFormat ss:Format="&quot;L&quot;\\ #,##0.00"/></Style>'
+    + '<Style ss:ID="tot"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' + B
+    + '<Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/></Style>'
+    + '<Style ss:ID="totm"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/>' + B
+    + '<Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/>'
+    + '<NumberFormat ss:Format="&quot;L&quot;\\ #,##0.00"/></Style>'
+    + '<Style ss:ID="totn"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' + B
+    + '<Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/></Style>'
+    + '</Styles>');
+  x.push('<Worksheet ss:Name="Informe"><Table>');
+  var anchos = [70, 155, 300, 95, 105, 95, 175];
+  for(var a=0;a<anchos.length;a++) x.push('<Column ss:Width="'+anchos[a]+'"/>');
+
+  x.push(fila([celM($('i-dir').value, 'String', 'tit', 6)]));
+  x.push(fila([celM($('i-dep').value, 'String', 'tit', 6)]));
+  x.push('<Row/>');
+  x.push(fila([celM('Área: ' + $('i-area').value, 'String', 'sub', 3)]));
+  x.push(fila([celM(tituloInforme(), 'String', 'sub', 3)]));
+  x.push('<Row/>');
+
+  var enc = ['Cláusula','Memorando /Notas/Oficio/ Circular','Asunto','Monto',
+             'Fecha de elaboración','N° de Beneficiarios','Observación'];
+  var ce = [];
+  for(var e=0;e<enc.length;e++) ce.push(cel(enc[e],'String','hd'));
+  x.push('<Row ss:Height="34">' + ce.join('') + '</Row>');
+
+  var primera = 8;
+  for(var i=0;i<lista.length;i++){
+    var m = lista[i];
+    x.push(fila([
+      cel('40','String','cc'),
+      cel(m.no,'String','cc'),
+      cel(asuntoInforme(m),'String','c'),
+      cel(num(m.total),'Number','mon'),
+      cel(fechaCorta(m.fecha),'String','cc'),
+      cel(num(m.empleados),'Number','cc'),
+      cel(m.observacion||'','String','c')
+    ]));
+  }
+  var ult = primera + lista.length - 1;
+  x.push(fila([
+    celM('TOTAL','String','tot',2),
+    celFM('=SUM(R'+primera+'C:R'+ult+'C)','Number','totm'),
+    cel('TOTAL','String','tot'),
+    celFM('=SUM(R'+primera+'C:R'+ult+'C)','Number','totn'),
+    cel('','String','cc')
+  ]));
+  x.push('<Row/>');
+  x.push('<Row/>');
+  var quien = $('i-usuario').value === '__todos'
+    ? 'TODO EL EQUIPO'
+    : String($('i-usuario').value).toUpperCase();
+  x.push(fila([cel('','String'), celM('ELABORADOS POR:  ' + quien, 'String', 'sub', 3)]));
+  x.push('</Table>');
+  // Que al imprimir salga horizontal y todo el cuadro quepa a lo ancho.
+  x.push('<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">'
+    + '<PageSetup><Layout x:Orientation="Landscape"/>'
+    + '<PageMargins x:Bottom="0.5" x:Left="0.4" x:Right="0.4" x:Top="0.5"/></PageSetup>'
+    + '<FitToPage/>'
+    + '<Print><ValidPrinterInfo/><PaperSizeIndex>1</PaperSizeIndex>'
+    + '<FitWidth>1</FitWidth><FitHeight>0</FitHeight><Scale>100</Scale>'
+    + '<HorizontalResolution>600</HorizontalResolution>'
+    + '<VerticalResolution>600</VerticalResolution></Print>'
+    + '<Selected/></WorksheetOptions>');
+  x.push('</Worksheet></Workbook>');
+
+  var nombre = 'Informe_C40_' + (MESES[parseInt($('i-mes').value,10)-1]||'') + '_'
+    + $('i-anio').value + '.xls';
+  bajarBlob(new Blob([x.join('')], {type:'application/vnd.ms-excel;charset=utf-8'}), nombre);
+  toast('Informe generado con fórmulas de totales.','ok');
+}
+function imprimirInforme(){
+  var lista = memosInforme();
+  if(!lista.length){ toast('No hay memorandos en ese mes.','err'); return; }
+  var filas = '', monto = 0, benef = 0;
+  for(var i=0;i<lista.length;i++){
+    var m = lista[i];
+    monto += num(m.total); benef += num(m.empleados);
+    filas += '<tr><td style="text-align:center">40</td><td>' + esc(m.no) + '</td>'
+      + '<td>' + esc(asuntoInforme(m)) + '</td>'
+      + '<td style="text-align:right">L ' + fmt(m.total) + '</td>'
+      + '<td style="text-align:center">' + esc(fechaCorta(m.fecha)) + '</td>'
+      + '<td style="text-align:center">' + num(m.empleados) + '</td>'
+      + '<td>' + esc(m.observacion||'') + '</td></tr>';
+  }
+  var quien = $('i-usuario').value === '__todos'
+    ? 'TODO EL EQUIPO' : String($('i-usuario').value).toUpperCase();
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><meta charset="utf-8"><title>' + esc(tituloInforme()) + '</title>'
+    + '<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:15mm}'
+    + 'table{border-collapse:collapse;width:100%;margin-top:10px}'
+    + 'th,td{border:1px solid #000;padding:4px 6px;font-size:9.5pt}'
+    + 'th{background:#d9d9d9;text-align:center}'
+    + 'h2,h3{text-align:center;margin:0}</style></head><body>'
+    + '<h2>' + esc($('i-dir').value) + '</h2>'
+    + '<h2>' + esc($('i-dep').value) + '</h2>'
+    + '<p style="margin:14px 0 0"><b>Área: ' + esc($('i-area').value) + '</b><br>'
+    + '<b>' + esc(tituloInforme()) + '</b></p>'
+    + '<table><thead><tr><th>Cláusula</th><th>Memorando /Notas/Oficio/ Circular</th>'
+    + '<th>Asunto</th><th>Monto</th><th>Fecha de elaboración</th>'
+    + '<th>N° de Beneficiarios</th><th>Observación</th></tr></thead><tbody>' + filas
+    + '</tbody><tfoot><tr><td colspan="3" style="text-align:center"><b>TOTAL</b></td>'
+    + '<td style="text-align:right"><b>L ' + fmt(monto) + '</b></td>'
+    + '<td style="text-align:center"><b>TOTAL</b></td>'
+    + '<td style="text-align:center"><b>' + benef + '</b></td><td></td></tr></tfoot></table>'
+    + '<p style="margin-top:40px"><b>ELABORADOS POR:  ' + esc(quien) + '</b></p>'
+    + '</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 400);
+}
+
+
+/* -------- Gerencias -------- */
+var GERENCIAS = ['Distribución','Generación','Transmisión','Holding'];
+function inferirGerencia(dep){
+  var t = String(dep||'')
+    .replace(/[ÁÀ]/g,'A').replace(/[ÉÈ]/g,'E').replace(/[ÍÌ]/g,'I')
+    .replace(/[ÓÒ]/g,'O').replace(/[ÚÙ]/g,'U').toUpperCase();
+  if(/TRANSMISION|LINEAS|SUBESTACION/.test(t)) return 'Transmisión';
+  if(/GENERACION|CENTRAL|HIDRO|TERMICA|C\.H\.|PLANTA/.test(t)) return 'Generación';
+  if(/DISTRIBUCION|COMERCIAL|ALUMBRADO|REGIONAL|CICLO/.test(t)) return 'Distribución';
+  return 'Holding';
+}
+function gerenciaDe(m){ return m.gerencia || inferirGerencia(m.dep); }
+function setGerencia(id, valor){
+  for(var i=0;i<HISTORIAL.length;i++){
+    if(HISTORIAL[i].id === id){ HISTORIAL[i].gerencia = valor; break; }
+  }
+  guardarLS(LS.hist, HISTORIAL);
+  renderInforme();
+}
+function opcionesGerencia(actual){
+  var h = '';
+  for(var i=0;i<GERENCIAS.length;i++) h += op(GERENCIAS[i], actual);
+  return h;
+}
+/* Resumen por gerencia para el Word. */
+function resumenGerencias(lista){
+  var mapa = {}, i;
+  for(i=0;i<lista.length;i++){
+    var g = gerenciaDe(lista[i]);
+    if(!mapa[g]) mapa[g] = {gerencia:g, valor:0, pagos:0, benef:0};
+    mapa[g].valor += num(lista[i].total);
+    mapa[g].pagos += 1;
+    mapa[g].benef += num(lista[i].empleados);
+  }
+  var salida = [];
+  for(i=0;i<GERENCIAS.length;i++) if(mapa[GERENCIAS[i]]) salida.push(mapa[GERENCIAS[i]]);
+  for(var k in mapa) if(mapa.hasOwnProperty(k) && GERENCIAS.indexOf(k) < 0) salida.push(mapa[k]);
+  return salida;
+}
+
+/* -------- Word del informe mensual -------- */
+function documentXmlInforme(d, cfg){
+  var F = 'Pluto Regular';           // la fuente del cuadro original
+  var cuerpo = [];
+  function rprT(o){                  // Times New Roman para el texto
+    o = o || {};
+    return '<w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" '
+      + 'w:cs="Times New Roman"/>' + (o.b ? '<w:b/>' : '')
+      + '<w:sz w:val="' + (o.sz||24) + '"/><w:szCs w:val="' + (o.sz||24) + '"/>'
+      + '<w:lang w:val="es-HN"/></w:rPr>';
+  }
+  function runT(t, o){
+    return '<w:r>' + rprT(o) + '<w:t xml:space="preserve">' + xesc(t) + '</w:t></w:r>';
+  }
+  function parT(contenido, o){
+    o = o || {};
+    return '<w:p><w:pPr><w:spacing w:before="0" w:after="' + (o.after==null?0:o.after)
+      + '" w:line="' + (o.line||276) + '" w:lineRule="auto"/>'
+      + (o.jc ? '<w:jc w:val="' + o.jc + '"/>' : '')
+      + rprT(o) + '</w:pPr>' + (contenido||'') + '</w:p>';
+  }
+  function rprC(o){                  // fuente del cuadro
+    o = o || {};
+    return '<w:rPr><w:rFonts w:ascii="' + F + '" w:hAnsi="' + F + '" w:cs="' + F + '"/>'
+      + (o.b ? '<w:b/>' : '') + '<w:sz w:val="' + (o.sz||28) + '"/>'
+      + '<w:szCs w:val="' + (o.sz||28) + '"/></w:rPr>';
+  }
+  function celdaC(texto, ancho, o){
+    o = o || {};
+    var p = '<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/>'
+      + (o.jc ? '<w:jc w:val="' + o.jc + '"/>' : '') + rprC(o) + '</w:pPr>'
+      + '<w:r>' + rprC(o) + '<w:t xml:space="preserve">' + xesc(texto) + '</w:t></w:r></w:p>';
+    var c = '<w:tc><w:tcPr><w:tcW w:w="' + ancho + '" w:type="dxa"/>'
+      + (o.fondo ? '<w:shd w:val="clear" w:color="auto" w:fill="' + o.fondo + '"/>' : '')
+      + '<w:vAlign w:val="center"/></w:tcPr>' + p + '</w:tc>';
+    return c;
+  }
+
+  /* Fecha a la derecha */
+  cuerpo.push(parT(runT(d.fechaTxt), {jc:'right', after:400}));
+
+  /* Destinatario */
+  cuerpo.push(parT(runT(d.para, {b:true}), {after:0}));
+  cuerpo.push(parT(runT(d.paraCargo), {after:280}));
+
+  /* Presentación */
+  cuerpo.push(parT(
+      runT('A continuación, se envían los trámites realizados en el mes de ')
+    + runT(d.mes + ', ' + d.anio)
+    + runT('. De la cláusula 40 del contrato colectivo vigente.'),
+    {jc:'both', after:280}));
+
+  cuerpo.push(parT(
+      runT(String(d.pagos), {b:true})
+    + runT(' pagos tramitados con un costo de ')
+    + runT(d.letras + ' (L' + d.montoTxt + ')', {b:true})
+    + runT('.'),
+    {jc:'both', after:280}));
+
+  /* Cuadro por gerencia */
+  var cols = [2260, 2380, 1360, 2880];
+  var filas = [];
+  filas.push('<w:tr>' + [
+    celdaC('GERENCIA',      cols[0], {b:true, fondo:'F6C5AC'}),
+    celdaC('VALOR',         cols[1], {b:true, fondo:'F6C5AC'}),
+    celdaC('PAGOS',         cols[2], {b:true, fondo:'F6C5AC', jc:'center'}),
+    celdaC('BENEFICIARIOS', cols[3], {b:true, fondo:'F6C5AC', jc:'center'})
+  ].join('') + '</w:tr>');
+  for(var i=0;i<d.grupos.length;i++){
+    var g = d.grupos[i];
+    filas.push('<w:tr>' + [
+      celdaC(g.gerencia, cols[0]),
+      celdaC('L' + fmt(g.valor), cols[1], {jc:'right'}),
+      celdaC(String(g.pagos), cols[2], {jc:'center'}),
+      celdaC(String(g.benef), cols[3], {jc:'center'})
+    ].join('') + '</w:tr>');
+  }
+  filas.push('<w:tr>' + [
+    celdaC('TOTAL', cols[0], {b:true}),
+    celdaC('L' + d.montoTxt, cols[1], {b:true, jc:'right'}),
+    celdaC(String(d.pagos), cols[2], {b:true, jc:'center'}),
+    celdaC(String(d.benef), cols[3], {b:true, jc:'center'})
+  ].join('') + '</w:tr>');
+
+  var ancho = cols[0]+cols[1]+cols[2]+cols[3];
+  var bordes = '<w:tblBorders>'
+    + '<w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+    + '<w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+    + '<w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+    + '<w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+    + '<w:insideH w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+    + '<w:insideV w:val="single" w:sz="8" w:space="0" w:color="000000"/></w:tblBorders>';
+  cuerpo.push('<w:tbl><w:tblPr><w:tblW w:w="' + ancho + '" w:type="dxa"/>'
+    + '<w:jc w:val="center"/>' + bordes
+    + '<w:tblCellMar><w:top w:w="30" w:type="dxa"/><w:left w:w="90" w:type="dxa"/>'
+    + '<w:bottom w:w="30" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tblCellMar>'
+    + '<w:tblLook w:val="04A0"/></w:tblPr><w:tblGrid>'
+    + '<w:gridCol w:w="'+cols[0]+'"/><w:gridCol w:w="'+cols[1]+'"/>'
+    + '<w:gridCol w:w="'+cols[2]+'"/><w:gridCol w:w="'+cols[3]+'"/>'
+    + '</w:tblGrid>' + filas.join('') + '</w:tbl>');
+  cuerpo.push(parT('', {after:200}));
+
+  /* NOTA */
+  var nota = [runT('NOTA: ', {b:true}), runT(String(d.pagos), {b:true}),
+              runT(' pagos tramitados de la Cláusula 40: ')];
+  for(var k=0;k<d.grupos.length;k++){
+    var gg = d.grupos[k];
+    nota.push(runT(String(gg.benef), {b:true}));
+    nota.push(runT(' beneficiarios de ' + gg.gerencia + ' con un valor de '));
+    nota.push(runT('L' + fmt(gg.valor), {b:true}));
+    nota.push(runT(k < d.grupos.length-1 ? ', ' : '. '));
+  }
+  nota.push(runT('Con un total de: '));
+  nota.push(runT(d.letras + ' (L' + d.montoTxt + ')', {b:true}));
+  nota.push(runT('. Beneficiando a '));
+  nota.push(runT(String(d.benef), {b:true}));
+  nota.push(runT(' empleados.'));
+  cuerpo.push(parT(nota.join(''), {jc:'both', after:280}));
+
+  /* Firmas */
+  cuerpo.push(parT('', {after:0}));
+  cuerpo.push(parT('', {after:0}));
+  cuerpo.push(parT(runT('Atte.', {b:true}), {after:280}));
+  for(var f=0;f<d.firmantes.length;f++){
+    cuerpo.push(parT(runT(d.firmantes[f], {b:true}), {after:0}));
+  }
+
+  var sect = '<w:sectPr>'
+    + '<w:headerReference w:type="default" r:id="rId7"/>'
+    + '<w:footerReference w:type="default" r:id="rId8"/>'
+    + '<w:pgSz w:w="12240" w:h="15840" w:code="1"/>'
+    + '<w:pgMar w:top="1418" w:right="1701" w:bottom="1418" w:left="1701" '
+    + 'w:header="0" w:footer="0" w:gutter="0"/>'
+    + '<w:cols w:space="708"/><w:docGrid w:linePitch="360"/></w:sectPr>';
+
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+    + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + '<w:body>' + cuerpo.join('') + sect + '</w:body></w:document>';
+}
+function footerVacio(){
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:p/></w:ftr>';
+}
+function generarInformeWord(){
+  var lista = memosInforme();
+  if(!lista.length){ toast('No hay memorandos en ese mes.','err'); return; }
+  guardarConfigInforme();
+  var grupos = resumenGerencias(lista), monto = 0, benef = 0;
+  for(var i=0;i<grupos.length;i++){ monto += grupos[i].valor; benef += grupos[i].benef; }
+  var firmantes = String($('i-firmas').value||'').split('\n');
+  var limpias = [];
+  for(var k=0;k<firmantes.length;k++) if(firmantes[k].trim()) limpias.push(firmantes[k].trim());
+
+  var d = {
+    fechaTxt: fechaLarga($('i-fecha').value),
+    para:     $('i-para').value,
+    paraCargo:$('i-paracargo').value,
+    mes:      MESES[parseInt($('i-mes').value,10)-1] || '',
+    anio:     $('i-anio').value,
+    pagos:    lista.length,
+    benef:    benef,
+    montoTxt: fmt(monto),
+    letras:   numeroALetras(monto),
+    grupos:   grupos,
+    firmantes: limpias
+  };
+  try{
+    var bytes = armarDocx(PLANTILLA_B64, documentXmlInforme(d, CFG), {
+      'word/header1.xml': HEADER_SOLO_MEMBRETE,
+      'word/footer1.xml': footerVacio()
+    });
+    bajarBlob(new Blob([bytes],
+      {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),
+      'INFORME_MENSUAL_C40_' + d.mes + '_' + d.anio + '.docx');
+    toast('Informe en Word generado.','ok');
+  }catch(e){
+    console.error(e);
+    toast('No se pudo generar el Word: ' + e.message, 'err');
+  }
+}
 
 /* =========================================================
    ARRANQUE
