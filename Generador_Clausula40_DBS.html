@@ -479,11 +479,21 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="card-micuenta">
+        <h3>Mi cuenta</h3>
+        <div class="acciones">
+          <span class="pill" style="background:var(--azul-claro);color:var(--azul);border-color:var(--raya)">
+            <span class="av" id="mc-av">?</span><span id="mc-nom">&mdash;</span>
+          </span>
+          <span class="badge" id="mc-rol">usuario</span>
+          <button class="sec" onclick="cambiarMiClave()">Cambiar mi contraseña</button>
+        </div>
+      </div>
+
+      <div class="card" id="card-usuarios">
         <h3>Accesos de usuarios</h3>
         <div class="acciones" style="margin-bottom:13px">
           <button class="ok" onclick="nuevoUsuario()">Nuevo usuario</button>
-          <button class="sec" onclick="cambiarMiClave()">Cambiar mi contraseña</button>
           <button class="sec" onclick="cargarUsuariosSheets()">Traer de Google Sheets</button>
           <button class="sec" onclick="subirUsuariosSheets()">Subir a Google Sheets</button>
           <span class="estado"><span class="dot" id="dot-usr"></span><span id="txt-usr">Local</span></span>
@@ -896,6 +906,16 @@ function hayOtroAdmin(id){
   return false;
 }
 function esAdmin(){ return usuarioActual && usuarioActual.rol === 'admin'; }
+/* Muestra u oculta lo que solo corresponde a un administrador. */
+function aplicarPermisos(){
+  var admin = esAdmin();
+  if($('card-usuarios')) $('card-usuarios').style.display = admin ? '' : 'none';
+  if(usuarioActual && $('mc-nom')){
+    $('mc-nom').textContent = usuarioActual.completo || usuarioActual.nombre;
+    $('mc-av').textContent  = (usuarioActual.nombre||'?').charAt(0).toUpperCase();
+    $('mc-rol').textContent = usuarioActual.rol;
+  }
+}
 /* Iniciales que van al pie del memorando, bajo "CC. Archivo". */
 function inicialesUsuario(){
   if(!usuarioActual) return '';
@@ -939,6 +959,7 @@ function iniciarApp(){
   $('hd-nom').textContent = usuarioActual.nombre;
   $('hd-av').textContent = usuarioActual.nombre.charAt(0).toUpperCase();
   pintarConfig();
+  aplicarPermisos();
   pintarUsuarios();
   restaurarBorrador();
   renderEmp();
@@ -2043,6 +2064,10 @@ function estadoUsr(ok, txt){
    equipo usa la misma lista y un usuario desactivado lo queda en todas
    las computadoras. */
 function cargarUsuariosSheets(cb, silencioso){
+  if(!silencioso && !esAdmin()){
+    toast('Solo un administrador puede gestionar los accesos.','err');
+    if(cb) cb(false); return;
+  }
   if(!CFG.url){
     estadoUsr(null, 'Solo local (sin URL configurada)');
     if(!silencioso) toast('Configure primero la URL del Apps Script.','err');
@@ -2114,6 +2139,7 @@ function enviarUsuariosSheets(){
   });
 }
 function subirUsuariosSheets(){
+  if(!esAdmin()){ toast('Solo un administrador puede gestionar los accesos.','err'); return; }
   if(!CFG.url){ toast('Configure primero la URL del Apps Script.','err'); return; }
   if(!confirm('Se reemplazará el contenido de la hoja ' + CFG.hojaUsr + ' con los '
     + USUARIOS.length + ' accesos de este equipo. ¿Continuar?')) return;
@@ -2231,8 +2257,10 @@ function guardarConfig(){
 }
 function pintarUsuarios(){
   var admin = esAdmin();
-  $('u-aviso').textContent = admin ? ''
-    : 'Solo un usuario con rol admin puede crear o modificar accesos.';
+  aplicarPermisos();
+  // Los accesos solo se muestran a un administrador.
+  if(!admin){ $('u-tb').innerHTML = ''; return; }
+  $('u-aviso').textContent = '';
   var h = '';
   for(var i=0;i<USUARIOS.length;i++){
     var u = USUARIOS[i];
