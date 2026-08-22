@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- PORTAL-DBS-GUARD -->
+<script src="guard.js"></script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Correspondencia – Depto. Bienestar Social ENEE 2026</title>
@@ -1338,6 +1341,76 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeC
 
 // INIT
 initActive();buildTabs();renderTable();populateRecibido();
+</script>
+<!-- PORTAL-DBS-SSO -->
+<script>
+/* Login unico del Portal DBS: toma la sesion abierta en index.html y
+   completa el login de esta app. Si algo no cuadra, la app muestra su
+   login normal y nada se rompe. */
+(function () {
+  'use strict';
+  var APP = 'corr', SEL_U = '#linput_user', SEL_P = '#linput_pass', SEL_PANT = '#loginScreen';
+
+  var d = null;
+  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
+  if (!d || !d.id) return;
+  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
+
+  /* La clave de la app puede venir como "clave" o como "usuario/clave"
+     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
+  var usuario = d.id, clave = d.pass || '';
+  var propio = d.claves && d.claves[APP];
+  if (propio) {
+    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
+    if (m) { usuario = m[1]; clave = m[2]; }
+    else   { clave = propio; }
+  }
+  if (!clave) return;
+
+  var intentos = 0, enviado = false;
+
+  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
+  function visible(el) {
+    if (!el) return false;
+    var cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    return el.getClientRects().length > 0;
+  }
+
+  function paso() {
+    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
+
+    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
+    if (pant && !visible(pant)) return;                   // la app ya entro sola
+
+    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
+    if (!cu || !cp) { setTimeout(paso, 250); return; }
+
+    if (cu.tagName === 'SELECT') {
+      var hay = false;
+      for (var i = 0; i < cu.options.length; i++) {
+        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
+          cu.selectedIndex = i; hay = true; break;
+        }
+      }
+      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
+    } else {
+      cu.value = usuario;
+    }
+    cp.value = clave;
+    ['input', 'change'].forEach(function (ev) {
+      cu.dispatchEvent(new Event(ev, { bubbles: true }));
+      cp.dispatchEvent(new Event(ev, { bubbles: true }));
+    });
+
+    enviado = true;                                       // un solo intento
+    try { doLogin(); } catch (e) {}
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
+  else setTimeout(paso, 250);
+})();
 </script>
 </body>
 </html>

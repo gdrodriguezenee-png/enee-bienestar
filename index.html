@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal DBS — Bienestar Social ENEE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#003366; --azul-med:#005599; --azul-claro:#e8f0f8; --acento:#f0a500;
+  --bg:#f0f3f8; --blanco:#fff; --gris1:#dde3ed; --gris2:#8899aa;
+  --texto:#1a2a3a; --raya:#c8d4e4; --rojo:#cc2233; --verde:#1a7a44;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Barlow',system-ui,sans-serif;background:var(--bg);color:var(--texto);min-height:100vh}
+h1,h2,h3,h4{font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px}
+button{font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.5px;
+  text-transform:uppercase;border:0;cursor:pointer;transition:background .15s,transform .1s}
+button:active{transform:translateY(1px)}
+button[disabled]{opacity:.55;cursor:not-allowed}
+input,select{font-family:'Barlow',sans-serif;font-size:15px;padding:10px 12px;border:2px solid var(--gris1);
+  border-radius:9px;background:#fbfcfe;color:var(--texto);outline:0;width:100%;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--azul-med);background:#fff}
+label.lb{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;
+  text-transform:uppercase;letter-spacing:.7px;color:var(--azul);margin-bottom:5px}
+
+/* ---------- LOGIN ---------- */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(135deg,#002247 0%,#003366 45%,#00538f 100%)}
+.login-card{background:var(--blanco);border-radius:16px;width:100%;max-width:400px;padding:36px 32px 30px;
+  box-shadow:0 20px 55px rgba(0,20,60,.35);animation:sube .35s ease}
+@keyframes sube{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.marca{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:22px}
+.marca .logo{width:60px;height:60px;border-radius:15px;background:var(--acento);color:var(--azul);
+  display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:24px;box-shadow:0 6px 18px rgba(240,165,0,.35)}
+.marca h1{margin:0;font-size:26px;text-transform:uppercase;color:var(--azul);font-weight:700}
+.marca p{margin:0;font-size:13px;color:var(--gris2);text-align:center;line-height:1.4}
+.campo{margin-bottom:15px}
+.campo .wrap{position:relative}
+.campo .ojo{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:transparent;
+  padding:6px 8px;font-size:15px;line-height:1;border-radius:6px;color:var(--gris2);width:auto}
+.campo .ojo:hover{background:var(--azul-claro)}
+#btn-entrar{width:100%;padding:13px;font-size:16px;border-radius:9px;background:var(--azul);color:#fff;margin-top:6px}
+#btn-entrar:hover:not([disabled]){background:var(--azul-med)}
+.aviso{display:none;padding:10px 13px;border-radius:9px;font-size:14px;margin-bottom:15px;line-height:1.4}
+.aviso.err{display:block;background:#fde0e0;color:#a01824;border-left:4px solid var(--rojo)}
+.aviso.info{display:block;background:#e0f4fd;color:#00567a;border-left:4px solid #0070a0}
+.aviso.ok{display:block;background:#dff0e8;color:#116638;border-left:4px solid var(--verde)}
+.pie{margin-top:20px;padding-top:15px;border-top:1px solid var(--gris1);text-align:center;
+  font-size:12px;color:var(--gris2);line-height:1.5}
+
+/* ---------- DASHBOARD ---------- */
+#dash{display:none;min-height:100vh;flex-direction:column}
+header{background:var(--azul);color:#fff;padding:13px 22px;display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 14px rgba(0,30,80,.22);position:sticky;top:0;z-index:50;flex-wrap:wrap}
+header .logo{width:38px;height:38px;border-radius:10px;background:var(--acento);color:var(--azul);
+  display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:16px;flex:0 0 auto}
+header .tit h2{margin:0;font-size:19px;text-transform:uppercase;font-weight:700;line-height:1.1}
+header .tit span{font-size:12px;color:#a9c6e4}
+header .sp{flex:1}
+header button{padding:8px 14px;border-radius:8px;font-size:13px}
+.b-ghost{background:rgba(255,255,255,.16);color:#fff}.b-ghost:hover{background:rgba(255,255,255,.3)}
+#btn-salir{background:var(--rojo);color:#fff}#btn-salir:hover{background:#e33646}
+.pill{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.13);padding:5px 13px;border-radius:22px}
+.pill .av{width:28px;height:28px;border-radius:50%;background:var(--acento);color:var(--azul);
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;
+  font-family:'Barlow Condensed',sans-serif}
+.pill .nom{font-size:14px;font-weight:500;line-height:1.15}
+.pill .rol{font-size:11px;color:#a9c6e4;text-transform:uppercase;letter-spacing:.6px}
+
+main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:26px 22px 44px}
+.intro{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.intro h3{margin:0;font-size:24px;text-transform:uppercase;color:var(--azul)}
+.intro p{margin:3px 0 0;color:var(--gris2);font-size:14px}
+.sesion-info{font-size:12px;color:var(--gris2);text-align:right;line-height:1.5}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:12px;
+  background:var(--azul-claro);color:var(--azul);margin-top:5px}
+.sync.err{background:#fde0e0;color:#a01824}
+.sync.ok{background:#dff0e8;color:#116638}
+.grupo-tit{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:14px;text-transform:uppercase;
+  letter-spacing:1.1px;color:var(--gris2);margin:26px 0 12px;display:flex;align-items:center;gap:11px}
+.grupo-tit::after{content:'';flex:1;height:1px;background:var(--gris1)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:9px;background:var(--blanco);border-radius:13px;padding:19px;
+  text-decoration:none;color:inherit;border-top:4px solid var(--azul);
+  box-shadow:0 2px 14px rgba(0,30,80,.07);transition:transform .16s,box-shadow .16s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 28px rgba(0,30,80,.16)}
+.card .top{display:flex;align-items:center;gap:12px}
+.card .ic{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:22px;background:var(--azul-claro);flex:0 0 auto}
+.card h4{margin:0;font-size:19px;font-weight:600;text-transform:uppercase;color:var(--azul);line-height:1.15}
+.card p{margin:0;font-size:13.5px;color:#5c6e80;line-height:1.45;flex:1}
+.card .abrir{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;text-transform:uppercase;
+  letter-spacing:.7px;color:var(--azul-med)}
+.vacio{background:#fff;border-radius:13px;padding:44px 26px;text-align:center;color:var(--gris2);
+  box-shadow:0 2px 14px rgba(0,30,80,.07)}
+.vacio .em{font-size:42px}
+footer{text-align:center;padding:16px;font-size:12px;color:var(--gris2)}
+
+/* ---------- MODALES ---------- */
+.modal{display:none;position:fixed;inset:0;background:rgba(4,20,45,.55);z-index:200;
+  align-items:flex-start;justify-content:center;padding:26px 16px;overflow-y:auto}
+.modal.on{display:flex}
+.modal .caja{background:#fff;border-radius:14px;width:100%;max-width:900px;box-shadow:0 22px 60px rgba(0,20,60,.4);
+  animation:sube .22s ease;overflow:hidden}
+.modal .caja.sm{max-width:430px}
+.modal .hd{background:var(--azul);color:#fff;padding:13px 19px;display:flex;align-items:center;gap:10px}
+.modal .hd h3{margin:0;font-size:18px;text-transform:uppercase;font-weight:600;flex:1}
+.modal .hd button{background:rgba(255,255,255,.18);color:#fff;border-radius:7px;padding:5px 11px;font-size:15px}
+.modal .bd{padding:19px}
+.modal .ft{padding:14px 19px;background:#f6f9fc;border-top:1px solid var(--gris1);
+  display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.modal .ft .sp{flex:1}
+.b-pri{background:var(--verde);color:#fff;padding:11px 20px;border-radius:8px;font-size:14px}
+.b-pri:hover:not([disabled]){background:#1f9455}
+.b-sec{background:var(--azul-claro);color:var(--azul);padding:11px 20px;border-radius:8px;font-size:14px}
+.b-sec:hover{background:#d0e4f7}
+.b-del{background:#fde0e0;color:#a01824;padding:11px 20px;border-radius:8px;font-size:14px}
+.b-del:hover{background:#f8caca}
+.b-azul{background:var(--azul);color:#fff;padding:9px 16px;border-radius:8px;font-size:13px}
+.b-azul:hover{background:var(--azul-med)}
+
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--azul-claro)}
+thead th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12.5px;letter-spacing:.6px;
+  text-transform:uppercase;color:var(--azul);padding:9px 12px;text-align:left;white-space:nowrap}
+tbody tr:nth-child(even){background:#f6f9fc}
+tbody tr:hover{background:#e8f0f8}
+td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-align:middle}
+.tag{display:inline-block;background:var(--azul-claro);color:var(--azul);border-radius:5px;padding:2px 8px;
+  font-size:11.5px;margin:2px 3px 2px 0;font-family:'Barlow Condensed',sans-serif;font-weight:600}
+.tag.todo{background:#fff3d6;color:#8a5c00}
+.rolchip{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.6px;padding:2px 9px;border-radius:12px}
+.rolchip.admin{background:#fde0e0;color:#b02020}
+.rolchip.usuario{background:#dff0e8;color:var(--verde)}
+.mini{background:var(--azul-claro);color:var(--azul);border-radius:6px;padding:5px 10px;font-size:12px}
+.mini:hover{background:#d0e4f7}
+.mini.del{background:#fde0e0;color:#a01824}.mini.del:hover{background:#f8caca}
+
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:9px;margin-top:6px}
+.perm{display:flex;align-items:flex-start;gap:9px;background:#f6f9fc;border:2px solid var(--gris1);
+  border-radius:10px;padding:10px 12px;cursor:pointer;transition:border-color .13s,background .13s}
+.perm:hover{background:var(--azul-claro)}
+.perm.on{border-color:var(--azul-med);background:var(--azul-claro)}
+.perm input{width:17px;height:17px;flex:0 0 auto;margin-top:2px;padding:0}
+.perm .tx{flex:1 1 auto;min-width:0}
+.perm .tx b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:15px;text-transform:uppercase;color:var(--azul);line-height:1.15}
+.perm .tx small{color:var(--gris2);font-size:11.5px}
+.clave-app{margin-top:7px;display:none}
+.perm.on .clave-app{display:block}
+.clave-app input{font-size:13px;padding:6px 9px;border-width:1px;width:100%;display:block}
+.nota{background:#fff8e6;border-left:4px solid var(--acento);padding:10px 13px;border-radius:8px;
+  font-size:13px;color:#6b5200;line-height:1.5;margin-bottom:15px}
+.seccion{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;text-transform:uppercase;
+  letter-spacing:1px;color:var(--gris2);margin:18px 0 8px;display:flex;align-items:center;gap:10px}
+.seccion::after{content:'';flex:1;height:1px;background:var(--gris1)}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(90px);z-index:400;
+  background:var(--azul);color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;
+  box-shadow:0 10px 30px rgba(0,20,60,.35);transition:transform .28s;pointer-events:none;max-width:90vw}
+#toast.on{transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--rojo)}#toast.ok{background:var(--verde)}
+@media(max-width:640px){
+  header{padding:11px 14px;gap:8px}
+  header .tit span,.pill .nom,.pill .rol{display:none}
+  main{padding:18px 14px 34px}
+  .sesion-info{text-align:left}
+  .fila2{grid-template-columns:1fr}
+  .modal .bd{padding:14px}
+  .tabla-wrap{overflow-x:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- ====================== LOGIN ====================== -->
+<section id="login">
+  <form class="login-card" id="form-login" autocomplete="off">
+    <div class="marca">
+      <div class="logo">DBS</div>
+      <h1>Portal DBS</h1>
+      <p>Departamento de Bienestar Social &middot; ENEE<br>Acceso unificado a los sistemas</p>
+    </div>
+    <div class="aviso" id="aviso"></div>
+    <div class="campo">
+      <label class="lb" for="f-usuario">Usuario</label>
+      <input type="text" id="f-usuario" placeholder="ej. gustavo" autocomplete="username" required>
+    </div>
+    <div class="campo">
+      <label class="lb" for="f-pass">Contrase&ntilde;a</label>
+      <div class="wrap">
+        <input type="password" id="f-pass" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password" required>
+        <button type="button" class="ojo" id="btn-ojo" title="Mostrar contrase&ntilde;a">&#128065;</button>
+      </div>
+    </div>
+    <button type="submit" id="btn-entrar">Ingresar</button>
+    <div class="pie" id="pie-login">Si olvidaste tu contrase&ntilde;a, contacta al administrador.</div>
+  </form>
+</section>
+
+<!-- ====================== DASHBOARD ====================== -->
+<section id="dash">
+  <header>
+    <div class="logo">DBS</div>
+    <div class="tit"><h2>Portal DBS</h2><span>Bienestar Social &middot; ENEE</span></div>
+    <div class="sp"></div>
+    <div class="pill">
+      <div class="av" id="d-av">?</div>
+      <div><div class="nom" id="d-nom">&mdash;</div><div class="rol" id="d-rol">&mdash;</div></div>
+    </div>
+    <button class="b-ghost" id="btn-mipass" type="button">Mi clave</button>
+    <button class="b-ghost" id="btn-usuarios" type="button" style="display:none">Usuarios</button>
+    <button id="btn-salir" type="button">Salir</button>
+  </header>
+
+  <main>
+    <div class="intro">
+      <div>
+        <h3 id="d-saludo">Bienvenido</h3>
+        <p id="d-sub">Estos son los modulos a los que tienes acceso.</p>
+      </div>
+      <div class="sesion-info" id="d-sesion"></div>
+    </div>
+    <div id="d-contenido"></div>
+  </main>
+  <footer>ENEE &middot; Departamento de Bienestar Social &mdash; Portal interno</footer>
+</section>
+
+<!-- ====================== MODAL: MI CONTRASENA ====================== -->
+<div class="modal" id="m-mipass">
+  <div class="caja sm">
+    <div class="hd"><h3>Cambiar mi contrase&ntilde;a</h3><button type="button" data-cerrar="m-mipass">&times;</button></div>
+    <div class="bd">
+      <div class="aviso" id="mp-aviso"></div>
+      <div class="campo"><label class="lb">Contrase&ntilde;a actual</label><input type="password" id="mp-act"></div>
+      <div class="campo"><label class="lb">Nueva contrase&ntilde;a</label><input type="password" id="mp-new"></div>
+      <div class="campo"><label class="lb">Repetir la nueva</label><input type="password" id="mp-rep"></div>
+    </div>
+    <div class="ft">
+      <button class="b-sec" type="button" data-cerrar="m-mipass">Cancelar</button>
+      <button class="b-pri" type="button" id="mp-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================== MODAL: LISTA DE USUARIOS ====================== -->
+<div class="modal" id="m-usuarios">
+  <div class="caja">
+    <div class="hd">
+      <h3>Usuarios y permisos</h3>
+      <button class="b-azul" type="button" id="u-refrescar">Refrescar</button>
+      <button class="b-azul" type="button" id="u-nuevo" style="background:#f0a500;color:#003366">+ Nuevo</button>
+      <button type="button" data-cerrar="m-usuarios">&times;</button>
+    </div>
+    <div class="bd">
+      <div class="nota">
+        Los usuarios viven en la hoja <b>Usuarios</b> del Google Sheets. Cualquier cambio que guardes
+        aqu&iacute; se aplica en todas las computadoras y tambi&eacute;n en Control de Documentos.
+      </div>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>M&oacute;dulos</th><th></th></tr></thead>
+          <tbody id="u-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ft"><span id="u-estado" style="font-size:13px;color:#8899aa"></span><div class="sp"></div>
+      <button class="b-sec" type="button" data-cerrar="m-usuarios">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- ====================== MODAL: EDITAR USUARIO ====================== -->
+<div class="modal" id="m-editar">
+  <div class="caja">
+    <div class="hd"><h3 id="e-titulo">Editar usuario</h3><button type="button" data-cerrar="m-editar">&times;</button></div>
+    <div class="bd">
+      <div class="aviso" id="e-aviso"></div>
+      <div class="fila2">
+        <div class="campo"><label class="lb">Usuario (para ingresar)</label><input type="text" id="e-id" placeholder="ej. marcia"></div>
+        <div class="campo"><label class="lb">Nombre visible</label><input type="text" id="e-nombre" placeholder="ej. Marcia Lopez"></div>
+      </div>
+      <div class="fila2">
+        <div class="campo">
+          <label class="lb">Contrase&ntilde;a del portal</label>
+          <div class="wrap">
+            <input type="text" id="e-pass" placeholder="deja vac&iacute;o para no cambiarla">
+          </div>
+        </div>
+        <div class="campo"><label class="lb">Rol</label>
+          <select id="e-rol"><option value="usuario">Usuario</option><option value="admin">Administrador (ve todo)</option></select>
+        </div>
+      </div>
+
+      <div class="seccion">M&oacute;dulos permitidos</div>
+      <p style="margin:0 0 4px;font-size:13px;color:#8899aa" id="e-nota-admin"></p>
+      <div class="perm-grid" id="e-permisos"></div>
+    </div>
+    <div class="ft">
+      <button class="b-del" type="button" id="e-eliminar">Eliminar</button>
+      <div class="sp"></div>
+      <button class="b-sec" type="button" data-cerrar="m-editar">Cancelar</button>
+      <button class="b-pri" type="button" id="e-guardar">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="guard.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = Portal.esc;
+
+  var params  = new URLSearchParams(location.search);
+  var destino = params.get('next') || '';
+  var sesion  = null;
+  var editando = null;   // id del usuario en edicion, o '' si es nuevo
+
+  var MOTIVOS = {
+    expirada: 'Tu sesion expiro o no habias iniciado sesion. Ingresa de nuevo.',
+    salida:   'Sesion cerrada correctamente.',
+    denegado: 'No tienes permiso para abrir ese modulo.'
+  };
+
+  /* ---------------- helpers de interfaz ---------------- */
+  function aviso(id, texto, tipo) {
+    var el = $(id);
+    el.textContent = texto || '';
+    el.className = 'aviso' + (texto ? ' ' + (tipo || 'err') : '');
+  }
+  function toast(msg, tipo) {
+    var t = $('toast');
+    t.textContent = msg; t.className = 'on ' + (tipo || '');
+    clearTimeout(t._t); t._t = setTimeout(function () { t.className = ''; }, 3200);
+  }
+  function abrir(id)  { $(id).classList.add('on'); }
+  function cerrar(id) { $(id).classList.remove('on'); }
+
+  document.addEventListener('click', function (e) {
+    var c = e.target.getAttribute && e.target.getAttribute('data-cerrar');
+    if (c) cerrar(c);
+    if (e.target.classList && e.target.classList.contains('modal')) e.target.classList.remove('on');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') ['m-mipass','m-usuarios','m-editar'].forEach(cerrar);
+  });
+
+  /* ---------------- LOGIN ---------------- */
+  $('btn-ojo').addEventListener('click', function () {
+    var i = $('f-pass');
+    i.type = i.type === 'password' ? 'text' : 'password';
+    this.style.color = i.type === 'text' ? '#003366' : '';
+    i.focus();
+  });
+
+  $('form-login').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var usuario = $('f-usuario').value.trim(), pass = $('f-pass').value;
+    if (!usuario || !pass) { aviso('aviso', 'Escribe tu usuario y tu contrasena.'); return; }
+
+    var btn = $('btn-entrar');
+    btn.disabled = true; btn.textContent = 'Verificando...';
+
+    Portal.login(usuario, pass, function (r) {
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      if (!r.ok) { aviso('aviso', r.msg); $('f-pass').value = ''; $('f-pass').focus(); return; }
+      aviso('aviso', '');
+      if (destino && Portal.puede(r.sesion, destino)) { location.replace(encodeURI(destino)); return; }
+      if (destino) aviso('aviso', 'Iniciaste sesion, pero no tienes permiso para "' + destino + '".', 'info');
+      mostrarDash(r.sesion);
+    });
+  });
+
+  /* ---------------- DASHBOARD ---------------- */
+  function mostrarDash(ses) {
+    sesion = ses;
+    $('login').style.display = 'none';
+    $('dash').style.display  = 'flex';
+    $('d-av').textContent  = Portal.iniciales(ses.nombre);
+    $('d-nom').textContent = ses.nombre;
+    $('d-rol').textContent = ses.rol;
+    $('d-saludo').textContent = 'Hola, ' + String(ses.nombre).split(' ')[0];
+    $('btn-usuarios').style.display = ses.rol === 'admin' ? '' : 'none';
+    pintarSesion();
+    pintarTarjetas();
+  }
+
+  function pintarSesion() {
+    var o = Portal.origen();
+    var etq = o === 'sheet'   ? ['ok',  'Sincronizado con el Sheet']
+            : o === 'cache'   ? ['',    'Usando la copia guardada en esta PC']
+                              : ['err', 'Sin conexion: lista de respaldo'];
+    $('d-sesion').innerHTML =
+      'Sesion iniciada: <b>' + new Date(sesion.inicio).toLocaleTimeString('es-HN') + '</b><br>' +
+      'Vence: <b>' + new Date(sesion.exp).toLocaleTimeString('es-HN') + '</b><br>' +
+      '<span class="sync ' + etq[0] + '">' + etq[1] + '</span>';
+  }
+
+  function pintarTarjetas() {
+    var lista = Portal.permitidos(sesion), cont = $('d-contenido');
+    if (!lista.length) {
+      $('d-sub').textContent = 'Todavia no tienes modulos asignados.';
+      cont.innerHTML = '<div class="vacio"><div class="em">&#128274;</div><h3>Sin modulos asignados</h3>' +
+        '<p>Tu usuario no tiene ningun archivo habilitado. Solicita acceso al administrador.</p></div>';
+      return;
+    }
+    $('d-sub').textContent = 'Tienes acceso a ' + lista.length + (lista.length === 1 ? ' modulo.' : ' modulos.');
+
+    var grupos = [], mapa = {};
+    lista.forEach(function (a) {
+      var g = a.grupo || 'Modulos';
+      if (!mapa[g]) { mapa[g] = []; grupos.push(g); }
+      mapa[g].push(a);
+    });
+
+    cont.innerHTML = grupos.map(function (g) {
+      return '<div class="grupo-tit">' + esc(g) + '</div><div class="grid">' +
+        mapa[g].map(function (a) {
+          return '<a class="card" href="' + encodeURI(a.archivo) + '" style="border-top-color:' + esc(a.color) + '">' +
+            '<div class="top"><div class="ic" style="background:' + esc(a.color) + '18">' + a.icon + '</div>' +
+            '<h4 style="color:' + esc(a.color) + '">' + esc(a.titulo) + '</h4></div>' +
+            '<p>' + esc(a.desc) + '</p>' +
+            '<div class="abrir" style="color:' + esc(a.color) + '">Abrir &rarr;</div></a>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+
+  $('btn-salir').addEventListener('click', function () { Portal.salir('salida'); });
+
+  /* ---------------- CAMBIAR MI CONTRASENA ---------------- */
+  $('btn-mipass').addEventListener('click', function () {
+    aviso('mp-aviso', ''); $('mp-act').value = $('mp-new').value = $('mp-rep').value = '';
+    abrir('m-mipass'); setTimeout(function () { $('mp-act').focus(); }, 60);
+  });
+
+  $('mp-guardar').addEventListener('click', function () {
+    var act = $('mp-act').value, nue = $('mp-new').value, rep = $('mp-rep').value;
+    var yo = Portal.buscarUsuario(sesion.id);
+    if (!yo) { aviso('mp-aviso', 'No se encontro tu usuario.'); return; }
+    if (act !== yo.pass)      { aviso('mp-aviso', 'La contrasena actual no coincide.'); return; }
+    if (nue.length < 6)       { aviso('mp-aviso', 'La nueva contrasena debe tener al menos 6 caracteres.'); return; }
+    if (nue !== rep)          { aviso('mp-aviso', 'Las dos contrasenas nuevas no son iguales.'); return; }
+    if (nue === act)          { aviso('mp-aviso', 'La nueva contrasena es igual a la actual.'); return; }
+
+    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
+    var lista = JSON.parse(JSON.stringify(Portal.usuarios()));
+    lista.forEach(function (u) { if (u.id === yo.id) u.pass = nue; });
+
+    Portal.guardarUsuarios(lista, function (err) {
+      btn.disabled = false; btn.textContent = 'Guardar';
+      if (err) { aviso('mp-aviso', 'No se pudo guardar: ' + err.message); return; }
+      Portal.publicarSSO(Portal.buscarUsuario(yo.id));
+      cerrar('m-mipass'); pintarSesion();
+      toast('Contrasena actualizada', 'ok');
+    });
+  });
+
+  /* ---------------- PANEL DE USUARIOS (admin) ---------------- */
+  $('btn-usuarios').addEventListener('click', function () { abrir('m-usuarios'); pintarUsuarios(); });
+
+  $('u-refrescar').addEventListener('click', function () {
+    var b = this; b.disabled = true; b.textContent = '...';
+    Portal.cargarUsuarios(function (err) {
+      b.disabled = false; b.textContent = 'Refrescar';
+      if (err) { toast('No se pudo leer la hoja: ' + err.message, 'err'); return; }
+      pintarUsuarios(); pintarSesion(); toast('Lista actualizada', 'ok');
+    });
+  });
+
+  $('u-nuevo').addEventListener('click', function () { abrirEditor(''); });
+
+  function pintarUsuarios() {
+    var lista = Portal.usuarios();
+    $('u-estado').textContent = lista.length + ' usuarios · origen: ' +
+      ({ sheet:'Google Sheets', cache:'copia local', semilla:'respaldo interno' }[Portal.origen()] || '?');
+
+    $('u-tbody').innerHTML = lista.map(function (u) {
+      var mods = u.permisos === '*'
+        ? '<span class="tag todo">Acceso total</span>'
+        : (u.permisos && u.permisos.length
+            ? u.permisos.map(function (c) { return '<span class="tag">' + esc(Portal.metaArchivo(c).titulo) + '</span>'; }).join('')
+            : '<span style="color:#8899aa">Sin modulos</span>');
+      return '<tr><td><b>' + esc(u.id) + '</b>' + (u.protegido ? ' 🔒' : '') + '</td>' +
+        '<td>' + esc(u.nombre) + '</td>' +
+        '<td><span class="rolchip ' + esc(u.rol) + '">' + esc(u.rol) + '</span></td>' +
+        '<td>' + mods + '</td>' +
+        '<td style="text-align:right;white-space:nowrap">' +
+        '<button class="mini" data-editar="' + esc(u.id) + '">Editar</button></td></tr>';
+    }).join('');
+
+    Array.prototype.forEach.call($('u-tbody').querySelectorAll('[data-editar]'), function (b) {
+      b.addEventListener('click', function () { abrirEditor(b.getAttribute('data-editar')); });
+    });
+  }
+
+  /* ---------------- EDITOR DE USUARIO ---------------- */
+  function abrirEditor(id) {
+    editando = id;
+    var u = id ? Portal.buscarUsuario(id) : null;
+    aviso('e-aviso', '');
+    $('e-titulo').textContent = u ? 'Editar: ' + u.nombre : 'Nuevo usuario';
+    $('e-id').value     = u ? u.id : '';
+    $('e-id').disabled  = !!u;
+    $('e-nombre').value = u ? u.nombre : '';
+    $('e-pass').value   = '';
+    $('e-pass').placeholder = u ? 'deja vacio para no cambiarla' : 'minimo 6 caracteres';
+    $('e-rol').value    = u ? u.rol : 'usuario';
+    $('e-eliminar').style.display = (u && !u.protegido && u.id !== sesion.id) ? '' : 'none';
+
+    pintarPermisos(u);
+    $('e-rol').onchange = function () { notaAdmin(); };
+    notaAdmin();
+    abrir('m-editar');
+  }
+
+  function notaAdmin() {
+    var esAdmin = $('e-rol').value === 'admin';
+    $('e-nota-admin').textContent = esAdmin
+      ? 'Los administradores ven todos los modulos, sin importar lo que marques abajo.'
+      : 'Marca los modulos que este usuario podra abrir.';
+    $('e-permisos').style.opacity = esAdmin ? '.5' : '1';
+  }
+
+  function pintarPermisos(u) {
+    var marcados = u ? (u.permisos === '*' ? Portal.TODAS_CLAVES : (u.permisos || [])) : [];
+    var claves = (u && u.claves) || {};
+
+    $('e-permisos').innerHTML = Portal.ARCHIVOS.map(function (a) {
+      var on = marcados.indexOf(a.clave) !== -1;
+      var campoClave = a.app
+        ? '<div class="clave-app"><input type="text" data-clave="' + esc(a.app) + '" ' +
+          'placeholder="clave en esta app, o usuario/clave" value="' + esc(claves[a.app] || '') + '"></div>'
+        : '';
+      return '<label class="perm' + (on ? ' on' : '') + '" data-perm="' + esc(a.clave) + '">' +
+        '<input type="checkbox" ' + (on ? 'checked' : '') + '>' +
+        '<div class="tx"><b>' + esc(a.titulo) + '</b>' +
+        '<small>' + (a.backend ? 'valida la clave en el servidor' : 'clave dentro del archivo') + '</small>' +
+        campoClave + '</div></label>';
+    }).join('');
+
+    Array.prototype.forEach.call($('e-permisos').querySelectorAll('.perm'), function (lb) {
+      var chk = lb.querySelector('input[type=checkbox]');
+      chk.addEventListener('change', function () { lb.classList.toggle('on', chk.checked); });
+      // Escribir en el campo de clave no debe alternar la casilla.
+      var ci = lb.querySelector('input[type=text]');
+      if (ci) ci.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); ci.focus(); });
+    });
+  }
+
+  function leerEditor() {
+    var permisos = [], claves = {};
+    Array.prototype.forEach.call($('e-permisos').querySelectorAll('.perm'), function (lb) {
+      if (lb.querySelector('input[type=checkbox]').checked) permisos.push(lb.getAttribute('data-perm'));
+      var ci = lb.querySelector('input[type=text]');
+      if (ci && ci.value.trim()) claves[ci.getAttribute('data-clave')] = ci.value.trim();
+    });
+    return {
+      id: $('e-id').value.trim().toLowerCase(),
+      nombre: $('e-nombre').value.trim(),
+      pass: $('e-pass').value,
+      rol: $('e-rol').value,
+      permisos: $('e-rol').value === 'admin' ? '*' : permisos,
+      claves: claves
+    };
+  }
+
+  $('e-guardar').addEventListener('click', function () {
+    var d = leerEditor();
+    var original = editando ? Portal.buscarUsuario(editando) : null;
+
+    if (!/^[a-z0-9._-]{3,20}$/.test(d.id)) {
+      aviso('e-aviso', 'El usuario debe tener de 3 a 20 caracteres: letras, numeros, punto, guion o guion bajo.'); return;
+    }
+    if (!d.nombre) { aviso('e-aviso', 'Escribe el nombre visible.'); return; }
+    if (!original && d.pass.length < 6) { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
+    if (d.pass && d.pass.length < 6)    { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
+    if (!original && Portal.buscarUsuario(d.id)) { aviso('e-aviso', 'Ya existe un usuario con ese nombre.'); return; }
+    if (original && original.id === sesion.id && d.rol !== 'admin') {
+      aviso('e-aviso', 'No puedes quitarte a ti mismo el rol de administrador.'); return;
+    }
+    if (d.rol !== 'admin' && !d.permisos.length) {
+      aviso('e-aviso', 'Marca al menos un modulo, o hazlo administrador.'); return;
+    }
+
+    var lista = JSON.parse(JSON.stringify(Portal.usuarios()));
+    if (original) {
+      lista.forEach(function (u) {
+        if (u.id !== original.id) return;
+        u.nombre = d.nombre; u.rol = d.rol; u.permisos = d.permisos; u.claves = d.claves;
+        if (d.pass) u.pass = d.pass;
+      });
+    } else {
+      lista.push({ id:d.id, nombre:d.nombre, pass:d.pass, rol:d.rol, protegido:false,
+                   tabs:[], permisos:d.permisos, claves:d.claves });
+    }
+    persistir(lista, this, 'Guardar cambios', function () {
+      cerrar('m-editar'); pintarUsuarios();
+      if (original && original.id === sesion.id) {
+        sesion = Portal.sesion(); Portal.publicarSSO(Portal.buscarUsuario(sesion.id));
+        mostrarDash(sesion);
+      }
+      toast(original ? 'Usuario actualizado' : 'Usuario creado', 'ok');
+    });
+  });
+
+  $('e-eliminar').addEventListener('click', function () {
+    var u = Portal.buscarUsuario(editando);
+    if (!u) return;
+    if (!confirm('Eliminar a "' + u.nombre + '"?\n\nPerdera el acceso al portal de inmediato.')) return;
+    var lista = Portal.usuarios().filter(function (x) { return x.id !== u.id; });
+    persistir(lista, this, 'Eliminar', function () {
+      cerrar('m-editar'); pintarUsuarios(); toast('Usuario eliminado', 'ok');
+    });
+  });
+
+  // Guarda en la hoja y avisa si no se pudo.
+  function persistir(lista, btn, etiqueta, ok) {
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    Portal.guardarUsuarios(lista, function (err) {
+      btn.disabled = false; btn.textContent = etiqueta;
+      if (err) { aviso('e-aviso', 'No se pudo guardar en el Sheet: ' + err.message +
+        '. Revisa tu conexion; nada se modifico.'); return; }
+      ok();
+    });
+  }
+
+  /* ---------------- ARRANQUE ---------------- */
+  // La lista cacheada permite entrar de inmediato; el refresco corre en segundo plano.
+  Portal.cargarUsuarios(function () {
+    if (sesion) { pintarSesion(); pintarTarjetas(); }
+    if ($('m-usuarios').classList.contains('on')) pintarUsuarios();
+  });
+
+  var actual = Portal.sesion();
+  if (actual) {
+    if (destino && Portal.puede(actual, destino)) { location.replace(encodeURI(destino)); return; }
+    if (destino) aviso('aviso', 'No tienes permiso para "' + destino + '".', 'info');
+    Portal.publicarSSO(Portal.buscarUsuario(actual.id) || actual);
+    mostrarDash(actual);
+  } else {
+    var m = params.get('motivo');
+    if (m && MOTIVOS[m]) aviso('aviso', MOTIVOS[m], m === 'salida' ? 'info' : 'err');
+    if (destino && !m) aviso('aviso', 'Debes iniciar sesion para abrir "' + destino + '".', 'info');
+    $('f-usuario').focus();
+  }
+})();
+</script>
+</body>
+</html>
