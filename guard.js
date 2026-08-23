@@ -44,37 +44,37 @@
     { clave: 'cdd',  archivo: 'Control_de_Documentos_DBS.html',
       titulo: 'Control de Documentos',
       desc:   'Registro de memorandos, oficios, dictamenes, circulares y cirugias.',
-      icon: '📋', color: '#003366', grupo: 'Control' },
+      icon: '📋', color: '#003366', colorOsc: '#7db0e6', grupo: 'Control' },
 
     { clave: 'corr', archivo: 'Correspondencia_Bienestar_Social_ENEE.html',
       titulo: 'Correspondencia',
       desc:   'Entrada y salida de correspondencia de Bienestar Social.',
-      icon: '📨', color: '#1a6b3a', grupo: 'Control', app: 'corr' },
+      icon: '📨', color: '#1a6b3a', colorOsc: '#5fc78c', grupo: 'Control', app: 'corr' },
 
     { clave: 'pago', archivo: 'Solicitudes_Pago_DBS2026.html',
       titulo: 'Solicitudes de Pago',
       desc:   'Control de solicitudes de pago del ejercicio 2026.',
-      icon: '💰', color: '#7a3a00', grupo: 'Control', app: 'pago', backend: true },
+      icon: '💰', color: '#7a3a00', colorOsc: '#d9a35e', grupo: 'Control', app: 'pago', backend: true },
 
     { clave: 'fin',  archivo: 'Financiamiento_Cuotas_DBS.html',
       titulo: 'Financiamiento de Cuotas',
       desc:   'Calculo y seguimiento de financiamientos y cuotas.',
-      icon: '📊', color: '#006680', grupo: 'Control' },
+      icon: '📊', color: '#006680', colorOsc: '#54b8d1', grupo: 'Control' },
 
     { clave: 'memo', archivo: 'Generador_Memorandums_DBS.html',
       titulo: 'Generador de Memorandums',
       desc:   'Redaccion e impresion de memorandums con formato oficial.',
-      icon: '📝', color: '#5a0080', grupo: 'Generadores', app: 'memo', backend: true },
+      icon: '📝', color: '#5a0080', colorOsc: '#bb92db', grupo: 'Generadores', app: 'memo', backend: true },
 
     { clave: 'cons', archivo: 'Generador_Constancias_ENEE_v5_3.html',
       titulo: 'Generador de Constancias',
       desc:   'Emision de constancias de empleado (v5.3).',
-      icon: '📄', color: '#1a7a44', grupo: 'Generadores', app: 'cons' },
+      icon: '📄', color: '#1a7a44', colorOsc: '#63cb90', grupo: 'Generadores', app: 'cons' },
 
     { clave: 'c40',  archivo: 'Generador_Clausula40_DBS.html',
       titulo: 'Generador Clausula 40',
       desc:   'Documentos y calculos asociados a la Clausula 40.',
-      icon: '⚖️', color: '#990022', grupo: 'Generadores', app: 'c40' }
+      icon: '⚖️', color: '#990022', colorOsc: '#ec7285', grupo: 'Generadores', app: 'c40' }
   ];
 
   var TODAS_CLAVES = ARCHIVOS.map(function (a) { return a.clave; });
@@ -95,6 +95,27 @@
      4. UTILIDADES
      ========================================================================== */
   function almacen() { try { return global.localStorage; } catch (e) { return null; } }
+
+  var CLAVE_TEMA = 'dbs_tema';
+
+  function tema() {
+    var a = almacen();
+    try {
+      var t = a && a.getItem(CLAVE_TEMA);
+      if (t === 'claro' || t === 'oscuro') return t;
+    } catch (e) {}
+    // Sin preferencia guardada: seguimos la del sistema.
+    try {
+      if (global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches) return 'oscuro';
+    } catch (e) {}
+    return 'claro';
+  }
+
+  function setTema(t) {
+    var a = almacen();
+    try { if (a) a.setItem(CLAVE_TEMA, t === 'oscuro' ? 'oscuro' : 'claro'); } catch (e) {}
+    try { document.documentElement.setAttribute('data-tema', t); } catch (e) {}
+  }
   function ahora() { return Date.now(); }
 
   function esc(s) {
@@ -439,6 +460,15 @@
   function pantalla403(archivo, ses) {
     alDom(function () {
       inyectarCSS();
+      if (tema() === 'oscuro') {
+        var st = document.createElement('style');
+        st.textContent = '.guard-403{background:#0e1621;color:#dce5ef}' +
+                         '.guard-403 .card{background:#18222f;box-shadow:0 8px 34px rgba(0,0,0,.5)}' +
+                         '.guard-403 p{color:#93a5b8}' +
+                         '.guard-403 code{background:#1e2c3d;color:#8ec0ee}' +
+                         '.guard-403 .b2{background:#1e2c3d;color:#8ec0ee}';
+        document.head.appendChild(st);
+      }
       document.title = 'Acceso denegado';
       document.body.className = 'guard-403';
       document.body.innerHTML =
@@ -548,7 +578,9 @@
     archivoActual: archivoActual,
     montarBarra: montarBarra,
     esc: esc,
-    iniciales: iniciales
+    iniciales: iniciales,
+    tema: tema,
+    setTema: setTema
   };
 
 })(window);
