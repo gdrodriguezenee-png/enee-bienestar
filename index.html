@@ -353,12 +353,37 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
 
 <div id="toast"></div>
 
-<script src="guard.js"></script>
+<script src="guard.js?v=4"></script>
 <script>
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var esc = Portal.esc;
+
+  // El tema se resuelve sin depender de guard.js: si el navegador sirviera una
+  // version vieja del archivo desde cache, el panel debe seguir funcionando.
+  function temaActual() {
+    try { if (window.Portal && typeof Portal.tema === 'function') return Portal.tema(); } catch (e) {}
+    return document.documentElement.getAttribute('data-tema') === 'oscuro' ? 'oscuro' : 'claro';
+  }
+  // Aclara un color para que se lea sobre fondo oscuro. Es el plan B por si
+  // guard.js no trae la variante clara del modulo.
+  function aclarar(hex, pct) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return hex;
+    var n = parseInt(m[1], 16), p = pct == null ? 0.55 : pct;
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    function sube(c) { return Math.round(c + (255 - c) * p); }
+    return '#' + [sube(r), sube(g), sube(b)]
+      .map(function (c) { return ('0' + c.toString(16)).slice(-2); }).join('');
+  }
+
+  function fijarTema(t) {
+    t = (t === 'oscuro') ? 'oscuro' : 'claro';
+    document.documentElement.setAttribute('data-tema', t);
+    try { localStorage.setItem('dbs_tema', t); } catch (e) {}
+    try { if (window.Portal && typeof Portal.setTema === 'function') Portal.setTema(t); } catch (e) {}
+  }
 
   var params  = new URLSearchParams(location.search);
   var destino = params.get('next') || '';
@@ -463,12 +488,13 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
       mapa[g].push(a);
     });
 
+    try {
     cont.innerHTML = grupos.map(function (g) {
-      var oscuro = Portal.tema() === 'oscuro';
+      var oscuro = temaActual() === 'oscuro';
       return '<div class="grupo-tit">' + esc(g) + '</div><div class="grid">' +
         mapa[g].map(function (a) {
           // En oscuro usamos la variante clara del color; si no, no se leeria.
-          var col = esc(oscuro && a.colorOsc ? a.colorOsc : a.color);
+          var col = esc(oscuro ? (a.colorOsc || aclarar(a.color)) : a.color);
           return '<a class="card" href="' + encodeURI(a.archivo) + '" target="mod-' + esc(a.clave) + '"' +
             ' style="border-top-color:' + col + '">' +
             '<div class="top"><div class="ic" style="background:' + col + (oscuro ? '26' : '18') + '">' + a.icon + '</div>' +
@@ -477,17 +503,27 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
             '<div class="abrir" style="color:' + col + '">Abrir &rarr;</div></a>';
         }).join('') + '</div>';
     }).join('');
+    } catch (err) {
+      // Casi siempre es un guard.js viejo servido desde cache.
+      cont.innerHTML =
+        '<div class="vacio"><div class="em">&#9888;</div>' +
+        '<h3>No se pudieron dibujar los modulos</h3>' +
+        '<p>Suele pasar cuando el navegador guardo una version vieja de <b>guard.js</b>.<br>' +
+        'Recarga con <b>Ctrl + F5</b>. Si sigue igual, avisa al administrador.</p>' +
+        '<p style="font-size:12px;opacity:.7">Detalle: ' + esc(err && err.message) + '</p>' +
+        '<button class="b-azul" style="margin-top:14px" onclick="location.reload()">Recargar</button></div>';
+    }
   }
 
   function pintarBotonTema() {
-    var oscuro = Portal.tema() === 'oscuro';
+    var oscuro = temaActual() === 'oscuro';
     $('btn-tema').innerHTML = oscuro ? '&#9728;' : '&#9789;';   // sol / luna
     $('btn-tema').title = oscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
   }
   pintarBotonTema();
 
   $('btn-tema').addEventListener('click', function () {
-    Portal.setTema(Portal.tema() === 'oscuro' ? 'claro' : 'oscuro');
+    fijarTema(temaActual() === 'oscuro' ? 'claro' : 'oscuro');
     pintarBotonTema();
     if (sesion) pintarTarjetas();     // los colores de las tarjetas cambian con el tema
   });
