@@ -466,7 +466,14 @@
       '<span>' + esc(ses.nombre) + '</span></div>' +
       '<button class="gb-back" type="button">Panel</button>' +
       '<button class="gb-out" type="button">Salir</button>';
-    bar.querySelector('.gb-back').onclick = function () { location.href = CONFIG.loginPage; };
+    // Si esta pestana la abrio el portal, volvemos a esa pestana en vez de
+    // reemplazar el modulo: asi se puede trabajar en varios a la vez.
+    bar.querySelector('.gb-back').onclick = function () {
+      try {
+        if (window.opener && !window.opener.closed) { window.opener.focus(); return; }
+      } catch (e) {}
+      location.href = CONFIG.loginPage;
+    };
     bar.querySelector('.gb-out').onclick  = function () { salir('salida'); };
     document.body.insertBefore(bar, document.body.firstChild);
   }

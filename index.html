@@ -412,7 +412,8 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
         '<p>Tu usuario no tiene ningun archivo habilitado. Solicita acceso al administrador.</p></div>';
       return;
     }
-    $('d-sub').textContent = 'Tienes acceso a ' + lista.length + (lista.length === 1 ? ' modulo.' : ' modulos.');
+    $('d-sub').innerHTML = 'Tienes acceso a ' + lista.length + (lista.length === 1 ? ' modulo.' : ' modulos.') +
+      ' <span style="color:#8899aa">Cada uno abre en su propia pestana; este panel se queda abierto.</span>';
 
     var grupos = [], mapa = {};
     lista.forEach(function (a) {
@@ -424,7 +425,8 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
     cont.innerHTML = grupos.map(function (g) {
       return '<div class="grupo-tit">' + esc(g) + '</div><div class="grid">' +
         mapa[g].map(function (a) {
-          return '<a class="card" href="' + encodeURI(a.archivo) + '" style="border-top-color:' + esc(a.color) + '">' +
+          return '<a class="card" href="' + encodeURI(a.archivo) + '" target="mod-' + esc(a.clave) + '"' +
+            ' style="border-top-color:' + esc(a.color) + '">' +
             '<div class="top"><div class="ic" style="background:' + esc(a.color) + '18">' + a.icon + '</div>' +
             '<h4 style="color:' + esc(a.color) + '">' + esc(a.titulo) + '</h4></div>' +
             '<p>' + esc(a.desc) + '</p>' +
@@ -434,6 +436,13 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
   }
 
   $('btn-salir').addEventListener('click', function () { Portal.salir('salida'); });
+
+  // Si se cierra sesion desde la pestana de un modulo, este panel vuelve al login.
+  window.addEventListener('storage', function (e) {
+    if (e.key === Portal.CONFIG.claveSesion && sesion && !Portal.sesion()) {
+      location.replace(Portal.CONFIG.loginPage + '?motivo=salida');
+    }
+  });
 
   /* ---------------- CAMBIAR MI CONTRASENA ---------------- */
   $('btn-mipass').addEventListener('click', function () {
