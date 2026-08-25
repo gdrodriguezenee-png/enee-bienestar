@@ -120,6 +120,11 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
 .badge{display:inline-block;background:var(--verde-claro);color:var(--verde);border-radius:20px;
   padding:3px 11px;font-size:12.5px;font-weight:600;letter-spacing:.6px}
 .hint{font-size:12.5px;color:var(--gris2);margin-top:6px;line-height:1.5}
+tbody tr.repetido td{background:#fdf0f0}
+tbody tr.repetido:hover td{background:#fbe3e3}
+.marca-dup{display:inline-block;background:#fdecec;color:var(--rojo);border:1px solid #f2c4c4;
+  border-radius:20px;padding:1px 8px;font-size:11.5px;font-weight:600;margin-left:6px}
+.aviso-campo{font-size:12.5px;font-weight:600;color:var(--rojo);margin-top:5px;line-height:1.45}
 .warn{background:#fff8e6;border:1.5px solid #f0d79a;border-radius:9px;padding:11px 14px;
   font-size:13px;color:#7a5800;line-height:1.55;margin-bottom:14px}
 
@@ -213,6 +218,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
             <label>N.&ordm; de memorando</label>
             <input id="f-no" placeholder="DBS-1315-VIII-2026">
             <div class="hint">Se arma solo: DBS-correlativo-mes romano-año</div>
+            <div class="aviso-campo" id="f-no-aviso" style="display:none"></div>
           </div>
           <div><label>Correlativo</label><input id="f-corr" type="number" min="1" oninput="armarNo()"></div>
           <div><label>Fecha del memorando</label><input id="f-fecha" type="date" onchange="armarNo()"></div>
@@ -317,6 +323,7 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
         </div>
+        <div class="warn" id="h-dup" style="display:none;border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a"></div>
         <div class="tabla-wrap">
           <table>
             <thead><tr>
@@ -1233,7 +1240,23 @@ function armarNo(){
   var corr = $('f-corr').value || CFG.correlativo || 1;
   $('f-no').value = 'DBS-' + corr + '-' + ROMANOS[mes-1] + '-' + anio;
   $('f-anio').value = anio;
+  avisarNumeroUsado();
   guardarBorrador();
+}
+
+/* Avisa si el número que se está armando ya está en el historial. */
+function avisarNumeroUsado(){
+  var caja = $('f-no-aviso');
+  if(!caja) return;
+  var no = String($('f-no').value||'').trim();
+  var usado = null;
+  for(var i=0;i<HISTORIAL.length;i++){
+    if(String(HISTORIAL[i].no).trim() === no){ usado = HISTORIAL[i]; break; }
+  }
+  if(!usado || no === memoGuardado){ caja.style.display = 'none'; caja.textContent = ''; return; }
+  caja.style.display = '';
+  caja.textContent = 'Este número ya existe en el historial: ' + (usado.dep || 'sin dependencia')
+    + ', L ' + fmt(usado.total) + '. Cambie el correlativo o reemplazará al anterior.';
 }
 
 /* -------- BORRADOR -------- */
@@ -1900,9 +1923,34 @@ function guardarMemo(automatico){
   if(CFG.url) enviarMemoSheets(reg);
   return true;
 }
+/* Números de memorando que aparecen más de una vez. */
+function numerosRepetidos(){
+  var cuenta = {}, rep = {}, i, no;
+  for(i=0;i<HISTORIAL.length;i++){
+    no = String(HISTORIAL[i].no||'').trim();
+    if(!no) continue;
+    cuenta[no] = (cuenta[no]||0) + 1;
+  }
+  for(no in cuenta) if(cuenta.hasOwnProperty(no) && cuenta[no] > 1) rep[no] = cuenta[no];
+  return rep;
+}
+function avisoRepetidos(rep){
+  var lista = [], no, total = 0;
+  for(no in rep) if(rep.hasOwnProperty(no)){ lista.push(no + ' (' + rep[no] + ')'); total += rep[no]; }
+  var caja = $('h-dup');
+  if(!lista.length){ caja.style.display = 'none'; caja.innerHTML = ''; return; }
+  caja.style.display = '';
+  caja.innerHTML = '<b>Atención: hay números de memorando repetidos.</b><br>'
+    + lista.join(' &nbsp;·&nbsp; ') + '<br>'
+    + 'Las filas afectadas están marcadas abajo. Revise cuál conservar: puede '
+    + 'renumerar con <b>Editar</b>, eliminar el sobrante, o usar '
+    + '<b>Quitar repetidos</b> para dejar uno por número.';
+}
 function renderHist(){
   var q = ($('h-buscar').value||'').toLowerCase();
   var an = $('h-anio').value;
+  var rep = numerosRepetidos();
+  avisoRepetidos(rep);
   var h = '', n = 0;
   for(var i=0;i<HISTORIAL.length;i++){
     var m = HISTORIAL[i];
@@ -1910,8 +1958,10 @@ function renderHist(){
     if(q && txt.indexOf(q) === -1) continue;
     if(an && String(m.anioPago) !== an) continue;
     n++;
-    h += '<tr>'
-      + '<td><b>'+esc(m.no)+'</b></td>'
+    var dup = rep[String(m.no||'').trim()];
+    h += '<tr' + (dup ? ' class="repetido"' : '') + '>'
+      + '<td><b>'+esc(m.no)+'</b>'
+      + (dup ? '<span class="marca-dup">repetido &times;'+dup+'</span>' : '') + '</td>'
       + '<td>'+esc(fechaLarga(m.fecha))+'</td>'
       + '<td>'+esc(m.dep)+'</td>'
       + '<td>'+esc(m.mesPago)+' '+esc(m.anioPago)+'</td>'
