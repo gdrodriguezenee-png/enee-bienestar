@@ -1,9 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<!-- PORTAL-DBS-GUARD -->
-<script src="guard.js"></script>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google" content="notranslate">
@@ -314,6 +311,8 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
           <input id="h-buscar" placeholder="Buscar por N.º, dependencia o mes…" style="max-width:320px" oninput="renderHist()">
           <select id="h-anio" style="max-width:150px" onchange="renderHist()"><option value="">Todos los años</option></select>
           <button class="sec" onclick="sincronizar()">Sincronizar</button>
+          <button class="ok" onclick="nuevoAnterior()">Registrar memorando anterior</button>
+          <button class="sec" onclick="abrirPegarMemos()">Importar desde Excel</button>
           <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
@@ -588,6 +587,60 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
   </div>
 </div>
 
+<div class="modal" id="m-ant">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-head"><h3>Registrar un memorando ya elaborado</h3>
+      <button class="x" onclick="cerrar('m-ant')">&times;</button></div>
+    <div class="modal-body">
+      <div class="warn">
+        Para memorandos hechos antes de usar esta aplicación. Se guardan en el
+        historial y entran en el informe mensual. No generan Word ni Excel del
+        memorando, porque no llevan el detalle de empleados.
+      </div>
+      <div class="grid g3">
+        <div><label>N.º de memorando</label><input id="an-no" placeholder="DBS-1315-VIII-2026"></div>
+        <div><label>Fecha de elaboración</label><input id="an-fecha" type="date"></div>
+        <div><label>Elaborado por</label><select id="an-usuario"></select></div>
+      </div>
+      <div class="grid g2" style="margin-top:12px">
+        <div><label>Dependencia</label><input id="an-dep" list="dl-dep" placeholder="ALUMBRADO PUBLICO C.S."></div>
+        <div><label>Gerencia</label>
+          <select id="an-gerencia">
+            <option>Distribución</option><option>Generación</option>
+            <option>Transmisión</option><option>Holding</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:12px">
+        <div><label>Mes que corresponde el pago</label>
+          <select id="an-mespago">
+            <option value="1">enero</option><option value="2">febrero</option><option value="3">marzo</option>
+            <option value="4">abril</option><option value="5">mayo</option><option value="6">junio</option>
+            <option value="7">julio</option><option value="8">agosto</option><option value="9">septiembre</option>
+            <option value="10">octubre</option><option value="11">noviembre</option><option value="12">diciembre</option>
+          </select>
+        </div>
+        <div><label>Año del pago</label><input id="an-aniopago" type="number"></div>
+        <div><label>N.º de beneficiarios</label><input id="an-emp" type="number" min="0"></div>
+      </div>
+      <div class="grid g3" style="margin-top:12px">
+        <div><label>N.º de cenas</label><input id="an-cenas" type="number" min="0" oninput="calcTotalAnterior()"></div>
+        <div><label>Valor de la cena (L.)</label><input id="an-valor" type="number" step="0.01" value="180" oninput="calcTotalAnterior()"></div>
+        <div><label>Monto total (L.)</label><input id="an-total" type="number" step="0.01"></div>
+      </div>
+      <div style="margin-top:12px"><label>Observación</label><input id="an-obs"></div>
+      <div class="hint" style="margin-top:8px">
+        Si escribe cenas y valor, el monto se calcula solo. Si solo conoce el
+        monto, escríbalo directamente y deje las cenas en blanco.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="sec" onclick="cerrar('m-ant')">Cancelar</button>
+      <button class="ok" onclick="guardarAnterior()">Guardar en el historial</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="m-user">
   <div class="modal-box" style="max-width:620px">
     <div class="modal-head"><h3 id="us-tit">Usuario</h3><button class="x" onclick="cerrar('m-user')">&times;</button></div>
@@ -714,6 +767,7 @@ var EMPLEADOS = [];
 var HISTORIAL = [];
 var FILAS = [];
 var modoPegar = 'filas';
+var memoGuardado = null;   // N.º del memorando cargado del historial
 
 /* ---------------- CATÁLOGO SEMILLA ---------------- */
 var SEMILLA = [
@@ -976,6 +1030,7 @@ function iniciarApp(){
    NAVEGACIÓN
    ========================================================= */
 function irTab(t){
+  if(t === 'Nuevo') refrescarFechaHoy();
   if(t === 'Informe'){ poblarUsuariosInforme(); renderInforme(); }
   var b = document.querySelectorAll('.tab-btn');
   for(var i=0;i<b.length;i++) b[i].className = 'tab-btn' + (b[i].getAttribute('data-t')===t ? ' active' : '');
@@ -1006,6 +1061,9 @@ function limpiarFilas(){
   if(!FILAS.length) return;
   if(!confirm('¿Borrar todas las filas de la tabla?')) return;
   FILAS = [];
+  memoGuardado = null;
+  $('f-fecha').value = hoyISO();
+  armarNo();
   renderFilas();
 }
 function ordenarFilas(){
@@ -1160,6 +1218,16 @@ function calcular(){
   guardarBorrador();
   return {cenas:cenas, total:total};
 }
+/* Si la aplicación quedó abierta de un día para otro, la fecha se pone al
+   día actual, salvo que se esté trabajando un memorando ya guardado. */
+function refrescarFechaHoy(){
+  var hoy = hoyISO();
+  var actual = $('f-fecha').value;
+  if(actual === hoy) return;
+  if(memoGuardado) return;          // se cargó del historial: no se toca
+  $('f-fecha').value = hoy;
+  armarNo();
+}
 function armarNo(){
   var f = $('f-fecha').value || hoyISO();
   var p = f.split('-');
@@ -1185,7 +1253,8 @@ function guardarBorrador(){
 function restaurarBorrador(){
   var d = leerLS(claveBorrador(), null);
   var hoy = hoyISO();
-  $('f-fecha').value = (d && d.fecha) || hoy;
+  // Siempre el día de hoy: el borrador de ayer no debe dejar la fecha vieja.
+  $('f-fecha').value = hoy;
   $('f-corr').value  = (d && d.corr)  || CFG.correlativo || 1;
   if(d){
     $('f-para').value    = d.para || 'Lic. Ana Lourdes Aguilar';
@@ -1310,6 +1379,7 @@ function partirLinea(l){
 }
 
 function procesarPegado(){
+  if(modoPegar === 'memos'){ procesarPegadoMemos(); return; }
   var txt = $('pg-txt').value || '';
   var lineas = txt.split(/\r?\n/), n = 0, mapa = null, i, k;
 
@@ -1886,6 +1956,7 @@ function cargarMemo(id){
   $('f-valcena').value = m.valorCena || 180;
   $('f-asunto').value = m.asunto || 'PAGO DE CLÁUSULA N.º 40';
   $('f-gerencia').value = gerenciaDe(m);
+  memoGuardado = m.no;
   FILAS = (m.detalle||[]).slice();
   renderFilas();
   irTab('Nuevo');
@@ -4982,6 +5053,196 @@ function generarInformeWord(){
   }
 }
 
+
+/* =========================================================
+   MEMORANDOS YA ELABORADOS (antes de usar la aplicación)
+   Se registran en el historial para que aparezcan en el
+   informe mensual, sin el detalle de empleados.
+   ========================================================= */
+function nuevoAnterior(){
+  var hoy = hoyISO();
+  $('an-no').value = '';
+  $('an-fecha').value = hoy;
+  $('an-dep').value = '';
+  $('an-gerencia').value = 'Distribución';
+  $('an-mespago').value = String(new Date().getMonth()+1);
+  $('an-aniopago').value = new Date().getFullYear();
+  $('an-emp').value = ''; $('an-cenas').value = '';
+  $('an-valor').value = 180; $('an-total').value = ''; $('an-obs').value = '';
+  var h = '', vistos = {};
+  for(var i=0;i<USUARIOS.length;i++){
+    var n = USUARIOS[i].completo || USUARIOS[i].nombre;
+    if(!vistos[n]){ vistos[n] = 1; h += '<option>'+esc(n)+'</option>'; }
+  }
+  $('an-usuario').innerHTML = h;
+  if(usuarioActual) $('an-usuario').value = usuarioActual.completo || usuarioActual.nombre;
+  abrir('m-ant');
+}
+function calcTotalAnterior(){
+  var c = num($('an-cenas').value), v = num($('an-valor').value);
+  if(c && v) $('an-total').value = Math.round(c*v*100)/100;
+}
+function guardarAnterior(){
+  var no = $('an-no').value.trim();
+  if(!no){ toast('Escriba el número de memorando.','err'); return; }
+  if(!$('an-fecha').value){ toast('Indique la fecha de elaboración.','err'); return; }
+  var total = num($('an-total').value);
+  if(!total){ toast('Indique el monto o las cenas y su valor.','err'); return; }
+
+  var reg = {
+    id: 'C40-' + Date.now(),
+    no: no,
+    fecha: $('an-fecha').value,
+    dep: $('an-dep').value.trim().toUpperCase(),
+    gerencia: $('an-gerencia').value,
+    mesPago: MESES[parseInt($('an-mespago').value,10)-1] || '',
+    anioPago: $('an-aniopago').value,
+    empleados: num($('an-emp').value),
+    cenas: num($('an-cenas').value),
+    valorCena: num($('an-valor').value),
+    total: total,
+    letras: numeroALetras(total),
+    para: CFG.infPara || 'Lic. Ana Lourdes Aguilar',
+    cargo: 'Gerencia de Finanzas Corporativas',
+    asunto: 'PAGO DE CLÁUSULA N.º 40',
+    usuario: $('an-usuario').value,
+    observacion: $('an-obs').value,
+    registrado: new Date().toLocaleString('es-HN'),
+    importado: true,
+    detalle: []
+  };
+  guardarAnteriores([reg]);
+  cerrar('m-ant');
+}
+/* Guarda una tanda de memorandos anteriores, sin repetir números. */
+function guardarAnteriores(lista){
+  var nuevos = 0, repetidos = 0, i, k;
+  for(i=0;i<lista.length;i++){
+    var existe = false;
+    for(k=0;k<HISTORIAL.length;k++){
+      if(String(HISTORIAL[k].no).trim() === String(lista[i].no).trim()){ existe = true; break; }
+    }
+    if(existe){ repetidos++; continue; }
+    HISTORIAL.unshift(lista[i]);
+    nuevos++;
+    if(CFG.url) enviarMemoSheets(lista[i]);
+  }
+  HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
+  guardarLS(LS.hist, HISTORIAL);
+  renderHist();
+  if($('i-tb')) renderInforme();
+  var msg = nuevos + ' memorando(s) registrado(s).';
+  if(repetidos) msg += ' ' + repetidos + ' ya existía(n) y se omitió(eron).';
+  toast(msg, nuevos ? 'ok' : 'err');
+}
+
+/* -------- Importar en lote desde Excel -------- */
+function abrirPegarMemos(){
+  modoPegar = 'memos';
+  $('pg-tit').textContent = 'Importar memorandos ya elaborados';
+  $('pg-ayuda').innerHTML = '<b>Copie también la fila de encabezados</b> de su hoja. '
+    + 'Se reconocen por nombre, en cualquier orden:<br>'
+    + '<b>MEMORANDO</b> (o N.º), <b>FECHA</b>, <b>DEPENDENCIA</b>, <b>GERENCIA</b>, '
+    + '<b>MES</b>, <b>AÑO</b>, <b>BENEFICIARIOS</b> (o empleados), <b>CENAS</b>, '
+    + '<b>VALOR</b>, <b>MONTO</b> (o total), <b>ELABORADO POR</b>, <b>OBSERVACIÓN</b>.<br>'
+    + 'Basta con memorando, fecha y monto; lo demás es opcional. La fecha admite '
+    + '25/07/2026 o 2026-07-25. Si no indica gerencia, se deduce de la dependencia.';
+  $('pg-txt').value = '';
+  abrir('m-pegar');
+}
+function campoMemo(txt){
+  var t = limpiaEncabezado(txt);
+  if(!t) return null;
+  if(t.indexOf('OBSERVA') >= 0)  return 'obs';
+  if(t.indexOf('MEMORANDO') >= 0 || t.indexOf('OFICIO') >= 0 || t === 'N' || t === 'NO') return 'no';
+  if(t.indexOf('FECHA') >= 0)    return 'fecha';
+  if(t.indexOf('GERENCIA') >= 0) return 'gerencia';
+  if(t.indexOf('DEPENDENCIA') >= 0 || t.indexOf('UNIDAD') >= 0) return 'dep';
+  if(t.indexOf('BENEFICIARIO') >= 0 || t.indexOf('EMPLEADO') >= 0) return 'emp';
+  if(t.indexOf('CENA') >= 0)     return 'cenas';
+  if(t.indexOf('VALOR') >= 0)    return 'valor';
+  if(t.indexOf('MONTO') >= 0 || t.indexOf('TOTAL') >= 0) return 'total';
+  if(t.indexOf('ELABOR') >= 0 || t.indexOf('USUARIO') >= 0 || t.indexOf('REGISTRO') >= 0) return 'usuario';
+  if(t.indexOf('MES') >= 0)      return 'mes';
+  if(t.indexOf('ANIO') >= 0 || t === 'AO' || t.indexOf('AO ') === 0) return 'anio';
+  if(t.indexOf('ASUNTO') >= 0)   return 'asunto';
+  return null;
+}
+function fechaDesde(txt){
+  var t = String(txt||'').trim();
+  var m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0');
+  m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){
+    var a = m[3].length === 2 ? '20' + m[3] : m[3];
+    return a + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[1]).padStart(2,'0');
+  }
+  return '';
+}
+function mesDesde(txt){
+  var t = limpiaEncabezado(txt).toLowerCase();
+  for(var i=0;i<MESES.length;i++) if(t.indexOf(MESES[i]) >= 0) return MESES[i];
+  var n = parseInt(txt,10);
+  if(n >= 1 && n <= 12) return MESES[n-1];
+  return '';
+}
+function procesarPegadoMemos(){
+  var lineas = ($('pg-txt').value||'').split(/\r?\n/), mapa = null, i, lista = [];
+  for(i=0;i<lineas.length;i++){
+    if(!lineas[i].trim()) continue;
+    var celdas = partirLinea(lineas[i].trim()), m = {}, hallados = 0;
+    for(var c=0;c<celdas.length;c++){
+      var campo = campoMemo(celdas[c]);
+      if(campo && m[campo] === undefined){ m[campo] = c; hallados++; }
+    }
+    if(hallados >= 3){ mapa = m; lineas[i] = ''; }
+    break;
+  }
+  if(!mapa){
+    cerrar('m-pegar');
+    toast('No se reconoció la fila de encabezados. Cópiela junto con los datos.','err');
+    return;
+  }
+  for(i=0;i<lineas.length;i++){
+    var l = lineas[i].trim();
+    if(!l) continue;
+    var f = partirLinea(l);
+    function v(k){ return mapa[k] !== undefined ? String(f[mapa[k]]==null?'':f[mapa[k]]).trim() : ''; }
+    var no = v('no');
+    if(!no || limpiaEncabezado(no) === 'TOTAL') continue;
+    var fecha = fechaDesde(v('fecha'));
+    if(!fecha) continue;
+    var total = num(v('total'));
+    if(!total) total = num(v('cenas')) * num(v('valor'));
+    if(!total) continue;
+    var dep = v('dep').toUpperCase();
+    var ger = v('gerencia');
+    if(GERENCIAS.indexOf(ger) < 0) ger = inferirGerencia(dep);
+    lista.push({
+      id: 'C40-' + Date.now() + '-' + i,
+      no: no, fecha: fecha, dep: dep, gerencia: ger,
+      mesPago: mesDesde(v('mes')) || MESES[parseInt(fecha.split('-')[1],10)-1],
+      anioPago: v('anio') || fecha.split('-')[0],
+      empleados: num(v('emp')),
+      cenas: num(v('cenas')),
+      valorCena: num(v('valor')) || 180,
+      total: total,
+      letras: numeroALetras(total),
+      para: CFG.infPara || 'Lic. Ana Lourdes Aguilar',
+      cargo: 'Gerencia de Finanzas Corporativas',
+      asunto: v('asunto') || 'PAGO DE CLÁUSULA N.º 40',
+      usuario: v('usuario') || (usuarioActual ? (usuarioActual.completo||usuarioActual.nombre) : ''),
+      observacion: v('obs'),
+      registrado: new Date().toLocaleString('es-HN'),
+      importado: true,
+      detalle: []
+    });
+  }
+  cerrar('m-pegar');
+  if(!lista.length){ toast('No se reconoció ninguna fila con memorando, fecha y monto.','err'); return; }
+  guardarAnteriores(lista);
+}
+
 /* =========================================================
    ARRANQUE
    ========================================================= */
@@ -4997,76 +5258,6 @@ function generarInformeWord(){
   // ingreso esté al día aunque nadie haya entrado todavía.
   if(CFG.url) cargarUsuariosSheets(null, true);
   $('lg-pass').addEventListener('keydown', function(e){ if(e.key === 'Enter') entrar(); });
-})();
-</script>
-<!-- PORTAL-DBS-SSO -->
-<script>
-/* Login unico del Portal DBS: toma la sesion abierta en index.html y
-   completa el login de esta app. Si algo no cuadra, la app muestra su
-   login normal y nada se rompe. */
-(function () {
-  'use strict';
-  var APP = 'c40', SEL_U = '#lg-user', SEL_P = '#lg-pass', SEL_PANT = '#login';
-
-  var d = null;
-  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
-  if (!d || !d.id) return;
-  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
-
-  /* La clave de la app puede venir como "clave" o como "usuario/clave"
-     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
-  var usuario = d.id, clave = d.pass || '';
-  var propio = d.claves && d.claves[APP];
-  if (propio) {
-    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
-    if (m) { usuario = m[1]; clave = m[2]; }
-    else   { clave = propio; }
-  }
-  if (!clave) return;
-
-  var intentos = 0, enviado = false;
-
-  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
-  function visible(el) {
-    if (!el) return false;
-    var cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-    return el.getClientRects().length > 0;
-  }
-
-  function paso() {
-    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
-
-    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
-    if (pant && !visible(pant)) return;                   // la app ya entro sola
-
-    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
-    if (!cu || !cp) { setTimeout(paso, 250); return; }
-
-    if (cu.tagName === 'SELECT') {
-      var hay = false;
-      for (var i = 0; i < cu.options.length; i++) {
-        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
-          cu.selectedIndex = i; hay = true; break;
-        }
-      }
-      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
-    } else {
-      cu.value = usuario;
-    }
-    cp.value = clave;
-    ['input', 'change'].forEach(function (ev) {
-      cu.dispatchEvent(new Event(ev, { bubbles: true }));
-      cp.dispatchEvent(new Event(ev, { bubbles: true }));
-    });
-
-    enviado = true;                                       // un solo intento
-    try { entrar(); } catch (e) {}
-  }
-
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
-  else setTimeout(paso, 250);
 })();
 </script>
 </body>
