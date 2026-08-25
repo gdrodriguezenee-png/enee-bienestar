@@ -320,6 +320,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
           <button class="ok" onclick="nuevoAnterior()">Registrar memorando anterior</button>
           <button class="sec" onclick="abrirPegarMemos()">Importar desde Excel</button>
           <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
+          <button class="sec" onclick="unificarNombres()">Unificar nombres</button>
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
         </div>
@@ -482,6 +483,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
         <div class="acciones" style="margin-top:16px">
           <button class="ok" onclick="guardarConfig()">Guardar configuración</button>
           <button class="sec" onclick="sincronizar()">Probar conexión</button>
+          <button class="sec" onclick="diagnostico()">Diagnóstico</button>
           <button class="sec" onclick="respaldar()">Respaldo completo (JSON)</button>
           <button class="sec" onclick="document.getElementById('c-rest').click()">Restaurar respaldo</button>
           <input type="file" id="c-rest" accept=".json" style="display:none" onchange="restaurar(event)">
@@ -590,6 +592,40 @@ tbody tr.repetido:hover td{background:#fbe3e3}
     <div class="modal-foot">
       <button class="sec" onclick="cerrar('m-emp')">Cancelar</button>
       <button class="ok" onclick="guardarEmpleado()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="m-diag">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-head"><h3>Diagnóstico de la conexión</h3>
+      <button class="x" onclick="cerrar('m-diag')">&times;</button></div>
+    <div class="modal-body"><div id="diag-cuerpo"></div></div>
+    <div class="modal-foot"><button class="sec" onclick="cerrar('m-diag')">Cerrar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="m-dup">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-head"><h3>Números de memorando repetidos</h3>
+      <button class="x" onclick="cerrar('m-dup')">&times;</button></div>
+    <div class="modal-body">
+      <div class="warn" style="border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a" id="dup-texto"></div>
+      <div class="tabla-wrap" style="max-height:260px;overflow-y:auto">
+        <table>
+          <thead><tr><th>N.º memorando</th><th>Ya en el historial</th><th>Se va a registrar</th></tr></thead>
+          <tbody id="dup-tb"></tbody>
+        </table>
+      </div>
+      <div class="hint">
+        Puede registrarlos igual, y quedarán marcados como repetidos en el
+        historial para revisarlos después, o dejarlos fuera.
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="sec" onclick="cerrar('m-dup')">Cancelar todo</button>
+      <button class="sec" onclick="resolverRepetidos(false)">Registrar solo los nuevos</button>
+      <button class="ok" onclick="resolverRepetidos(true)">Registrar todos, repetidos incluidos</button>
     </div>
   </div>
 </div>
@@ -1901,7 +1937,7 @@ function guardarMemo(automatico){
     valorCena: d.valorCena, letras: d.letras,
     gerencia: $('f-gerencia') ? $('f-gerencia').value : inferirGerencia(d.dep),
     para: d.para, cargo: d.cargo, asunto: d.asunto,
-    usuario: usuarioActual ? usuarioActual.nombre : '',
+    usuario: usuarioActual ? (usuarioActual.completo || usuarioActual.nombre) : '',
     registrado: new Date().toLocaleString('es-HN'),
     detalle: d.filas
   };
@@ -2038,6 +2074,51 @@ function borrarMemo(id){
     }
   });
 }
+/* Deja un solo nombre por persona en el historial: "Rosa", "Rosa García" y
+   "Rosa Garcia Alvarado" pasan a ser el nombre completo del acceso. */
+function unificarNombres(){
+  var cambios = [], i;
+  for(i=0;i<HISTORIAL.length;i++){
+    var actual = String(HISTORIAL[i].usuario||'').trim();
+    var canon = nombreCanonico(actual);
+    if(canon && canon !== actual) cambios.push({m:HISTORIAL[i], de:actual, a:canon});
+  }
+  if(!cambios.length){ toast('Los nombres ya están unificados.','ok'); return; }
+
+  var resumen = {}, lista = [];
+  for(i=0;i<cambios.length;i++){
+    var k = cambios[i].de + ' → ' + cambios[i].a;
+    if(!resumen[k]){ resumen[k] = 0; lista.push(k); }
+    resumen[k]++;
+  }
+  var txt = '';
+  for(i=0;i<lista.length;i++) txt += '\n  ' + lista[i] + '  (' + resumen[lista[i]] + ')';
+  if(!confirm('Se unificarán ' + cambios.length + ' memorandos:' + txt
+    + '\n\n¿Continuar?')) return;
+
+  for(i=0;i<cambios.length;i++) cambios[i].m.usuario = cambios[i].a;
+  guardarLS(LS.hist, HISTORIAL);
+  renderHist();
+  if($('i-tb')){ poblarUsuariosInforme(); renderInforme(); }
+
+  if(!CFG.url){ toast(cambios.length + ' memorandos unificados.','ok'); return; }
+  var filas = [['NO_MEMORANDO','FECHA','DEPENDENCIA','MES_PAGO','ANIO_PAGO','EMPLEADOS',
+                'CENAS','VALOR_CENA','TOTAL','USUARIO','REGISTRADO','DETALLE_JSON']];
+  for(i=0;i<HISTORIAL.length;i++){
+    var m = HISTORIAL[i];
+    filas.push([m.no, m.fecha, m.dep, m.mesPago, m.anioPago, m.empleados, m.cenas,
+                m.valorCena, m.total, m.usuario||'', m.registrado||'',
+                JSON.stringify(m.detalle||[])]);
+  }
+  cargando(true, 'Actualizando la hoja…');
+  apiPost({accion:'reescribir', tipo:CFG.hoja, filas:filas}, function(ok){
+    cargando(false);
+    estadoSync(ok, ok ? 'Hoja actualizada' : 'No se pudo actualizar la hoja');
+    toast(ok ? (cambios.length + ' memorandos unificados aquí y en la hoja.')
+             : 'Se unificó aquí, pero no se pudo actualizar la hoja.', ok ? 'ok' : 'err');
+  });
+}
+
 /* Quita del historial los memorandos repetidos (mismo número), conservando
    el registro más reciente, y deja la hoja igual que el historial. */
 function quitarDuplicados(){
@@ -2089,18 +2170,73 @@ function exportarHistorial(){
    GOOGLE SHEETS (JSONP lectura + POST escritura)
    ========================================================= */
 var jsonpN = 0;
+var ULTIMO_ERROR = '';
+var ULTIMA_RESPUESTA = '';
+/* Lectura: primero por fetch, que sí devuelve el motivo real del fallo.
+   Si el navegador lo bloquea, se recurre al método JSONP de siempre. */
 function apiGet(tipo, cb){
+  if(!CFG.url){ cb(null); return; }
+  if(typeof fetch !== 'function'){ apiGetJsonp(tipo, cb); return; }
+  var url = CFG.url + '?accion=leer&tipo=' + encodeURIComponent(tipo);
+  var contestado = false;
+  var reserva = setTimeout(function(){
+    if(contestado) return;
+    contestado = true;
+    ULTIMO_ERROR = 'La hoja no respondió en 25 segundos.';
+    cb(null);
+  }, 25000);
+  fetch(url, {redirect:'follow'})
+    .then(function(r){ ULTIMO_ERROR = 'HTTP ' + r.status; return r.text(); })
+    .then(function(texto){
+      if(contestado) return;
+      ULTIMA_RESPUESTA = String(texto||'').slice(0, 400);
+      var j = null;
+      try{ j = JSON.parse(texto); }catch(e){ j = null; }
+      if(j && j.filas){
+        contestado = true; clearTimeout(reserva); ULTIMO_ERROR = '';
+        cb(j);
+        return;
+      }
+      // La hoja contestó, pero no con datos: no vale la pena reintentar,
+      // el motivo ya se conoce.
+      contestado = true; clearTimeout(reserva);
+      if(j && j.error){
+        ULTIMO_ERROR = 'El script respondió: ' + j.error;
+      } else if(/<html|<!DOCTYPE/i.test(ULTIMA_RESPUESTA)){
+        ULTIMO_ERROR = 'La hoja devolvió una página web en vez de datos: la '
+          + 'implementación no es pública o la URL no es la de /exec.';
+      } else {
+        ULTIMO_ERROR = 'La respuesta no tiene el formato esperado.';
+      }
+      cb(null);
+    })
+    .catch(function(e){
+      if(contestado) return;
+      ULTIMO_ERROR = 'No se pudo contactar la hoja: ' + (e && e.message ? e.message : e);
+      clearTimeout(reserva);
+      apiGetJsonp(tipo, function(d){ if(!contestado){ contestado = true; cb(d); } });
+    });
+}
+function apiGetJsonp(tipo, cb){
   if(!CFG.url){ cb(null); return; }
   var fn = 'c40cb_' + (++jsonpN) + '_' + Date.now();
   var s = document.createElement('script');
-  var t = setTimeout(function(){ limpiar(); cb(null); }, 20000);
+  var t = setTimeout(function(){
+    limpiar();
+    if(!ULTIMO_ERROR) ULTIMO_ERROR = 'La hoja no respondió a tiempo.';
+    cb(null);
+  }, 12000);
   function limpiar(){
     clearTimeout(t);
     try{ delete window[fn]; }catch(e){ window[fn] = undefined; }
     if(s.parentNode) s.parentNode.removeChild(s);
   }
   window[fn] = function(data){ limpiar(); cb(data); };
-  s.onerror = function(){ limpiar(); cb(null); };
+  s.onerror = function(){
+    limpiar();
+    if(!ULTIMO_ERROR) ULTIMO_ERROR = 'El navegador no pudo cargar la respuesta de la hoja.';
+    cb(null);
+  };
   s.src = CFG.url + '?accion=leer&tipo=' + encodeURIComponent(tipo) + '&callback=' + fn;
   document.body.appendChild(s);
 }
@@ -2115,6 +2251,74 @@ function apiPost(payload, cb){
     .then(function(j){ cb(j && j.ok !== false); })
     .catch(function(e){ console.warn('POST', e); cb(false); });
   }catch(e){ console.warn('POST', e); cb(false); }
+}
+/* Comprueba una por una las tres hojas y explica qué falla. */
+function diagnostico(){
+  if(!CFG.url){ toast('Primero configure la URL del Apps Script.','err'); return; }
+  var hojas = [CFG.hoja, CFG.hojaEmp, CFG.hojaUsr];
+  var resultados = [];
+  $('diag-cuerpo').innerHTML = '<div class="hint">Consultando…</div>';
+  abrir('m-diag');
+
+  function siguiente(i){
+    if(i >= hojas.length){ pintarDiagnostico(resultados); return; }
+    ULTIMO_ERROR = ''; ULTIMA_RESPUESTA = '';
+    apiGet(hojas[i], function(datos){
+      resultados.push({
+        hoja: hojas[i],
+        ok: !!(datos && datos.filas),
+        filas: datos && datos.filas ? datos.filas.length : 0,
+        error: ULTIMO_ERROR,
+        crudo: ULTIMA_RESPUESTA
+      });
+      siguiente(i+1);
+    });
+  }
+  siguiente(0);
+}
+function pintarDiagnostico(res){
+  var h = '<div class="hint" style="word-break:break-all;margin-bottom:12px">'
+        + '<b>URL:</b> ' + esc(CFG.url) + '</div>';
+  h += '<div class="tabla-wrap"><table><thead><tr><th>Hoja</th><th>Resultado</th>'
+     + '<th>Filas</th></tr></thead><tbody>';
+  var fallos = [];
+  for(var i=0;i<res.length;i++){
+    var r = res[i];
+    if(!r.ok) fallos.push(r);
+    h += '<tr><td><b>' + esc(r.hoja) + '</b></td>'
+      + '<td>' + (r.ok
+          ? '<span style="color:#1a7a44;font-weight:600">Responde bien</span>'
+          : '<span style="color:#cc2233;font-weight:600">Falla</span>') + '</td>'
+      + '<td>' + (r.ok ? r.filas : '—') + '</td></tr>';
+  }
+  h += '</tbody></table></div>';
+
+  if(!fallos.length){
+    h += '<div class="warn" style="margin-top:14px;border-color:#9ccdb2;background:#f2fbf6;color:#14603a">'
+       + 'La conexión funciona. Si aun así no ve datos, revise que las hojas tengan '
+       + 'contenido y que los nombres coincidan con los de Configuración.</div>';
+  } else {
+    h += '<div class="warn" style="margin-top:14px;border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a">'
+       + '<b>Motivo informado:</b><br>' + esc(fallos[0].error || 'sin detalle') + '</div>';
+    if(fallos[0].crudo){
+      h += '<div class="hint"><b>Respuesta recibida:</b><br>'
+         + '<code style="display:block;white-space:pre-wrap;word-break:break-all;'
+         + 'background:#f4f7fb;padding:8px;border-radius:6px;margin-top:5px">'
+         + esc(fallos[0].crudo) + '</code></div>';
+    }
+    h += '<div class="warn" style="margin-top:12px">'
+       + '<b>Qué revisar, en este orden:</b><br>'
+       + '1. Abra la URL de arriba en una pestaña. Si pide iniciar sesión, la '
+       + 'implementación no está pública: <i>Administrar implementaciones → editar → '
+       + 'Quién tiene acceso: Cualquier usuario</i>.<br>'
+       + '2. Si dice <i>Script function not found: doGet</i>, el código no se guardó '
+       + 'o no se publicó una <b>Nueva versión</b>.<br>'
+       + '3. Si la URL termina en <code>/dev</code> en vez de <code>/exec</code>, solo '
+       + 'funciona para usted estando con sesión iniciada.<br>'
+       + '4. Verifique que los nombres de hoja de Configuración existan en el archivo.'
+       + '</div>';
+  }
+  $('diag-cuerpo').innerHTML = h;
 }
 function estadoSync(ok, txt){
   $('dot-sync').className = 'dot' + (ok === true ? ' ok' : ok === false ? ' err' : '');
@@ -2136,7 +2340,7 @@ function sincronizar(silencioso){
       if(!silencioso) toast('Sincronización correcta.','ok');
     } else {
       estadoSync(false, 'Sin conexión con Sheets');
-      if(!silencioso) toast('No se pudo leer la hoja. Verifique la URL /exec.','err');
+      if(!silencioso) toast(ULTIMO_ERROR || 'No se pudo leer la hoja. Verifique la URL /exec.','err');
     }
     cargando(false);
   });
@@ -2166,9 +2370,9 @@ function fusionarMemos(filas){
   HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
   guardarLS(LS.hist, HISTORIAL);
 }
-function enviarMemoSheets(reg){
+function enviarMemoSheets(reg, comoFilaNueva){
   apiPost({
-    accion:'guardar', tipo:CFG.hoja,
+    accion: comoFilaNueva ? 'agregar' : 'guardar', tipo:CFG.hoja,
     cols:[reg.no, reg.fecha, reg.dep, reg.mesPago, reg.anioPago, reg.empleados,
           reg.cenas, reg.valorCena, reg.total, reg.usuario, reg.registrado,
           JSON.stringify(reg.detalle)]
@@ -2200,7 +2404,7 @@ function cargarUsuariosSheets(cb, silencioso){
   apiGet(CFG.hojaUsr, function(datos){
     if(!datos || !datos.filas){
       estadoUsr(false, 'Sin conexión con la hoja de usuarios');
-      if(!silencioso) toast('No se pudo leer la hoja ' + CFG.hojaUsr + '.','err');
+      if(!silencioso) toast(ULTIMO_ERROR || ('No se pudo leer la hoja ' + CFG.hojaUsr + '.'),'err');
       if(cb) cb(false);
       return;
     }
@@ -2286,7 +2490,7 @@ function cargarEmpleadosSheets(cb, silencioso){
   apiGet(CFG.hojaEmp, function(datos){
     if(!datos || !datos.filas){
       estadoEmp(false, 'Sin conexión con la hoja de empleados');
-      if(!silencioso) toast('No se pudo leer la hoja ' + CFG.hojaEmp + '.','err');
+      if(!silencioso) toast(ULTIMO_ERROR || ('No se pudo leer la hoja ' + CFG.hojaEmp + '.'),'err');
       if(cb) cb(false);
       return;
     }
@@ -4632,17 +4836,47 @@ function pintarInforme(){
   poblarUsuariosInforme();
   renderInforme();
 }
-function poblarUsuariosInforme(){
-  var sel = $('i-usuario'), act = sel.value, vistos = {}, h = '';
+/* -------- Un mismo nombre escrito de varias formas --------
+   En el historial hay memorandos guardados como "Rosa", "Rosa García" o
+   "Rosa Garcia Alvarado". Todos se reconocen como la misma persona. */
+var PARTICULAS = {DE:1, DEL:1, LA:1, LAS:1, LOS:1, Y:1, DA:1, SAN:1};
+function tokensNombre(txt){
+  var t = String(txt||'')
+    .replace(/[ÁÀÄÂáàäâ]/g,'A').replace(/[ÉÈËÊéèëê]/g,'E').replace(/[ÍÌÏÎíìïî]/g,'I')
+    .replace(/[ÓÒÖÔóòöô]/g,'O').replace(/[ÚÙÜÛúùüû]/g,'U').replace(/[Ññ]/g,'N')
+    .toUpperCase().replace(/[^A-Z ]/g,' ').split(/\s+/);
+  var r = [];
+  for(var i=0;i<t.length;i++) if(t[i].length > 1 && !PARTICULAS[t[i]]) r.push(t[i]);
+  return r;
+}
+/* Devuelve el nombre completo del usuario al que corresponde ese texto. */
+function nombreCanonico(txt){
+  var tk = tokensNombre(txt);
+  if(!tk.length) return '';
+  var mejor = null, mejorPunt = 0, empate = false;
   for(var i=0;i<USUARIOS.length;i++){
+    var comp = USUARIOS[i].completo || USUARIOS[i].nombre;
+    var tu = tokensNombre(comp), punt = 0;
+    for(var k=0;k<tk.length;k++) if(tu.indexOf(tk[k]) >= 0) punt++;
+    if(punt > mejorPunt){ mejorPunt = punt; mejor = comp; empate = false; }
+    else if(punt === mejorPunt && punt > 0 && mejor !== comp) empate = true;
+  }
+  if(!mejorPunt || empate) return String(txt||'').trim();
+  return mejor;
+}
+function poblarUsuariosInforme(){
+  var sel = $('i-usuario'), act = sel.value, vistos = {}, h = '', i;
+  for(i=0;i<USUARIOS.length;i++){
     var n = USUARIOS[i].completo || USUARIOS[i].nombre;
     if(!vistos[n]){ vistos[n] = 1; h += '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }
   }
-  // Nombres que aparecen en el historial pero ya no están en la lista de accesos
-  for(var k=0;k<HISTORIAL.length;k++){
-    var u = HISTORIAL[k].usuario || '';
-    if(u && !vistos[u]){ vistos[u] = 1; h += '<option value="'+esc(u)+'">'+esc(u)+'</option>'; }
+  // Nombres del historial que no corresponden a ningún acceso actual
+  var sueltos = '';
+  for(i=0;i<HISTORIAL.length;i++){
+    var c = nombreCanonico(HISTORIAL[i].usuario || '');
+    if(c && !vistos[c]){ vistos[c] = 1; sueltos += '<option value="'+esc(c)+'">'+esc(c)+'</option>'; }
   }
+  if(sueltos) h += '<optgroup label="Sin acceso actual">' + sueltos + '</optgroup>';
   h += '<option value="__todos">Todos los usuarios</option>';
   sel.innerHTML = h;
   if(act && vistos[act]) sel.value = act;
@@ -4670,7 +4904,7 @@ function memosInforme(){
     if(f.length !== 3) continue;
     if(parseInt(f[1],10) !== mes) continue;
     if(f[0] !== anio) continue;
-    if(quien !== '__todos' && String(m.usuario||'') !== quien) continue;
+    if(quien !== '__todos' && nombreCanonico(m.usuario||'') !== quien) continue;
     lista.push(m);
   }
   lista.sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); });
@@ -5187,6 +5421,12 @@ function guardarAnterior(){
   var editando = $('an-id').value;
   if(editando){ actualizarMemo(editando, no, total); return; }
 
+  var previo = memoPorNumero(no);
+  if(previo && !confirm('El memorando ' + no + ' ya existe en el historial:\n\n'
+      + (previo.dep || 'sin dependencia') + ' — L ' + fmt(previo.total)
+      + ' — ' + fechaCorta(previo.fecha) + '\n\n'
+      + '¿Registrarlo de todas formas? Quedará marcado como repetido.')) return;
+
   var reg = {
     id: 'C40-' + Date.now(),
     no: no,
@@ -5209,7 +5449,7 @@ function guardarAnterior(){
     importado: true,
     detalle: []
   };
-  guardarAnteriores([reg]);
+  guardarAnteriores([reg], !!previo);
   cerrar('m-ant');
 }
 /* Aplica los cambios a un memorando ya guardado. */
@@ -5264,25 +5504,72 @@ function actualizarMemo(id, no, total){
 }
 
 /* Guarda una tanda de memorandos anteriores, sin repetir números. */
-function guardarAnteriores(lista){
-  var nuevos = 0, repetidos = 0, i, k;
+function memoPorNumero(no){
+  for(var k=0;k<HISTORIAL.length;k++){
+    if(String(HISTORIAL[k].no).trim() === String(no).trim()) return HISTORIAL[k];
+  }
+  return null;
+}
+var pendienteNuevos = [], pendienteRepetidos = [];
+/* Separa lo nuevo de lo repetido y, si hay repetidos, pregunta qué hacer. */
+function guardarAnteriores(lista, yaConfirmado){
+  pendienteNuevos = [];
+  pendienteRepetidos = [];
+  var vistos = {}, i;
   for(i=0;i<lista.length;i++){
-    var existe = false;
-    for(k=0;k<HISTORIAL.length;k++){
-      if(String(HISTORIAL[k].no).trim() === String(lista[i].no).trim()){ existe = true; break; }
+    var no = String(lista[i].no).trim();
+    var choca = memoPorNumero(no) || vistos[no];
+    if(choca){
+      pendienteRepetidos.push({reg:lista[i], previo: memoPorNumero(no) || vistos[no]});
+    } else {
+      pendienteNuevos.push(lista[i]);
+      vistos[no] = lista[i];
     }
-    if(existe){ repetidos++; continue; }
-    HISTORIAL.unshift(lista[i]);
-    nuevos++;
-    if(CFG.url) enviarMemoSheets(lista[i]);
+  }
+  if(!pendienteRepetidos.length){ resolverRepetidos(false, true); return; }
+  // Si ya se preguntó antes (alta manual), se registra sin volver a preguntar.
+  if(yaConfirmado){ resolverRepetidos(true, true); return; }
+  mostrarRepetidos();
+}
+function mostrarRepetidos(){
+  $('dup-texto').innerHTML = '<b>' + pendienteRepetidos.length + ' memorando(s) ya existe(n) '
+    + 'con ese número.</b><br>' + pendienteNuevos.length + ' de la lista son nuevos y se '
+    + 'registrarán en cualquier caso.';
+  var h = '';
+  for(var i=0;i<pendienteRepetidos.length;i++){
+    var r = pendienteRepetidos[i], p = r.previo, n = r.reg;
+    h += '<tr><td><b>' + esc(n.no) + '</b></td>'
+      + '<td>' + esc(fechaCorta(p.fecha)) + ' &nbsp;·&nbsp; ' + esc(p.dep || 'sin dependencia')
+      + ' &nbsp;·&nbsp; L ' + fmt(p.total) + '</td>'
+      + '<td>' + esc(fechaCorta(n.fecha)) + ' &nbsp;·&nbsp; ' + esc(n.dep || 'sin dependencia')
+      + ' &nbsp;·&nbsp; L ' + fmt(n.total) + '</td></tr>';
+  }
+  $('dup-tb').innerHTML = h;
+  abrir('m-dup');
+}
+function resolverRepetidos(incluirRepetidos, silencioso){
+  var aGuardar = pendienteNuevos.slice(), i;
+  if(incluirRepetidos){
+    for(i=0;i<pendienteRepetidos.length;i++) aGuardar.push(pendienteRepetidos[i].reg);
+  }
+  var forzados = incluirRepetidos ? pendienteRepetidos.length : 0;
+  for(i=0;i<aGuardar.length;i++){
+    HISTORIAL.unshift(aGuardar[i]);
+    // Los repetidos se agregan como fila aparte para no pisar al anterior.
+    if(CFG.url) enviarMemoSheets(aGuardar[i], i >= pendienteNuevos.length);
   }
   HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
   guardarLS(LS.hist, HISTORIAL);
   renderHist();
   if($('i-tb')) renderInforme();
-  var msg = nuevos + ' memorando(s) registrado(s).';
-  if(repetidos) msg += ' ' + repetidos + ' ya existía(n) y se omitió(eron).';
-  toast(msg, nuevos ? 'ok' : 'err');
+  cerrar('m-dup');
+
+  var msg = pendienteNuevos.length + ' memorando(s) registrado(s).';
+  if(forzados) msg += ' ' + forzados + ' con número repetido, marcado(s) en el historial.';
+  else if(pendienteRepetidos.length && !silencioso)
+    msg += ' ' + pendienteRepetidos.length + ' repetido(s) no se registró(aron).';
+  toast(msg, aGuardar.length ? 'ok' : 'err');
+  pendienteNuevos = []; pendienteRepetidos = [];
 }
 
 /* -------- Importar en lote desde Excel -------- */
