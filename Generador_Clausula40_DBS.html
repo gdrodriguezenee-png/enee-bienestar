@@ -589,14 +589,11 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
 
 <div class="modal" id="m-ant">
   <div class="modal-box" style="max-width:760px">
-    <div class="modal-head"><h3>Registrar un memorando ya elaborado</h3>
+    <div class="modal-head"><h3 id="an-tit">Registrar un memorando ya elaborado</h3>
       <button class="x" onclick="cerrar('m-ant')">&times;</button></div>
     <div class="modal-body">
-      <div class="warn">
-        Para memorandos hechos antes de usar esta aplicación. Se guardan en el
-        historial y entran en el informe mensual. No generan Word ni Excel del
-        memorando, porque no llevan el detalle de empleados.
-      </div>
+      <input type="hidden" id="an-id">
+      <div class="warn" id="an-aviso"></div>
       <div class="grid g3">
         <div><label>N.º de memorando</label><input id="an-no" placeholder="DBS-1315-VIII-2026"></div>
         <div><label>Fecha de elaboración</label><input id="an-fecha" type="date"></div>
@@ -1923,6 +1920,7 @@ function renderHist(){
       + '<td style="text-align:right;font-weight:600;color:#1a7a44">L '+fmt(m.total)+'</td>'
       + '<td>'+esc(m.usuario||'')+'</td>'
       + '<td><button class="sec" onclick="cargarMemo(\''+m.id+'\')">Cargar</button> '
+      + '<button class="sec" onclick="editarMemo(\''+m.id+'\')">Editar</button> '
       + '<button class="bdel" onclick="borrarMemo(\''+m.id+'\')">&times;</button></td>'
       + '</tr>';
   }
@@ -5059,8 +5057,61 @@ function generarInformeWord(){
    Se registran en el historial para que aparezcan en el
    informe mensual, sin el detalle de empleados.
    ========================================================= */
+function usuariosEnSelector(sel, valor){
+  var h = '', vistos = {};
+  for(var i=0;i<USUARIOS.length;i++){
+    var n = USUARIOS[i].completo || USUARIOS[i].nombre;
+    if(!vistos[n]){ vistos[n] = 1; h += '<option>'+esc(n)+'</option>'; }
+  }
+  if(valor && !vistos[valor]) h += '<option>'+esc(valor)+'</option>';
+  $(sel).innerHTML = h;
+  if(valor) $(sel).value = valor;
+  else if(usuarioActual) $(sel).value = usuarioActual.completo || usuarioActual.nombre;
+}
+function montosEditables(puede){
+  var ids = ['an-emp','an-cenas','an-valor','an-total'];
+  for(var i=0;i<ids.length;i++){
+    if(puede) $(ids[i]).removeAttribute('readonly');
+    else $(ids[i]).setAttribute('readonly','readonly');
+  }
+}
+/* Editar un memorando ya guardado en el historial. */
+function editarMemo(id){
+  var m = null;
+  for(var i=0;i<HISTORIAL.length;i++) if(HISTORIAL[i].id === id) m = HISTORIAL[i];
+  if(!m) return;
+  var conDetalle = m.detalle && m.detalle.length;
+
+  $('an-tit').textContent = 'Editar memorando ' + m.no;
+  $('an-id').value  = m.id;
+  $('an-no').value  = m.no;
+  $('an-fecha').value = m.fecha;
+  $('an-dep').value = m.dep || '';
+  $('an-gerencia').value = gerenciaDe(m);
+  $('an-mespago').value = String(MESES.indexOf(m.mesPago) + 1 || 1);
+  $('an-aniopago').value = m.anioPago;
+  $('an-emp').value = m.empleados;
+  $('an-cenas').value = m.cenas;
+  $('an-valor').value = m.valorCena || 180;
+  $('an-total').value = m.total;
+  $('an-obs').value = m.observacion || '';
+  usuariosEnSelector('an-usuario', m.usuario);
+  montosEditables(!conDetalle);
+  $('an-aviso').innerHTML = conDetalle
+    ? 'Este memorando tiene el detalle de sus ' + m.detalle.length + ' empleados, '
+      + 'así que los montos no se editan aquí. Para cambiarlos use <b>Cargar</b>, '
+      + 'corrija la tabla y vuelva a descargar el Word.'
+    : 'Memorando registrado sin detalle de empleados: puede corregir todos los datos.';
+  abrir('m-ant');
+}
 function nuevoAnterior(){
   var hoy = hoyISO();
+  $('an-tit').textContent = 'Registrar un memorando ya elaborado';
+  $('an-id').value = '';
+  $('an-aviso').innerHTML = 'Para memorandos hechos antes de usar esta aplicación. '
+    + 'Se guardan en el historial y entran en el informe mensual. No generan Word ni '
+    + 'Excel del memorando, porque no llevan el detalle de empleados.';
+  montosEditables(true);
   $('an-no').value = '';
   $('an-fecha').value = hoy;
   $('an-dep').value = '';
@@ -5069,13 +5120,7 @@ function nuevoAnterior(){
   $('an-aniopago').value = new Date().getFullYear();
   $('an-emp').value = ''; $('an-cenas').value = '';
   $('an-valor').value = 180; $('an-total').value = ''; $('an-obs').value = '';
-  var h = '', vistos = {};
-  for(var i=0;i<USUARIOS.length;i++){
-    var n = USUARIOS[i].completo || USUARIOS[i].nombre;
-    if(!vistos[n]){ vistos[n] = 1; h += '<option>'+esc(n)+'</option>'; }
-  }
-  $('an-usuario').innerHTML = h;
-  if(usuarioActual) $('an-usuario').value = usuarioActual.completo || usuarioActual.nombre;
+  usuariosEnSelector('an-usuario', '');
   abrir('m-ant');
 }
 function calcTotalAnterior(){
@@ -5088,6 +5133,9 @@ function guardarAnterior(){
   if(!$('an-fecha').value){ toast('Indique la fecha de elaboración.','err'); return; }
   var total = num($('an-total').value);
   if(!total){ toast('Indique el monto o las cenas y su valor.','err'); return; }
+
+  var editando = $('an-id').value;
+  if(editando){ actualizarMemo(editando, no, total); return; }
 
   var reg = {
     id: 'C40-' + Date.now(),
@@ -5114,6 +5162,57 @@ function guardarAnterior(){
   guardarAnteriores([reg]);
   cerrar('m-ant');
 }
+/* Aplica los cambios a un memorando ya guardado. */
+function actualizarMemo(id, no, total){
+  var m = null, i;
+  for(i=0;i<HISTORIAL.length;i++) if(HISTORIAL[i].id === id) m = HISTORIAL[i];
+  if(!m) return;
+  for(i=0;i<HISTORIAL.length;i++){
+    if(HISTORIAL[i].id !== id && String(HISTORIAL[i].no).trim() === no){
+      toast('Ya existe otro memorando con el número ' + no + '.','err');
+      return;
+    }
+  }
+  var anterior = m.no;
+  var conDetalle = m.detalle && m.detalle.length;
+
+  m.no        = no;
+  m.fecha     = $('an-fecha').value;
+  m.dep       = $('an-dep').value.trim().toUpperCase();
+  m.gerencia  = $('an-gerencia').value;
+  m.mesPago   = MESES[parseInt($('an-mespago').value,10)-1] || '';
+  m.anioPago  = $('an-aniopago').value;
+  m.usuario   = $('an-usuario').value;
+  m.observacion = $('an-obs').value;
+  if(!conDetalle){
+    m.empleados = num($('an-emp').value);
+    m.cenas     = num($('an-cenas').value);
+    m.valorCena = num($('an-valor').value);
+    m.total     = total;
+    m.letras    = numeroALetras(total);
+  }
+  m.registrado = new Date().toLocaleString('es-HN');
+
+  HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
+  guardarLS(LS.hist, HISTORIAL);
+  renderHist();
+  if($('i-tb')) renderInforme();
+  cerrar('m-ant');
+
+  if(CFG.url){
+    // Si cambió el número, se borra la fila vieja antes de escribir la nueva.
+    if(anterior !== no){
+      apiPost({accion:'eliminar', tipo:CFG.hoja, clave:anterior}, function(){
+        enviarMemoSheets(m);
+      });
+    } else {
+      enviarMemoSheets(m);
+    }
+    registrarBitacora('Edito', no, 'L ' + fmt(m.total) + ' — ' + m.dep);
+  }
+  toast('Memorando ' + no + ' actualizado.','ok');
+}
+
 /* Guarda una tanda de memorandos anteriores, sin repetir números. */
 function guardarAnteriores(lista){
   var nuevos = 0, repetidos = 0, i, k;
