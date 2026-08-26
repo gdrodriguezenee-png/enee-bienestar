@@ -178,6 +178,28 @@
   .infbox .cab button:hover{background:#eef4fb}
   .avisoinf{background:#fff4e6;border:1px solid #f0c987;color:var(--naranja);
     padding:8px 12px;border-radius:8px;font-size:12.5px;margin-top:10px}
+
+  /* ---------- CIERRE DE MES / CONTEOS ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:14px}
+  .kpi{background:#f7f9fc;border:1px solid var(--borde);border-radius:10px;padding:12px 14px}
+  .kpi .n{font-size:23px;font-weight:800;color:var(--azul);line-height:1.15}
+  .kpi .t{font-size:11px;font-weight:700;color:var(--suave);text-transform:uppercase;letter-spacing:.03em}
+  .kpi.verde .n{color:var(--verde)}
+  .kpi.naranja .n{color:var(--naranja)}
+  .kpi.fuerte{background:#eef4fb;border-color:#c5d9ee}
+  .sello{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 14px;
+    border-radius:9px;font-size:13px;font-weight:600;margin-bottom:14px}
+  .sello.cerrado{background:#fdecea;border:1px solid #f5b7b1;color:var(--rojo)}
+  .sello.abierto{background:#e7f6ec;border:1px solid #a9dfbf;color:var(--verde)}
+  .sello .det{font-weight:500;opacity:.85}
+  .sello button{padding:6px 13px;font-size:12px;border-radius:7px;border:1px solid var(--borde);background:#fff;font-weight:600}
+  .sello button:hover{background:#f0f3f7}
+  .sello .msalir{margin-left:auto}
+  .avisocierre{background:#fff4e6;border:1px solid #f0c987;color:var(--naranja);
+    padding:9px 13px;border-radius:8px;font-size:12.5px;margin-bottom:12px}
+  .avisocierre button{margin-left:8px;padding:4px 10px;font-size:11.5px;border-radius:6px;
+    border:1px solid #e0b070;background:#fff;font-weight:600;color:var(--naranja)}
+  tr.candado td{background:#fdf3f2}
 </style>
 </head>
 <body>
@@ -405,6 +427,28 @@
 
   <!-- ---------- HISTORIAL ---------- -->
   <main id="viewHist" class="hidden">
+    <div class="card">
+      <h3>Cierre y conteo del mes</h3>
+      <div class="toolbar">
+        <select id="h_mes" onchange="renderCierre()" style="padding:10px 12px;border:1px solid var(--borde);border-radius:8px"></select>
+        <input id="h_anio" type="number" min="2020" max="2099" onchange="renderCierre()"
+               style="width:110px;padding:10px 12px;border:1px solid var(--borde);border-radius:8px">
+        <button class="btn-sec" onclick="cierresRefrescar()">&#8635; Actualizar cierres</button>
+        <span class="totbar" id="h_perLbl"></span>
+      </div>
+      <div id="h_avisoCierre"></div>
+      <div id="h_sello"></div>
+      <div class="kpis" id="h_kpis"></div>
+      <div class="tbl-wrap">
+        <table class="list">
+          <thead><tr><th>Usuario</th><th>Memor&aacute;ndums</th><th>Reembolsos</th>
+            <th>Memos + Reemb.</th><th>Devoluciones</th><th>Monto tramitado</th></tr></thead>
+          <tbody id="h_porUsuario"></tbody>
+        </table>
+      </div>
+      <div class="msg" id="h_msgCierre"></div>
+    </div>
+
     <div class="card">
       <h3>Historial de Memorándums</h3>
       <div class="toolbar">
@@ -1112,6 +1156,7 @@ async function initApp(){
   if(document.getElementById('d_body').rows.length===0) addRow('dev');
   vigilarCambios();
   ['memo','reem','dev'].forEach(pintarBorrador);
+  cierresCargar();
 }
 function rebuildProvSelect(){
   var sel=document.getElementById('m_prov');
@@ -2026,6 +2071,8 @@ async function generarInterno(t){
   if(!val(pfx+'_fecha')){ showMsg(msgId,'err','Seleccione la Fecha (de ahí salen el mes y el año del N°).'); return; }
   var num=buildNum(t);
   if(!num){ showMsg(msgId,'err','Ingrese el N° (solo el número, ej. 22).'); return; }
+  var bloqCierre=bloqueoPorCierre(val(pfx+'_fecha'));
+  if(bloqCierre){ showMsg(msgId,'err',bloqCierre); return; }
   var raws=rawRows(t);
   if(raws.length===0){ showMsg(msgId,'err','Agregue al menos un beneficiario con datos.'); return; }
   if(!chkFactura(null,t)){ return; }   // no generar si hay N° de factura repetidos
@@ -2088,6 +2135,8 @@ async function generarDev(){
   if(!val('d_fecha')){ showMsg(msgId,'err','Seleccione la Fecha (de ahí salen el mes y el año del N°).'); return; }
   var num=buildNum('dev');
   if(!num){ showMsg(msgId,'err','Ingrese el N° (solo el número, ej. 1198).'); return; }
+  var bloqCierre=bloqueoPorCierre(val('d_fecha'));
+  if(bloqCierre){ showMsg(msgId,'err',bloqCierre); return; }
   var raws=rawRows('dev');
   if(raws.length===0){ showMsg(msgId,'err','Agregue al menos una gestión a devolver.'); return; }
   var sinMemo=raws.filter(function(r){ return !r.memo; }).length;
@@ -2158,7 +2207,8 @@ async function cargarHist(){
     HIST_CACHE = await storeList();
     HIST_CACHE.sort(function(a,b){ return String(b.ts||'').localeCompare(String(a.ts||'')); });
     msg.className='msg'; msg.textContent='';
-    renderHist(); pintarPendientes();
+    if(!CIERRES_LISTO) await cierresCargar();
+    renderHist(); pintarPendientes(); renderCierre();
   }catch(e){
     msg.className='msg err'; msg.textContent='No se pudo cargar el historial: '+e.message;
   }
@@ -2183,24 +2233,26 @@ function renderHist(){
   if(list.length===0){ body.innerHTML='<tr><td colspan="8" class="empty">Sin memorándums'+(q?' que coincidan con la búsqueda':' todavía')+'.</td></tr>'; return; }
   list.forEach(function(m){
     var tr=document.createElement('tr');
+    var bloqC = (typeof bloqueoDeMemo==='function') ? bloqueoDeMemo(m) : null;
+    if(bloqC) tr.className='candado';
     var tipo = m.tipo==='memo' ? '<span class="pill memo">Memo</span>'
              : (m.tipo==='dev' ? '<span class="pill dev">Devol.</span>' : '<span class="pill reem">Reemb.</span>');
     tr.innerHTML='<td>'+tipo+'</td>'+
-      '<td><b>'+esc(m.num)+'</b></td>'+
+      '<td><b>'+esc(m.num)+'</b>'+(bloqC?' <span title="Mes cerrado">&#128274;</span>':'')+'</td>'+
       '<td>'+esc(fmtFecha(m.fecha))+'</td>'+
       '<td class="wrap">'+esc(m.detalle||'')+'</td>'+
       '<td>'+esc(m.total||'')+'</td>'+
       '<td>'+esc(m.usuario||'')+'</td>'+
       '<td>'+esc(fmtTS(m.ts))+'</td>'+
       '<td><div class="act">'+
-        '<button class="ed" title="Editar">Editar</button>'+
+        (bloqC ? '' : '<button class="ed" title="Editar">Editar</button>')+
         '<button class="re" title="Regenerar Word">Regenerar</button>'+
-        (puede('del') ? '<button class="de" title="Eliminar">Eliminar</button>' : '')+
+        ((puede('del') && !bloqC) ? '<button class="de" title="Eliminar">Eliminar</button>' : '')+
       '</div></td>';
-    var btns=tr.querySelectorAll('button');
-    btns[0].onclick=function(){ editarMemo(m); };
-    btns[1].onclick=function(){ regenerar(m); };
-    if(btns[2]) btns[2].onclick=function(){ eliminarMemo(m); };
+    var bEd=tr.querySelector('.ed'), bRe=tr.querySelector('.re'), bDe=tr.querySelector('.de');
+    if(bEd) bEd.onclick=function(){ editarMemo(m); };
+    if(bRe) bRe.onclick=function(){ regenerar(m); };
+    if(bDe) bDe.onclick=function(){ eliminarMemo(m); };
     body.appendChild(tr);
   });
 }
@@ -2216,8 +2268,12 @@ function cargarEnFormulario(m){
   recalc(t);
 }
 function editarMemo(m){ cargarEnFormulario(m); showTab(m.tipo); showMsg(pfxOf(m.tipo)+'_msg','info','Memorándum '+m.num+' cargado para edición.'); }
-async function regenerar(m){ cargarEnFormulario(m); showTab(m.tipo); await generar(m.tipo); }
+async function regenerar(m){ cargarEnFormulario(m); showTab(m.tipo);
+  CIERRE_BYPASS=true;
+  try{ await generar(m.tipo); } finally { CIERRE_BYPASS=false; } }
 async function eliminarMemo(m){
+  var bloqCierre=bloqueoDeMemo(m);
+  if(bloqCierre){ var mm=document.getElementById('h_msg'); mm.className='msg err'; mm.textContent=bloqCierre; return; }
   if(!confirm('¿Eliminar el memorándum '+m.num+'? Esta acción no se puede deshacer.')) return;
   var msg=document.getElementById('h_msg'); msg.className='msg info'; msg.textContent='Eliminando...';
   try{ await storeDel(m.tipo,m.num); await cargarHist(); msg.className='msg ok'; msg.textContent='Memorándum '+m.num+' eliminado.'; }
@@ -2578,6 +2634,246 @@ async function cargarLoteProv(){
   }catch(err){ msg.className='msg err'; msg.textContent='No se pudo cargar el lote: '+err.message; }
 }
 
+var CIERRE_BYPASS = false;
+
+/* ==================================================================
+   CIERRE DE MES Y CONTEO DE MEMORÁNDUMS
+   Un mes cerrado no admite generar, editar ni eliminar documentos
+   con fecha de ese mes. Solo el administrador cierra y reabre.
+   ================================================================== */
+var CIERRES = {};                       /* 'AAAA-MM' -> {ts, usuario} */
+var CIERRES_KEY = 'cierres_dbs';
+var CIERRES_NUBE = null;                /* null = sin probar, true/false = resultado */
+var CIERRES_LISTO = false;
+
+function periodoDe(anio, mes){ return String(anio) + '-' + String(mes).padStart(2,'0'); }
+function periodoTexto(p){
+  var m = String(p||'').match(/^(\d{4})-(\d{2})$/);
+  if(!m) return String(p||'');
+  return INF_MESES[parseInt(m[2],10)-1] + ' ' + m[1];
+}
+function cierresLeerLocal(){
+  try{ CIERRES = JSON.parse(localStorage.getItem(CIERRES_KEY) || '{}') || {}; }
+  catch(e){ CIERRES = {}; }
+}
+function cierresGuardarLocal(){
+  try{ localStorage.setItem(CIERRES_KEY, JSON.stringify(CIERRES)); }catch(e){}
+}
+async function cierresCargar(){
+  cierresLeerLocal();
+  if(CLOUD){
+    try{
+      var r = await apiCall('listCierres');
+      var lista = r.cierres || [];
+      var nube = {};
+      lista.forEach(function(c){
+        if(c && c.periodo && String(c.cerrado) !== 'false' && c.cerrado !== false)
+          nube[c.periodo] = { ts:c.ts||'', usuario:c.usuario||'' };
+      });
+      CIERRES = nube;                    /* la nube manda */
+      cierresGuardarLocal();
+      CIERRES_NUBE = true;
+    }catch(e){
+      CIERRES_NUBE = false;              /* seguimos con lo local */
+    }
+  }
+  CIERRES_LISTO = true;
+}
+async function cierresRefrescar(){
+  showMsg('h_msgCierre','info','Consultando los cierres...');
+  await cierresCargar();
+  renderCierre();
+  showMsg('h_msgCierre', CIERRES_NUBE === false ? 'err' : 'ok',
+    CIERRES_NUBE === false
+      ? 'No se pudieron leer los cierres de la nube (el Apps Script todavía no entiende «listCierres»). Se está usando lo guardado en esta PC.'
+      : '✓ Cierres actualizados.');
+}
+
+/* ---- ¿está cerrado el mes de esta fecha? ---- */
+function cierreDeFecha(iso){
+  var m = String(iso||'').match(/^(\d{4})-(\d{2})/);
+  if(!m) return null;
+  return CIERRES[m[1]+'-'+m[2]] ? { periodo:m[1]+'-'+m[2], info:CIERRES[m[1]+'-'+m[2]] } : null;
+}
+function bloqueoPorCierre(iso){
+  if(CIERRE_BYPASS) return null;
+  var c = cierreDeFecha(iso);
+  if(!c) return null;
+  return 'El mes de ' + periodoTexto(c.periodo) + ' está CERRADO' +
+         (c.info.usuario ? ' (lo cerró ' + c.info.usuario + (c.info.ts ? ' el ' + fmtTS(c.info.ts) : '') + ')' : '') +
+         '. Para modificarlo, el administrador debe reabrirlo en la pestaña Historial.';
+}
+function bloqueoDeMemo(m){
+  var p = infMesDeMemo(m, unpackData(m));
+  if(!p) return null;
+  return bloqueoPorCierre(p.anio + '-' + String(p.mes).padStart(2,'0') + '-01');
+}
+
+/* ---- conteos ---- */
+function memosDelPeriodo(anio, mes){
+  return (HIST_CACHE||[]).filter(function(m){
+    var p = infMesDeMemo(m, unpackData(m));
+    return p && String(p.anio) === String(anio) && p.mes === mes;
+  });
+}
+function contarPeriodo(anio, mes){
+  var r = { memo:0, reem:0, dev:0, monto:0, porU:{} };
+  memosDelPeriodo(anio, mes).forEach(function(m){
+    var t = (m.tipo==='memo'||m.tipo==='reem'||m.tipo==='dev') ? m.tipo : 'memo';
+    var u = m.usuario || '(sin usuario)';
+    var v = (t==='dev') ? 0 : infNum(m.total);
+    r[t]++; r.monto += v;
+    if(!r.porU[u]) r.porU[u] = { memo:0, reem:0, dev:0, monto:0 };
+    r.porU[u][t]++; r.porU[u].monto += v;
+  });
+  return r;
+}
+
+/* ---- pintado del panel ---- */
+function cierreInit(){
+  var sel = document.getElementById('h_mes');
+  if(sel && !sel.options.length){
+    INF_MESES.forEach(function(m,i){
+      var o = document.createElement('option'); o.value = String(i+1); o.textContent = m; sel.appendChild(o);
+    });
+    var hoy = new Date();
+    sel.value = String(hoy.getMonth()+1);
+    setVal('h_anio', String(hoy.getFullYear()));
+  }
+}
+function renderCierre(){
+  cierreInit();
+  var mes = parseInt(val('h_mes'),10) || (new Date().getMonth()+1);
+  var anio = val('h_anio') || String(new Date().getFullYear());
+  var p = periodoDe(anio, mes);
+  var c = contarPeriodo(anio, mes);
+  var suma = c.memo + c.reem;
+  var esAdmin = CURRENT.rol === 'admin';
+
+  document.getElementById('h_perLbl').innerHTML =
+    'Periodo: <b>' + esc(periodoTexto(p)) + '</b>';
+
+  /* sello */
+  var cerrado = CIERRES[p];
+  var sello = document.getElementById('h_sello');
+  if(cerrado){
+    sello.className = 'sello cerrado';
+    sello.innerHTML = '&#128274; MES CERRADO &mdash; ' + esc(periodoTexto(p)) +
+      '<span class="det">' + (cerrado.usuario ? 'cerrado por ' + esc(cerrado.usuario) : '') +
+      (cerrado.ts ? ' el ' + esc(fmtTS(cerrado.ts)) : '') + '</span>' +
+      (esAdmin ? '<span class="msalir"><button onclick="reabrirMes()">Reabrir mes</button></span>' : '');
+  }else{
+    sello.className = 'sello abierto';
+    sello.innerHTML = '&#128275; Mes abierto &mdash; ' + esc(periodoTexto(p)) +
+      '<span class="det">se pueden generar y corregir documentos de este mes</span>' +
+      (esAdmin ? '<span class="msalir"><button onclick="cerrarMes()">Cerrar mes</button></span>' : '');
+  }
+
+  /* tarjetas */
+  document.getElementById('h_kpis').innerHTML =
+    '<div class="kpi"><div class="n">' + c.memo + '</div><div class="t">Memor&aacute;ndums</div></div>' +
+    '<div class="kpi verde"><div class="n">' + c.reem + '</div><div class="t">Reembolsos</div></div>' +
+    '<div class="kpi fuerte"><div class="n">' + suma + '</div><div class="t">Memos + Reembolsos</div></div>' +
+    '<div class="kpi naranja"><div class="n">' + c.dev + '</div><div class="t">Devoluciones</div></div>' +
+    '<div class="kpi"><div class="n">L' + fmtMoney(c.monto) + '</div><div class="t">Monto tramitado</div></div>';
+
+  /* conteo por usuario */
+  var body = document.getElementById('h_porUsuario');
+  var usuarios = Object.keys(c.porU).sort(function(a,b){
+    return (c.porU[b].memo + c.porU[b].reem) - (c.porU[a].memo + c.porU[a].reem) || a.localeCompare(b);
+  });
+  if(!usuarios.length){
+    body.innerHTML = '<tr><td colspan="6" class="empty">No hay documentos de ' + esc(periodoTexto(p)) + '.</td></tr>';
+  }else{
+    body.innerHTML = usuarios.map(function(u){
+      var x = c.porU[u];
+      return '<tr><td><b>' + esc(u) + '</b></td><td>' + x.memo + '</td><td>' + x.reem + '</td>' +
+             '<td><b>' + (x.memo + x.reem) + '</b></td><td>' + x.dev + '</td>' +
+             '<td>L' + fmtMoney(x.monto) + '</td></tr>';
+    }).join('') +
+    '<tr class="tot" style="background:#eef2f6;font-weight:700"><td>TOTAL</td><td>' + c.memo + '</td><td>' + c.reem +
+    '</td><td>' + suma + '</td><td>' + c.dev + '</td><td>L' + fmtMoney(c.monto) + '</td></tr>';
+  }
+
+  avisarMesesSinCerrar();
+}
+/* aviso de meses ya vencidos que tienen documentos y siguen abiertos */
+function avisarMesesSinCerrar(){
+  var box = document.getElementById('h_avisoCierre');
+  if(!box) return;
+  var hoy = new Date();
+  var actual = periodoDe(hoy.getFullYear(), hoy.getMonth()+1);
+  var vistos = {};
+  (HIST_CACHE||[]).forEach(function(m){
+    var p = infMesDeMemo(m, unpackData(m));
+    if(!p) return;
+    var per = periodoDe(p.anio, p.mes);
+    if(per < actual && !CIERRES[per]) vistos[per] = (vistos[per]||0) + 1;
+  });
+  var pend = Object.keys(vistos).sort();
+  if(!pend.length){ box.innerHTML = ''; return; }
+  var esAdmin = CURRENT.rol === 'admin';
+  box.innerHTML = '<div class="avisocierre">&#9888; Hay ' + pend.length + ' mes(es) vencido(s) sin cerrar: ' +
+    pend.map(function(p){
+      return '<b>' + esc(periodoTexto(p)) + '</b> (' + vistos[p] + ')' +
+        (esAdmin ? '<button onclick="irAPeriodo(\'' + p + '\')">Ir</button>' : '');
+    }).join(' &nbsp; ') + '</div>';
+}
+function irAPeriodo(p){
+  var m = String(p).match(/^(\d{4})-(\d{2})$/);
+  if(!m) return;
+  setVal('h_anio', m[1]);
+  setVal('h_mes', String(parseInt(m[2],10)));
+  renderCierre();
+}
+
+/* ---- cerrar / reabrir ---- */
+async function cerrarMes(){
+  if(CURRENT.rol !== 'admin'){ showMsg('h_msgCierre','err','Solo el administrador puede cerrar el mes.'); return; }
+  var mes = parseInt(val('h_mes'),10), anio = val('h_anio');
+  var p = periodoDe(anio, mes);
+  var c = contarPeriodo(anio, mes);
+  if(!confirm('Cerrar ' + periodoTexto(p) + '?\n\n' +
+              c.memo + ' memorándum(s), ' + c.reem + ' reembolso(s), ' + c.dev + ' devolución(es).\n' +
+              'Total memos + reembolsos: ' + (c.memo + c.reem) + '\n' +
+              'Monto tramitado: L' + fmtMoney(c.monto) + '\n\n' +
+              'Después de cerrarlo nadie podrá generar, corregir ni eliminar documentos de ese mes ' +
+              'hasta que el administrador lo reabra.')) return;
+  CIERRES[p] = { ts: new Date().toISOString(), usuario: CURRENT.nombre || CURRENT.user || 'admin' };
+  cierresGuardarLocal();
+  renderCierre(); renderHist();
+  await guardarCierreNube(p, true);
+}
+async function reabrirMes(){
+  if(CURRENT.rol !== 'admin'){ showMsg('h_msgCierre','err','Solo el administrador puede reabrir el mes.'); return; }
+  var mes = parseInt(val('h_mes'),10), anio = val('h_anio');
+  var p = periodoDe(anio, mes);
+  if(!confirm('Reabrir ' + periodoTexto(p) + '?\nVolverá a permitirse generar y corregir documentos de ese mes.')) return;
+  delete CIERRES[p];
+  cierresGuardarLocal();
+  renderCierre(); renderHist();
+  await guardarCierreNube(p, false);
+}
+async function guardarCierreNube(p, cerrado){
+  if(!CLOUD){
+    showMsg('h_msgCierre','ok', (cerrado?'Mes cerrado':'Mes reabierto') + ' en esta PC (modo LOCAL).');
+    return;
+  }
+  showMsg('h_msgCierre','info','Guardando el cierre en la nube...');
+  try{
+    await apiCallRetry('saveCierre', { periodo:p, cerrado:cerrado,
+      usuario: CURRENT.nombre || CURRENT.user || '', ts: (CIERRES[p] && CIERRES[p].ts) || new Date().toISOString() });
+    CIERRES_NUBE = true;
+    showMsg('h_msgCierre','ok','✓ ' + (cerrado ? 'Mes CERRADO' : 'Mes reabierto') +
+            ' en la nube: ' + periodoTexto(p) + '. Ya aplica para todos los usuarios.');
+  }catch(e){
+    CIERRES_NUBE = false;
+    showMsg('h_msgCierre','err','⚠ El cambio quedó guardado en esta PC, pero NO en la nube: ' + e.message +
+      ' — mientras tanto los demás usuarios no verán el mes cerrado. Pegue el código de AppsScript_Informes.txt ' +
+      'y publique una NUEVA VERSIÓN del despliegue.');
+  }
+}
+
 /* ==================================================================
    INFORMES MENSUALES — CLÁUSULA 55
    El cuadro de pagos y el ítem de documentación tramitada salen solos
@@ -2602,6 +2898,7 @@ var INF_ITEMS_DEF = [
 ];
 var INF_I_PAGOS    = 3;   /* "recepción documentación para pago"  -> automático */
 var INF_I_INFORMES = 6;   /* "Elaboración de informes mensuales"  -> 1 por persona */
+var INF_I_CIERRE   = 1;   /* "Hacer el proceso de cierre mensual" -> quien cerró el mes */
 var INF_I_CONST    = 2;   /* constancias de Finiquito, para la NOTA */
 var INF_I_CARNET   = 4;   /* entrega de carnets,       para la NOTA */
 var INF_I_ATEN     = 5;   /* atención a centros,       para la NOTA */
@@ -2838,7 +3135,7 @@ function infRestaurarItems(){
 
 /* ---------------- cálculo desde el historial ---------------- */
 function infMesDeMemo(m, d){
-  var iso = (m.tipo==='memo') ? (d.header.m_fecha||'') : (d.header.r_fecha||'');
+  var iso = d.header.m_fecha || d.header.r_fecha || d.header.d_fecha || '';
   var mm = String(iso).match(/^(\d{4})-(\d{2})/);
   if(mm) return { anio:mm[1], mes:parseInt(mm[2],10) };
   var n = String(m.num||'').match(/-([IVXLC]+)-(\d{4})$/i);
@@ -2896,6 +3193,12 @@ async function infRecalcular(){
   if(INF.items[INF_I_INFORMES] &&
      INF.items[INF_I_INFORMES].per.every(function(x){ return infEnt(x)===0; })){
     INF.items[INF_I_INFORMES].per = INF.personas.map(function(){ return 1; });
+  }
+  var perCierre = CIERRES[periodoDe(anio, mes)];
+  if(perCierre && INF.items[INF_I_CIERRE] &&
+     INF.items[INF_I_CIERRE].per.every(function(x){ return infEnt(x)===0; })){
+    var kc = infPersonaDe(perCierre.usuario);
+    if(kc>=0) INF.items[INF_I_CIERRE].per[kc] = 1;
   }
   infAjustarPersonas(INF);
   infPintarCuadro(); infPintarMatriz(); infTotales();
