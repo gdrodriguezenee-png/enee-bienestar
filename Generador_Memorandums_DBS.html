@@ -935,6 +935,7 @@ var PERMISOS = [
   {k:'reem', nom:'Reembolso',   tab:'tabReem'},
   {k:'dev',  nom:'Devoluci\u00f3n',  tab:'tabDev'},
   {k:'hist', nom:'Historial',   tab:'tabHist'},
+  {k:'inf',  nom:'Informes',    tab:'tabInf'},
   {k:'emp',  nom:'Empleados',   tab:'tabEmp',  nube:true},
   {k:'prov', nom:'Proveedores', tab:'tabProv', nube:true},
   {k:'imp',  nom:'Importar Word ya hecho'},
@@ -971,9 +972,6 @@ function aplicarPermisos(){
   /* Usuarios sigue siendo exclusivo del administrador. */
   var tu = document.getElementById('tabUsers');
   if(tu) tu.classList.toggle('hidden', !(esAdmin && CLOUD));
-  /* Informes: solo el administrador */
-  var ti = document.getElementById('tabInf');
-  if(ti) ti.classList.toggle('hidden', !esAdmin);
   /* botones de Importar Word ya hecho */
   document.querySelectorAll('button').forEach(function(b){
     var oc = b.getAttribute('onclick') || '';
@@ -2330,7 +2328,7 @@ function pintarPermisosForm(marcados){
   });
   h += esAdmin
      ? '<p class="nota">Un administrador siempre ve todo; estas casillas no aplican.</p>'
-     : '<p class="nota">Empleados y Proveedores necesitan modo nube. La pesta\u00f1a Usuarios es exclusiva del administrador.</p>';
+     : '<p class="nota">Empleados y Proveedores necesitan modo nube. La pesta\u00f1a Usuarios es exclusiva del administrador. Cerrar y reabrir el mes tambi\u00e9n queda solo para el administrador, aunque el usuario tenga Informes.</p>';
   box.innerHTML = h;
 }
 function leerPermisosForm(){
