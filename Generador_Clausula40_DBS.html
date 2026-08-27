@@ -260,6 +260,9 @@ tbody tr.repetido:hover td{background:#fbe3e3}
         <datalist id="dl-para"><option value="Lic. Ana Lourdes Aguilar"></datalist>
       </div>
 
+      <div class="warn" id="f-cierre" style="display:none;border-color:#e8a0a0;
+        background:#fdf0f0;color:#8a1f2a"></div>
+
       <div class="card">
         <h3>Empleados</h3>
         <div class="acciones" style="margin-bottom:13px">
@@ -376,14 +379,14 @@ tbody tr.repetido:hover td{background:#fbe3e3}
         <div class="grid g4">
           <div><label>Elaborado por</label><select id="i-usuario" onchange="renderInforme()"></select></div>
           <div><label>Mes</label>
-            <select id="i-mes" onchange="renderInforme()">
+            <select id="i-mes" onchange="renderInforme(); renderCierres()">
               <option value="1">enero</option><option value="2">febrero</option><option value="3">marzo</option>
               <option value="4">abril</option><option value="5">mayo</option><option value="6">junio</option>
               <option value="7">julio</option><option value="8">agosto</option><option value="9">septiembre</option>
               <option value="10">octubre</option><option value="11">noviembre</option><option value="12">diciembre</option>
             </select>
           </div>
-          <div><label>Año</label><input id="i-anio" type="number" oninput="renderInforme()"></div>
+          <div><label>Año</label><input id="i-anio" type="number" oninput="renderInforme(); renderCierres()"></div>
           <div><label>Área</label><input id="i-area" oninput="guardarConfigInforme()"></div>
         </div>
         <div class="grid g2" style="margin-top:13px">
@@ -439,6 +442,28 @@ tbody tr.repetido:hover td{background:#fbe3e3}
           <div class="kpi"><div class="lbl">Trámites</div><div class="val" id="i-k-tram">0</div></div>
           <div class="kpi"><div class="lbl">Beneficiarios</div><div class="val" id="i-k-benef">0</div></div>
           <div class="kpi verde"><div class="lbl">Monto del mes</div><div class="val" id="i-k-monto">L 0.00</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cierre de mes</h3>
+        <div class="acciones" style="margin-bottom:13px">
+          <button class="danger" onclick="cerrarMes()">Cerrar el mes mostrado</button>
+          <button class="sec" onclick="cargarCierresSheets()">Actualizar</button>
+          <span id="i-estado"></span>
+        </div>
+        <div class="hint" style="margin-bottom:12px">
+          Al cerrar un mes, quien elabore un memorando con fecha de ese período
+          recibe un aviso antes de generarlo. No lo impide, solo advierte.
+        </div>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:170px">Período</th><th>Cerrado por</th>
+              <th style="width:170px">Fecha</th><th>Nota</th><th style="width:110px"></th>
+            </tr></thead>
+            <tbody id="c-tb"></tbody>
+          </table>
         </div>
       </div>
 
@@ -808,7 +833,8 @@ var URL_SCRIPT = 'https://script.google.com/macros/s/AKfycbyi9q4T_UGeFtRXwzhcSD4
 /* ---------------- CONSTANTES ---------------- */
 var LS = {
   cfg:'c40_cfg', emp:'c40_empleados', hist:'c40_historial',
-  draft:'c40_borrador', user:'c40_usuario', usuarios:'c40_usuarios'
+  draft:'c40_borrador', user:'c40_usuario', usuarios:'c40_usuarios',
+  cierres:'c40_cierres'
 };
 /* Cada usuario tiene su propio borrador: al entrar con otra cuenta no se
    arrastra lo que dejó escrito la anterior. */
@@ -983,6 +1009,7 @@ function cargarTodo(){
   if(!CFG.hojaUsr)  CFG.hojaUsr = 'Usuarios40';
   if(!CFG.hojaCfg)  CFG.hojaCfg = 'Config40';
   if(!CFG.hojaInf)  CFG.hojaInf = 'Informes40';
+  if(!CFG.hojaCie)  CFG.hojaCie = 'Cierres40';
   if(!CFG.jefe)     CFG.jefe = 'LIC. CINTHIA ISABEL MURILLO';
   if(!CFG.jefeCargo)CFG.jefeCargo = 'Jefe Depto. De Bienestar Social';
   if(!CFG.vb)       CFG.vb = 'LIC. PAOLA ISEL ARRIAZA';
@@ -998,6 +1025,7 @@ function cargarTodo(){
     guardarLS(LS.emp, EMPLEADOS);
   }
   HISTORIAL = leerLS(LS.hist, []);
+  CIERRES   = leerLS(LS.cierres, []);
 
   USUARIOS = leerLS(LS.usuarios, null);
   if(!USUARIOS || !USUARIOS.length){
@@ -1096,7 +1124,7 @@ function iniciarApp(){
    NAVEGACIÓN
    ========================================================= */
 function irTab(t){
-  if(t === 'Nuevo') refrescarFechaHoy();
+  if(t === 'Nuevo'){ refrescarFechaHoy(); avisarCierre(); }
   if(t === 'Informe'){ poblarUsuariosInforme(); renderInforme(); }
   var b = document.querySelectorAll('.tab-btn');
   for(var i=0;i<b.length;i++) b[i].className = 'tab-btn' + (b[i].getAttribute('data-t')===t ? ' active' : '');
@@ -1303,6 +1331,7 @@ function armarNo(){
   $('f-no').value = 'DBS-' + corr + '-' + ROMANOS[mes-1] + '-' + anio;
   $('f-anio').value = anio;
   avisarNumeroUsado();
+  avisarCierre();
   guardarBorrador();
 }
 
@@ -1780,6 +1809,7 @@ function tablaDatos(pares){
 function validar(){
   if(!FILAS.length){ toast('Agregue al menos un empleado.','err'); return false; }
   if(!$('f-dep').value.trim()){ toast('Indique la dependencia de los empleados.','err'); return false; }
+  if(!permiteMesCerrado()) return false;
   return true;
 }
 function vistaPrevia(){
@@ -2368,6 +2398,7 @@ function sincronizar(silencioso){
   cargarUsuariosSheets(null, silencioso);
   cargarConfigSheets(null, silencioso);
   cargarInformesSheets(null, silencioso);
+  cargarCierresSheets(null, silencioso);
 }
 function leerMemosSheets(silencioso){
   apiGet(CFG.hoja, function(datos){
@@ -4942,6 +4973,8 @@ function pintarInforme(){
   poblarUsuariosInforme();
   renderInforme();
   renderInformesGenerados();
+  renderCierres();
+  avisarCierre();
 }
 /* -------- Un mismo nombre escrito de varias formas --------
    En el historial hay memorandos guardados como "Rosa", "Rosa García" o
@@ -5931,6 +5964,7 @@ function verInforme(i){
   var mes = MESES.indexOf(g.mes) + 1;
   if(mes) $('i-mes').value = String(mes);
   $('i-anio').value = g.anio;
+  renderCierres();
   poblarUsuariosInforme();
   var sel = $('i-usuario');
   var destino = (g.de === 'Todos los usuarios') ? '__todos' : g.de;
@@ -5940,6 +5974,149 @@ function verInforme(i){
   renderInforme();
   window.scrollTo(0, 0);
   toast('Mostrando el informe de ' + g.mes + ' ' + g.anio + '.','ok');
+}
+
+
+/* =========================================================
+   CIERRE DE MES
+   Al cerrar un mes queda constancia y la aplicación avisa a
+   quien intente elaborar un memorando con fecha de ese mes.
+   ========================================================= */
+var CIERRES = [];
+var cierresVersion = 0;   // evita que una lectura en camino pise un cambio recién hecho
+function claveCierre(anio, mes){ return String(anio) + '-' + String(mes); }
+function mesCerrado(anio, mes){
+  var k = claveCierre(anio, mes);
+  for(var i=0;i<CIERRES.length;i++) if(claveCierre(CIERRES[i].anio, CIERRES[i].mes) === k) return CIERRES[i];
+  return null;
+}
+function cierreDeFecha(iso){
+  var p = String(iso||'').split('-');
+  if(p.length !== 3) return null;
+  return mesCerrado(p[0], parseInt(p[1],10));
+}
+function cargarCierresSheets(cb, silencioso){
+  if(!CFG.url){ if(cb) cb(false); return; }
+  var version = cierresVersion;
+  apiGet(CFG.hojaCie, function(datos){
+    if(version !== cierresVersion){ if(cb) cb(true); return; }
+    if(!datos || !datos.filas){
+      if(!silencioso) toast(ULTIMO_ERROR || 'No se pudo leer la hoja de cierres.','err');
+      if(cb) cb(false); return;
+    }
+    var f = datos.filas, ini = 0;
+    if(f.length && String(f[0][0]||'').trim().toUpperCase() === 'ANIO') ini = 1;
+    CIERRES = [];
+    for(var i=ini;i<f.length;i++){
+      var r = f[i];
+      if(!r || !String(r[0]==null?'':r[0]).trim()) continue;
+      CIERRES.push({
+        anio: String(r[0]).trim(), mes: parseInt(r[1],10),
+        mesNombre: String(r[2]==null?'':r[2]).trim(),
+        por: String(r[3]==null?'':r[3]), fecha: String(r[4]==null?'':r[4]),
+        nota: String(r[5]==null?'':r[5])
+      });
+    }
+    guardarLS(LS.cierres, CIERRES);
+    renderCierres();
+    avisarCierre();
+    if(cb) cb(true);
+  });
+}
+function enviarCierresSheets(){
+  if(!CFG.url) return;
+  var filas = [['ANIO','MES','MES_NOMBRE','CERRADO_POR','FECHA','NOTA']];
+  for(var i=0;i<CIERRES.length;i++){
+    var c = CIERRES[i];
+    filas.push([c.anio, c.mes, c.mesNombre, c.por, c.fecha, c.nota]);
+  }
+  apiPost({accion:'reescribir', tipo:CFG.hojaCie, filas:filas}, function(){});
+}
+function cerrarMes(){
+  if(!esAdmin()){ toast('Solo un administrador puede cerrar el mes.','err'); return; }
+  var mes = parseInt($('i-mes').value,10);
+  var anio = String($('i-anio').value||'').trim();
+  var nombre = MESES[mes-1] || '';
+  if(mesCerrado(anio, mes)){ toast('Ese mes ya está cerrado.','err'); return; }
+  var lista = memosInforme();
+  if(!confirm('¿Cerrar ' + nombre + ' ' + anio + '?\n\n'
+    + 'Quedan ' + HISTORIAL.length + ' memorandos en el historial y el período '
+    + 'muestra ' + lista.length + ' trámites.\n\n'
+    + 'A partir de ahora, quien elabore un memorando con fecha de ese mes '
+    + 'recibirá un aviso. Puede reabrirlo cuando quiera.')) return;
+  var nota = prompt('Nota del cierre (opcional):', '') || '';
+  cierresVersion++;
+  CIERRES.push({
+    anio: anio, mes: mes, mesNombre: nombre,
+    por: usuarioActual ? (usuarioActual.completo || usuarioActual.nombre) : '',
+    fecha: new Date().toLocaleString('es-HN'),
+    nota: nota
+  });
+  guardarLS(LS.cierres, CIERRES);
+  enviarCierresSheets();
+  registrarBitacora('Cerro mes', nombre + ' ' + anio, nota);
+  renderCierres(); renderInforme(); avisarCierre();
+  toast(nombre + ' ' + anio + ' quedó cerrado.','ok');
+}
+function reabrirMes(i){
+  if(!esAdmin()){ toast('Solo un administrador puede reabrir el mes.','err'); return; }
+  var c = CIERRES[i];
+  if(!c) return;
+  if(!confirm('¿Reabrir ' + c.mesNombre + ' ' + c.anio + '? Dejará de avisar.')) return;
+  cierresVersion++;
+  CIERRES.splice(i,1);
+  guardarLS(LS.cierres, CIERRES);
+  enviarCierresSheets();
+  registrarBitacora('Reabrio mes', c.mesNombre + ' ' + c.anio, '');
+  renderCierres(); renderInforme(); avisarCierre();
+  toast(c.mesNombre + ' ' + c.anio + ' quedó abierto de nuevo.','ok');
+}
+function renderCierres(){
+  if(!$('c-tb')) return;
+  var admin = esAdmin(), h = '';
+  for(var i=0;i<CIERRES.length;i++){
+    var c = CIERRES[i];
+    h += '<tr><td><b>' + esc(c.mesNombre) + ' ' + esc(c.anio) + '</b></td>'
+      + '<td>' + esc(c.por) + '</td><td>' + esc(c.fecha) + '</td>'
+      + '<td>' + esc(c.nota || '') + '</td>'
+      + '<td>' + (admin ? '<button class="sec" onclick="reabrirMes(' + i + ')">Reabrir</button>' : '')
+      + '</td></tr>';
+  }
+  if(!CIERRES.length){
+    h = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#8899aa">'
+      + 'Ningún mes cerrado.</td></tr>';
+  }
+  $('c-tb').innerHTML = h;
+  // Estado del período que se está viendo
+  var cer = mesCerrado($('i-anio').value, parseInt($('i-mes').value,10));
+  if($('i-estado')){
+    $('i-estado').innerHTML = cer
+      ? '<span class="badge" style="background:#fdecec;color:#cc2233">Mes cerrado el '
+        + esc(cer.fecha) + ' por ' + esc(cer.por) + '</span>'
+      : '<span class="badge">Mes abierto</span>';
+  }
+}
+/* Aviso en el formulario del memorando. */
+function avisarCierre(){
+  var caja = $('f-cierre');
+  if(!caja) return;
+  var c = cierreDeFecha($('f-fecha').value);
+  if(!c){ caja.style.display = 'none'; caja.innerHTML = ''; return; }
+  caja.style.display = '';
+  caja.innerHTML = '<b>El mes de ' + esc(c.mesNombre) + ' ' + esc(c.anio)
+    + ' ya fue cerrado</b> el ' + esc(c.fecha) + ' por ' + esc(c.por) + '.'
+    + (c.nota ? ' ' + esc(c.nota) : '')
+    + '<br>Este memorando quedaría fuera del informe ya entregado. Cambie la fecha '
+    + 'o consulte con la jefatura antes de continuar.';
+}
+/* Confirmación antes de generar o guardar en un mes cerrado. */
+function permiteMesCerrado(){
+  var c = cierreDeFecha($('f-fecha').value);
+  if(!c) return true;
+  return confirm('El mes de ' + c.mesNombre + ' ' + c.anio + ' está cerrado desde el '
+    + c.fecha + ' (' + c.por + ').\n\n'
+    + 'El informe de ese mes ya fue entregado y este memorando no aparecería en él.\n\n'
+    + '¿Continuar de todas formas?');
 }
 
 /* =========================================================
