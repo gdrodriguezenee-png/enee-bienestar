@@ -434,11 +434,34 @@ tbody tr.repetido:hover td{background:#fbe3e3}
             </tr></tfoot>
           </table>
         </div>
-        <div class="resumen" style="grid-template-columns:repeat(3,1fr)">
+        <div class="resumen" style="grid-template-columns:repeat(3,1fr)" id="i-resumen">
           <div class="kpi"><div class="lbl">Trámites</div><div class="val" id="i-k-tram">0</div></div>
           <div class="kpi"><div class="lbl">Beneficiarios</div><div class="val" id="i-k-benef">0</div></div>
           <div class="kpi verde"><div class="lbl">Monto del mes</div><div class="val" id="i-k-monto">L 0.00</div></div>
         </div>
+      </div>
+
+      <div class="card">
+        <h3>Informes generados</h3>
+        <div class="acciones" style="margin-bottom:13px">
+          <button class="sec" onclick="cargarInformesSheets()">Actualizar lista</button>
+          <span class="hint">Los que ha generado todo el equipo, con su período y sus totales.</span>
+        </div>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:150px">Período</th><th>Elaborado por</th>
+              <th style="width:90px;text-align:right">Trámites</th>
+              <th style="width:110px;text-align:right">Beneficiarios</th>
+              <th style="width:130px;text-align:right">Monto</th>
+              <th style="width:80px">Formato</th>
+              <th>Generado por</th><th style="width:160px">Fecha</th>
+              <th style="width:80px"></th>
+            </tr></thead>
+            <tbody id="g-tb"></tbody>
+          </table>
+        </div>
+        <div class="hint" id="g-cont">0 informes</div>
       </div>
     </section>
 
@@ -957,6 +980,8 @@ function cargarTodo(){
   if(!CFG.hoja)     CFG.hoja = 'Clausula40';
   if(!CFG.hojaEmp)  CFG.hojaEmp = 'Empleados40';
   if(!CFG.hojaUsr)  CFG.hojaUsr = 'Usuarios40';
+  if(!CFG.hojaCfg)  CFG.hojaCfg = 'Config40';
+  if(!CFG.hojaInf)  CFG.hojaInf = 'Informes40';
   if(!CFG.jefe)     CFG.jefe = 'LIC. CINTHIA ISABEL MURILLO';
   if(!CFG.jefeCargo)CFG.jefeCargo = 'Jefe Depto. De Bienestar Social';
   if(!CFG.vb)       CFG.vb = 'LIC. PAOLA ISEL ARRIAZA';
@@ -2346,26 +2371,53 @@ function sincronizar(silencioso){
   });
   cargarEmpleadosSheets(null, silencioso);
   cargarUsuariosSheets(null, silencioso);
+  cargarConfigSheets(null, silencioso);
+  cargarInformesSheets(null, silencioso);
 }
 function fusionarMemos(filas){
-  var existentes = {};
-  for(var i=0;i<HISTORIAL.length;i++) existentes[HISTORIAL[i].no] = true;
-  // Si la primera fila es el encabezado la saltamos; si no, leemos desde la 0.
+  // La hoja manda: lo que esté ahí también corrige lo que ya había guardado
+  // en este equipo, para que todos vean los mismos datos.
+  var porNumero = {}, i, vistos = {};
+  for(i=0;i<HISTORIAL.length;i++){
+    var k = String(HISTORIAL[i].no||'').trim();
+    if(k && !porNumero[k]) porNumero[k] = HISTORIAL[i];
+  }
   var inicio = 0;
   if(filas.length && String(filas[0][0]||'').trim().toUpperCase() === 'NO_MEMORANDO') inicio = 1;
   for(var j=inicio;j<filas.length;j++){
     var f = filas[j];
     if(!f || !f[0]) continue;
-    if(existentes[f[0]]) continue;
-    existentes[f[0]] = true;   // evita traer dos veces el mismo número
+    var no = String(f[0]).trim();
+    if(vistos[no]) continue;
+    vistos[no] = true;
     var det = [];
     try{ det = JSON.parse(f[11] || '[]'); }catch(e){ det = []; }
-    HISTORIAL.push({
-      id:'SH-'+f[0], no:f[0], fecha:String(f[1]||'').slice(0,10), dep:f[2]||'',
-      mesPago:f[3]||'', anioPago:String(f[4]||''), empleados:num(f[5]), cenas:num(f[6]),
-      valorCena:num(f[7]), total:num(f[8]), usuario:f[9]||'', registrado:f[10]||'',
-      letras:'', para:'', cargo:'', asunto:'PAGO DE CLÁUSULA N.º 40', detalle:det
-    });
+    var datos = {
+      no: no,
+      fecha: String(f[1]||'').slice(0,10),
+      dep: f[2]||'',
+      mesPago: f[3]||'',
+      anioPago: String(f[4]||''),
+      empleados: num(f[5]),
+      cenas: num(f[6]),
+      valorCena: num(f[7]),
+      total: num(f[8]),
+      usuario: f[9]||'',
+      registrado: f[10]||'',
+      detalle: det,
+      gerencia: String(f[12]==null?'':f[12]).trim() || inferirGerencia(f[2]||''),
+      observacion: String(f[13]==null?'':f[13]).trim()
+    };
+    datos.letras = numeroALetras(datos.total);
+    var actual = porNumero[no];
+    if(actual){
+      for(var campo in datos) if(datos.hasOwnProperty(campo)) actual[campo] = datos[campo];
+    } else {
+      datos.id = 'SH-' + no;
+      datos.para = ''; datos.cargo = ''; datos.asunto = 'PAGO DE CLÁUSULA N.º 40';
+      HISTORIAL.push(datos);
+      porNumero[no] = datos;
+    }
   }
   HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
   guardarLS(LS.hist, HISTORIAL);
@@ -2375,7 +2427,8 @@ function enviarMemoSheets(reg, comoFilaNueva){
     accion: comoFilaNueva ? 'agregar' : 'guardar', tipo:CFG.hoja,
     cols:[reg.no, reg.fecha, reg.dep, reg.mesPago, reg.anioPago, reg.empleados,
           reg.cenas, reg.valorCena, reg.total, reg.usuario, reg.registrado,
-          JSON.stringify(reg.detalle)]
+          JSON.stringify(reg.detalle), reg.gerencia || inferirGerencia(reg.dep),
+          reg.observacion || '']
   }, function(ok){
     estadoSync(ok, ok ? 'Guardado en Sheets' : 'Guardado solo local');
     if(ok) registrarBitacora('Agrego', reg.no, 'L ' + fmt(reg.total) + ' — ' + reg.dep);
@@ -4820,21 +4873,12 @@ var HEADER_SOLO_MEMBRETE = [
 function pintarInforme(){
   var hoy = new Date();
   if(!$('i-anio').value) $('i-anio').value = hoy.getFullYear();
-  $('i-mes').value  = String(hoy.getMonth()+1);
-  $('i-area').value = CFG.area || 'Trabajo social';
-  // Si quedó guardado el nombre anterior de la Dirección, se corrige solo.
-  if(CFG.infDir === 'DIRECCIÓN DE TALENTO HUMANO'){
-    CFG.infDir = 'DIRECCIÓN DE DESARROLLO HUMANO';
-    guardarLS(LS.cfg, CFG);
-  }
-  $('i-dir').value  = CFG.infDir || 'DIRECCIÓN DE DESARROLLO HUMANO';
-  $('i-dep').value  = CFG.infDep || 'DEPARTAMENTO DE BIENESTAR SOCIAL';
-  $('i-fecha').value     = CFG.infFecha || hoyISO();
-  $('i-para').value      = CFG.infPara || 'Lic. Cinthia Murillo';
-  $('i-paracargo').value = CFG.infParaCargo || 'Jefe del Depto. De Bienestar Social.';
-  $('i-firmas').value    = (CFG.infFirmas || ['Adriana Salinas','Rosa García','Daniela Cruz']).join('\n');
+  $('i-mes').value   = String(hoy.getMonth()+1);
+  $('i-fecha').value = CFG.infFecha || hoyISO();
+  pintarCamposInforme();
   poblarUsuariosInforme();
   renderInforme();
+  renderInformesGenerados();
 }
 /* -------- Un mismo nombre escrito de varias formas --------
    En el historial hay memorandos guardados como "Rosa", "Rosa García" o
@@ -4882,6 +4926,19 @@ function poblarUsuariosInforme(){
   if(act && vistos[act]) sel.value = act;
   else if(usuarioActual) sel.value = usuarioActual.completo || usuarioActual.nombre;
 }
+function pintarCamposInforme(){
+  if(!$('i-area')) return;
+  $('i-area').value = CFG.area || 'Trabajo social';
+  if(CFG.infDir === 'DIRECCIÓN DE TALENTO HUMANO'){
+    CFG.infDir = 'DIRECCIÓN DE DESARROLLO HUMANO';
+    guardarLS(LS.cfg, CFG);
+  }
+  $('i-dir').value       = CFG.infDir || 'DIRECCIÓN DE DESARROLLO HUMANO';
+  $('i-dep').value       = CFG.infDep || 'DEPARTAMENTO DE BIENESTAR SOCIAL';
+  $('i-para').value      = CFG.infPara || 'Lic. Cinthia Murillo';
+  $('i-paracargo').value = CFG.infParaCargo || 'Jefe del Depto. De Bienestar Social.';
+  $('i-firmas').value    = (CFG.infFirmas || ['Adriana Salinas','Rosa García','Daniela Cruz']).join('\n');
+}
 function guardarConfigInforme(){
   CFG.area   = $('i-area').value;
   CFG.infDir = $('i-dir').value;
@@ -4891,6 +4948,7 @@ function guardarConfigInforme(){
   CFG.infParaCargo = $('i-paracargo').value;
   CFG.infFirmas    = String($('i-firmas').value||'').split('\n');
   guardarLS(LS.cfg, CFG);
+  enviarConfigSheets();   // los mismos ajustes para todo el equipo
 }
 /* Los memorandos del período elegido. */
 function memosInforme(){
@@ -4946,9 +5004,13 @@ function renderInforme(){
 }
 function setObservacion(id, texto){
   for(var i=0;i<HISTORIAL.length;i++){
-    if(HISTORIAL[i].id === id){ HISTORIAL[i].observacion = texto; break; }
+    if(HISTORIAL[i].id === id){
+      HISTORIAL[i].observacion = texto;
+      guardarLS(LS.hist, HISTORIAL);
+      if(CFG.url) enviarMemoSheets(HISTORIAL[i]);   // para que la vean los demás
+      return;
+    }
   }
-  guardarLS(LS.hist, HISTORIAL);
 }
 function fechaCorta(iso){
   var p = String(iso||'').split('-');
@@ -5069,6 +5131,9 @@ function generarInformeExcel(){
   var nombre = 'Informe_C40_' + (MESES[parseInt($('i-mes').value,10)-1]||'') + '_'
     + $('i-anio').value + '.xls';
   bajarBlob(new Blob([x.join('')], {type:'application/vnd.ms-excel;charset=utf-8'}), nombre);
+  var mt = 0, bf = 0;
+  for(var z=0;z<lista.length;z++){ mt += num(lista[z].total); bf += num(lista[z].empleados); }
+  registrarInforme('Excel', lista, mt, bf);
   toast('Informe generado con fórmulas de totales.','ok');
 }
 function imprimirInforme(){
@@ -5126,9 +5191,13 @@ function inferirGerencia(dep){
 function gerenciaDe(m){ return m.gerencia || inferirGerencia(m.dep); }
 function setGerencia(id, valor){
   for(var i=0;i<HISTORIAL.length;i++){
-    if(HISTORIAL[i].id === id){ HISTORIAL[i].gerencia = valor; break; }
+    if(HISTORIAL[i].id === id){
+      HISTORIAL[i].gerencia = valor;
+      guardarLS(LS.hist, HISTORIAL);
+      if(CFG.url) enviarMemoSheets(HISTORIAL[i]);
+      break;
+    }
   }
-  guardarLS(LS.hist, HISTORIAL);
   renderInforme();
 }
 function opcionesGerencia(actual){
@@ -5328,6 +5397,7 @@ function generarInformeWord(){
     bajarBlob(new Blob([bytes],
       {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),
       'INFORME_MENSUAL_C40_' + d.mes + '_' + d.anio + '.docx');
+    registrarInforme('Word', lista, monto, benef);
     toast('Informe en Word generado.','ok');
   }catch(e){
     console.error(e);
@@ -5677,6 +5747,134 @@ function procesarPegadoMemos(){
   cerrar('m-pegar');
   if(!lista.length){ toast('No se reconoció ninguna fila con memorando, fecha y monto.','err'); return; }
   guardarAnteriores(lista);
+}
+
+
+/* =========================================================
+   AJUSTES DEL INFORME COMPARTIDOS (hoja Config40)
+   Para que el encabezado, el área, el destinatario y los
+   firmantes sean iguales para todo el equipo.
+   ========================================================= */
+var CAMPOS_INFORME = ['area','infDir','infDep','infPara','infParaCargo','infFirmas'];
+function cargarConfigSheets(cb, silencioso){
+  if(!CFG.url){ if(cb) cb(false); return; }
+  apiGet(CFG.hojaCfg, function(datos){
+    if(!datos || !datos.filas){ if(cb) cb(false); return; }
+    var f = datos.filas, ini = 0, aplicados = 0;
+    if(f.length && String(f[0][0]||'').trim().toUpperCase() === 'CLAVE') ini = 1;
+    for(var i=ini;i<f.length;i++){
+      var clave = String(f[i][0]==null?'':f[i][0]).trim();
+      if(CAMPOS_INFORME.indexOf(clave) < 0) continue;
+      var valor = String(f[i][1]==null?'':f[i][1]);
+      CFG[clave] = (clave === 'infFirmas') ? valor.split('|') : valor;
+      aplicados++;
+    }
+    if(aplicados){
+      guardarLS(LS.cfg, CFG);
+      if($('i-area')) pintarCamposInforme();
+    }
+    if(cb) cb(true);
+  });
+}
+function enviarConfigSheets(){
+  if(!CFG.url || !esAdmin()) return;
+  var filas = [['CLAVE','VALOR']];
+  for(var i=0;i<CAMPOS_INFORME.length;i++){
+    var c = CAMPOS_INFORME[i], v = CFG[c];
+    if(v == null) continue;
+    filas.push([c, (c === 'infFirmas') ? (v.join ? v.join('|') : String(v)) : String(v)]);
+  }
+  apiPost({accion:'reescribir', tipo:CFG.hojaCfg, filas:filas}, function(){});
+}
+
+/* =========================================================
+   INFORMES GENERADOS (hoja Informes40)
+   ========================================================= */
+var INFORMES = [];
+function registrarInforme(formato, lista, monto, benef){
+  var reg = {
+    mes: MESES[parseInt($('i-mes').value,10)-1] || '',
+    anio: $('i-anio').value,
+    de: $('i-usuario').value === '__todos' ? 'Todos los usuarios' : $('i-usuario').value,
+    tramites: lista.length,
+    benef: benef,
+    monto: monto,
+    formato: formato,
+    generadoPor: usuarioActual ? (usuarioActual.completo || usuarioActual.nombre) : '',
+    generadoEl: new Date().toLocaleString('es-HN')
+  };
+  INFORMES.unshift(reg);
+  renderInformesGenerados();
+  if(!CFG.url) return;
+  apiPost({accion:'agregar', tipo:CFG.hojaInf,
+    cols:[reg.mes, reg.anio, reg.de, reg.tramites, reg.benef, reg.monto,
+          reg.formato, reg.generadoPor, reg.generadoEl]}, function(){});
+}
+function cargarInformesSheets(cb, silencioso){
+  if(!CFG.url){ if(cb) cb(false); return; }
+  apiGet(CFG.hojaInf, function(datos){
+    if(!datos || !datos.filas){
+      if(!silencioso) toast(ULTIMO_ERROR || 'No se pudo leer la hoja de informes.','err');
+      if(cb) cb(false); return;
+    }
+    var f = datos.filas, ini = 0;
+    if(f.length && String(f[0][0]||'').trim().toUpperCase() === 'MES') ini = 1;
+    INFORMES = [];
+    for(var i=ini;i<f.length;i++){
+      var r = f[i];
+      if(!r || !String(r[0]==null?'':r[0]).trim()) continue;
+      INFORMES.push({
+        mes: String(r[0]).trim(), anio: String(r[1]==null?'':r[1]).trim(),
+        de: String(r[2]==null?'':r[2]), tramites: num(r[3]), benef: num(r[4]),
+        monto: num(r[5]), formato: String(r[6]==null?'':r[6]),
+        generadoPor: String(r[7]==null?'':r[7]), generadoEl: String(r[8]==null?'':r[8])
+      });
+    }
+    INFORMES.reverse();
+    renderInformesGenerados();
+    if(cb) cb(true);
+  });
+}
+function renderInformesGenerados(){
+  if(!$('g-tb')) return;
+  var h = '';
+  for(var i=0;i<INFORMES.length;i++){
+    var g = INFORMES[i];
+    h += '<tr>'
+      + '<td><b>' + esc(g.mes) + ' ' + esc(g.anio) + '</b></td>'
+      + '<td>' + esc(g.de) + '</td>'
+      + '<td style="text-align:right">' + g.tramites + '</td>'
+      + '<td style="text-align:right">' + g.benef + '</td>'
+      + '<td style="text-align:right;font-weight:600;color:#1a7a44">L ' + fmt(g.monto) + '</td>'
+      + '<td>' + esc(g.formato) + '</td>'
+      + '<td>' + esc(g.generadoPor) + '</td>'
+      + '<td>' + esc(g.generadoEl) + '</td>'
+      + '<td><button class="sec" onclick="verInforme(' + i + ')">Ver</button></td>'
+      + '</tr>';
+  }
+  if(!INFORMES.length){
+    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
+      + 'Todavía no se ha generado ningún informe.</td></tr>';
+  }
+  $('g-tb').innerHTML = h;
+  $('g-cont').textContent = INFORMES.length + ' informe(s) registrado(s)';
+}
+/* Vuelve a mostrar en pantalla el período de un informe ya generado. */
+function verInforme(i){
+  var g = INFORMES[i];
+  if(!g) return;
+  var mes = MESES.indexOf(g.mes) + 1;
+  if(mes) $('i-mes').value = String(mes);
+  $('i-anio').value = g.anio;
+  poblarUsuariosInforme();
+  var sel = $('i-usuario');
+  var destino = (g.de === 'Todos los usuarios') ? '__todos' : g.de;
+  var existe = false;
+  for(var k=0;k<sel.options.length;k++) if(sel.options[k].value === destino) existe = true;
+  sel.value = existe ? destino : '__todos';
+  renderInforme();
+  window.scrollTo(0, 0);
+  toast('Mostrando el informe de ' + g.mes + ' ' + g.anio + '.','ok');
 }
 
 /* =========================================================
