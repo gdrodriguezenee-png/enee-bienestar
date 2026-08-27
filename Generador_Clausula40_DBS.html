@@ -317,6 +317,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
           <input id="h-buscar" placeholder="Buscar por N.º, dependencia o mes…" style="max-width:320px" oninput="renderHist()">
           <select id="h-anio" style="max-width:150px" onchange="renderHist()"><option value="">Todos los años</option></select>
           <button class="sec" onclick="sincronizar()">Sincronizar</button>
+          <button class="sec" id="btn-pend" style="display:none" onclick="subirPendientesAhora()">Subir pendientes</button>
           <button class="ok" onclick="nuevoAnterior()">Registrar memorando anterior</button>
           <button class="sec" onclick="abrirPegarMemos()">Importar desde Excel</button>
           <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
@@ -2029,7 +2030,9 @@ function renderHist(){
       + '<td style="text-align:right">'+m.empleados+'</td>'
       + '<td style="text-align:right">'+m.cenas+'</td>'
       + '<td style="text-align:right;font-weight:600;color:#1a7a44">L '+fmt(m.total)+'</td>'
-      + '<td>'+esc(m.usuario||'')+'</td>'
+      + '<td>'+esc(m.usuario||'')
+      + (m.pendiente ? ' <span class="marca-dup" style="background:#fff4e0;color:#7a5800;'
+        + 'border-color:#f0d79a">sin subir</span>' : '') + '</td>'
       + '<td><button class="sec" onclick="cargarMemo(\''+m.id+'\')">Cargar</button> '
       + '<button class="sec" onclick="editarMemo(\''+m.id+'\')">Editar</button> '
       + '<button class="bdel" onclick="borrarMemo(\''+m.id+'\')">&times;</button></td>'
@@ -2037,7 +2040,10 @@ function renderHist(){
   }
   if(!n) h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">Sin memorandos.</td></tr>';
   $('h-tb').innerHTML = h;
-  $('h-cont').textContent = n + ' de ' + HISTORIAL.length + ' memorandos';
+  var pend = memosPendientes().length;
+  $('h-cont').textContent = n + ' de ' + HISTORIAL.length + ' memorandos'
+    + (pend ? ' · ' + pend + ' sin subir a la hoja' : '');
+  if($('btn-pend')) $('btn-pend').style.display = pend ? '' : 'none';
   poblarAnios();
 }
 function poblarAnios(){
@@ -2357,6 +2363,13 @@ function sincronizar(silencioso){
   }
   estadoSync(null, 'Sincronizando…');
   if(!silencioso) cargando(true, 'Conectando con Google Sheets…');
+  subirPendientes(function(){ leerMemosSheets(silencioso); });
+  cargarEmpleadosSheets(null, silencioso);
+  cargarUsuariosSheets(null, silencioso);
+  cargarConfigSheets(null, silencioso);
+  cargarInformesSheets(null, silencioso);
+}
+function leerMemosSheets(silencioso){
   apiGet(CFG.hoja, function(datos){
     if(datos && datos.filas){
       fusionarMemos(datos.filas);
@@ -2369,15 +2382,12 @@ function sincronizar(silencioso){
     }
     cargando(false);
   });
-  cargarEmpleadosSheets(null, silencioso);
-  cargarUsuariosSheets(null, silencioso);
-  cargarConfigSheets(null, silencioso);
-  cargarInformesSheets(null, silencioso);
 }
 function fusionarMemos(filas){
-  // La hoja manda: lo que esté ahí también corrige lo que ya había guardado
-  // en este equipo, para que todos vean los mismos datos.
-  var porNumero = {}, i, vistos = {};
+  // La hoja es la referencia: el historial queda igual al de la hoja, más lo
+  // que este equipo aún no haya podido subir. Así el conteo coincide en
+  // todas las computadoras.
+  var porNumero = {}, i, vistos = {}, nuevo = [];
   for(i=0;i<HISTORIAL.length;i++){
     var k = String(HISTORIAL[i].no||'').trim();
     if(k && !porNumero[k]) porNumero[k] = HISTORIAL[i];
@@ -2412,13 +2422,21 @@ function fusionarMemos(filas){
     var actual = porNumero[no];
     if(actual){
       for(var campo in datos) if(datos.hasOwnProperty(campo)) actual[campo] = datos[campo];
+      actual.pendiente = false;
+      nuevo.push(actual);
     } else {
       datos.id = 'SH-' + no;
       datos.para = ''; datos.cargo = ''; datos.asunto = 'PAGO DE CLÁUSULA N.º 40';
-      HISTORIAL.push(datos);
-      porNumero[no] = datos;
+      datos.pendiente = false;
+      nuevo.push(datos);
     }
   }
+  // Lo que este equipo no ha subido todavía no se pierde.
+  for(i=0;i<HISTORIAL.length;i++){
+    var n2 = String(HISTORIAL[i].no||'').trim();
+    if(HISTORIAL[i].pendiente && !vistos[n2]) nuevo.push(HISTORIAL[i]);
+  }
+  HISTORIAL = nuevo;
   HISTORIAL.sort(function(a,b){ return String(b.fecha).localeCompare(String(a.fecha)); });
   guardarLS(LS.hist, HISTORIAL);
 }
@@ -2430,9 +2448,54 @@ function enviarMemoSheets(reg, comoFilaNueva){
           JSON.stringify(reg.detalle), reg.gerencia || inferirGerencia(reg.dep),
           reg.observacion || '']
   }, function(ok){
-    estadoSync(ok, ok ? 'Guardado en Sheets' : 'Guardado solo local');
+    // Si la hoja no lo aceptó queda marcado para reintentar: así ningún
+    // equipo se queda con memorandos que los demás no ven.
+    reg.pendiente = !ok;
+    guardarLS(LS.hist, HISTORIAL);
+    estadoSync(ok, ok ? 'Guardado en Sheets' : 'Pendiente de subir');
     if(ok) registrarBitacora('Agrego', reg.no, 'L ' + fmt(reg.total) + ' — ' + reg.dep);
+    else renderHist();
   });
+}
+function subirPendientesAhora(){
+  if(!CFG.url){ toast('Configure primero la URL del Apps Script.','err'); return; }
+  var p = memosPendientes().length;
+  if(!p){ toast('No hay memorandos pendientes.','ok'); return; }
+  cargando(true, 'Subiendo ' + p + ' memorando(s)…');
+  subirPendientes(function(subidos){
+    cargando(false);
+    renderHist();
+    toast(subidos + ' de ' + p + ' subido(s) a la hoja.', subidos === p ? 'ok' : 'err');
+    if(subidos) sincronizar(true);
+  });
+}
+function memosPendientes(){
+  var p = [];
+  for(var i=0;i<HISTORIAL.length;i++) if(HISTORIAL[i].pendiente) p.push(HISTORIAL[i]);
+  return p;
+}
+/* Reintenta subir lo que quedó pendiente y luego adopta la hoja. */
+function subirPendientes(cb){
+  var p = memosPendientes();
+  if(!CFG.url || !p.length){ if(cb) cb(0); return; }
+  var faltan = p.length, subidos = 0;
+  for(var i=0;i<p.length;i++){
+    (function(reg){
+      apiPost({
+        accion:'guardar', tipo:CFG.hoja,
+        cols:[reg.no, reg.fecha, reg.dep, reg.mesPago, reg.anioPago, reg.empleados,
+              reg.cenas, reg.valorCena, reg.total, reg.usuario, reg.registrado,
+              JSON.stringify(reg.detalle), reg.gerencia || inferirGerencia(reg.dep),
+              reg.observacion || '']
+      }, function(ok){
+        if(ok){ reg.pendiente = false; subidos++; }
+        if(--faltan === 0){
+          guardarLS(LS.hist, HISTORIAL);
+          if(cb) cb(subidos);
+        }
+      });
+    })(p[i]);
+  }
 }
 function estadoUsr(ok, txt){
   if(!$('dot-usr')) return;
@@ -5517,6 +5580,7 @@ function guardarAnterior(){
     observacion: $('an-obs').value,
     registrado: new Date().toLocaleString('es-HN'),
     importado: true,
+    pendiente: !CFG.url,
     detalle: []
   };
   guardarAnteriores([reg], !!previo);
@@ -5741,6 +5805,7 @@ function procesarPegadoMemos(){
       observacion: v('obs'),
       registrado: new Date().toLocaleString('es-HN'),
       importado: true,
+      pendiente: !CFG.url,
       detalle: []
     });
   }
