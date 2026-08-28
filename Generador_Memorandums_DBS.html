@@ -453,16 +453,10 @@
       <h3>Historial de Memorándums</h3>
       <div class="toolbar">
         <input class="search" id="h_search" placeholder="Buscar por N°, empleado, proveedor, fecha o usuario..." oninput="renderHist()">
-        <select id="h_verMes" onchange="renderHist()" style="padding:10px 12px;border:1px solid var(--borde);border-radius:8px">
-          <option value="abiertos">Solo meses abiertos</option>
-          <option value="todos">Todos, incluidos los cerrados</option>
-          <option value="cerrados">Solo meses cerrados</option>
-        </select>
         <button class="btn-sec" onclick="cargarHist()">↻ Actualizar</button>
         <button class="btn-sec" onclick="exportCSV()">⬇ Exportar a Excel (CSV)</button>
       </div>
       <div id="h_pend" class="editing hidden" style="margin-bottom:10px"></div>
-      <div id="h_ocultos" class="draft hidden"></div>
       <div id="h_msg" class="msg"></div>
       <div class="tbl-wrap">
         <table class="list">
@@ -648,7 +642,7 @@
     <div class="card">
       <h3>Centralizada C.55 &mdash; <span id="i_zonaLbl">CENTRO/SUR</span>, por persona</h3>
       <div class="toolbar">
-        <input class="search" id="i_personas" placeholder="ROSA, ADRIANA, GUSTAVO, AURA">
+        <input class="search" id="i_personas" placeholder="ROSA, ADRIANA, GUSTAVO, BRYAN">
         <button class="btn-sec" onclick="infAplicarPersonas()">Aplicar columnas</button>
         <select id="i_impPersona" class="btn-sec" style="padding:9px 10px"></select>
         <button class="btn-sec" onclick="infImprimir('matriz')">&#128424; Imprimir cuadro</button>
@@ -2227,46 +2221,14 @@ function fmtFecha(v){
   }
   return s;
 }
-function histVerTodos(){
-  var s=document.getElementById('h_verMes'); if(s){ s.value='todos'; renderHist(); }
-}
 function renderHist(){
   var q=(document.getElementById('h_search').value||'').toLowerCase();
   var body=document.getElementById('h_body'); body.innerHTML='';
-  var verSel = document.getElementById('h_verMes');
-  var ver = verSel ? verSel.value : 'abiertos';
-
-  var todos = HIST_CACHE.filter(function(m){
+  var list=HIST_CACHE.filter(function(m){
     if(!q) return true;
     return [m.tipo,m.num,m.fecha,m.detalle,m.total,m.usuario].join(' ').toLowerCase().indexOf(q)>=0;
   });
-  /* Los de meses cerrados se ocultan por defecto: siguen guardados y
-     aparecen al elegir «Todos» o al buscarlos por su número. */
-  var cerrados = 0;
-  var list = todos.filter(function(m){
-    var esCerrado = (typeof bloqueoDeMemo==='function') ? !!bloqueoDeMemo(m) : false;
-    if(esCerrado) cerrados++;
-    if(q)                return true;   /* si busca algo puntual, se busca en todos los meses */
-    if(ver==='todos')    return true;
-    if(ver==='cerrados') return esCerrado;
-    return !esCerrado;
-  });
-  var lbl = document.getElementById('h_ocultos');
-  if(lbl){
-    if(q && ver==='abiertos' && cerrados>0){
-      lbl.classList.remove('hidden');
-      lbl.innerHTML = '&#128269; La búsqueda incluye también los meses cerrados. Los que tienen &#128274; ya no se pueden editar.';
-    } else if(!q && ver==='abiertos' && cerrados>0){
-      lbl.classList.remove('hidden');
-      lbl.innerHTML = '&#128274; Hay <b>'+cerrados+'</b> documento(s) de meses ya cerrados que no se están mostrando. '+
-        '<button class="btn-sec" style="padding:4px 10px;font-size:12px" onclick="histVerTodos()">Ver todos</button>';
-    } else lbl.classList.add('hidden');
-  }
-  if(list.length===0){
-    body.innerHTML='<tr><td colspan="8" class="empty">Sin memorándums'+
-      (q?' que coincidan con la búsqueda':(ver==='abiertos'&&cerrados>0?' en los meses abiertos':' todavía'))+'.</td></tr>';
-    return;
-  }
+  if(list.length===0){ body.innerHTML='<tr><td colspan="8" class="empty">Sin memorándums'+(q?' que coincidan con la búsqueda':' todavía')+'.</td></tr>'; return; }
   list.forEach(function(m){
     var tr=document.createElement('tr');
     var bloqC = (typeof bloqueoDeMemo==='function') ? bloqueoDeMemo(m) : null;
@@ -2701,14 +2663,27 @@ async function cierresCargar(){
     try{
       var r = await apiCall('listCierres');
       var lista = r.cierres || [];
-      var nube = {};
+      var nube = {}, conocidos = {};
       lista.forEach(function(c){
-        if(c && c.periodo && String(c.cerrado) !== 'false' && c.cerrado !== false)
+        if(!c || !c.periodo) return;
+        conocidos[c.periodo] = true;          /* la nube sabe de este mes, cerrado o no */
+        if(String(c.cerrado) !== 'false' && c.cerrado !== false)
           nube[c.periodo] = { ts:c.ts||'', usuario:c.usuario||'' };
       });
-      CIERRES = nube;                    /* la nube manda */
+      /* Un cierre hecho en esta PC que la nube nunca registro no se descarta:
+         se conserva y se vuelve a subir. Si la nube ya lo conoce como reabierto,
+         manda la nube. */
+      var pendientes = [];
+      for(var per in CIERRES) if(!conocidos[per]) pendientes.push(per);
+      pendientes.forEach(function(per){ nube[per] = CIERRES[per]; });
+      CIERRES = nube;
       cierresGuardarLocal();
       CIERRES_NUBE = true;
+      pendientes.forEach(function(per){
+        apiCall('saveCierre', { periodo:per, cerrado:true,
+          usuario:(CIERRES[per] && CIERRES[per].usuario) || '',
+          ts:(CIERRES[per] && CIERRES[per].ts) || '' }).catch(function(){});
+      });
     }catch(e){
       CIERRES_NUBE = false;              /* seguimos con lo local */
     }
@@ -2739,8 +2714,6 @@ function bloqueoPorCierre(iso){
          (c.info.usuario ? ' (lo cerró ' + c.info.usuario + (c.info.ts ? ' el ' + fmtTS(c.info.ts) : '') + ')' : '') +
          '. Para modificarlo, el administrador debe reabrirlo en la pestaña Historial.';
 }
-/* Cerrar o reabrir un mes cambia lo que se ve en el historial */
-function refrescarHistTrasCierre(){ try{ renderHist(); }catch(e){} }
 function bloqueoDeMemo(m){
   var p = infMesDeMemo(m, unpackData(m));
   if(!p) return null;
@@ -2943,22 +2916,7 @@ var INF_I_ATEN     = 5;   /* atención a centros,       para la NOTA */
 var INF_I_CONV     = 11;  /* firma de convenios,       para la NOTA */
 
 var INF_ZONAS_DEF    = ['NOROCCIDENTE','CENTRO/SUR','LITORAL'];
-var INF_PERSONAS_BASE = ['ROSA','ADRIANA','GUSTAVO','AURA'];
-var INF_EQUIPO_KEY = 'informe_dbs_equipo';
-
-/* El equipo se guarda aparte del informe, así que vale para todos los
-   meses y las tres zonas. Lo último que se aplique manda. */
-function infEquipoLeer(){
-  try{
-    var raw = localStorage.getItem(INF_EQUIPO_KEY);
-    var a = raw ? JSON.parse(raw) : null;
-    return (a && a.length) ? a : INF_PERSONAS_BASE.slice();
-  }catch(e){ return INF_PERSONAS_BASE.slice(); }
-}
-function infEquipoGuardar(lista){
-  try{ localStorage.setItem(INF_EQUIPO_KEY, JSON.stringify(lista)); }catch(e){}
-}
-Object.defineProperty(window, 'INF_PERSONAS_DEF', { get: function(){ return infEquipoLeer(); } });
+var INF_PERSONAS_DEF = ['ROSA','ADRIANA','GUSTAVO','BRYAN'];
 var INF_FIRMAS_DEF   = ['Rosa García (HOLDING)','Adriana Salinas (HOLDING)','Gustavo David (HOLDING)',
                         'Nohemy Deras (N.O)','Claudio Sandoval (L.A)'];
 var INF_DEST_DEF  = 'Lic. Cinthia Isabel Murillo';
@@ -3160,7 +3118,6 @@ function infCuadroCambio(){
 }
 function infAplicarPersonas(){
   var lista = String(val('i_personas')||'').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
-  infEquipoGuardar(lista);   // queda para los demás meses y zonas
   if(!lista.length){ infMsg('err','Escriba al menos una persona.'); return; }
   INF.personas = lista;
   infAjustarPersonas(INF);
