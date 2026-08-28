@@ -233,7 +233,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
       <button class="btn-admin" id="btnAdmin" onclick="openAdmin()" style="display:none">⚙️ Admin</button>
       <button class="btn-logout" onclick="doLogout()">⎋ Salir</button>
     </div>
-    <button class="btn-nuevo" onclick="openModal()">＋ Nueva Correspondencia</button>
+    <button class="btn-nuevo" id="btnNuevo" onclick="openModal()">＋ Nueva Correspondencia</button>
     <div class="hbadge" id="totalBadge">Cargando...</div>
   </div>
 </header>
@@ -246,7 +246,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
   <span class="sbadge" id="countBadge">0 registros</span>
   <span id="syncStatus" style="background:#f3f4f6;color:#6b7280;padding:5px 13px;border-radius:13px;font-size:12px;font-weight:700;white-space:nowrap">📴 Sin conectar</span>
   <button class="btn-tool" style="background:#0369a1;color:#fff" onclick="cloudLoad(false)">🔄 Actualizar</button>
-  <button class="btn-tool btn-imp" onclick="openImportModal()">📂 Importar CSV</button>
+  <button class="btn-tool btn-imp" id="btnImportar" onclick="openImportModal()">📂 Importar CSV</button>
   <button class="btn-tool btn-exp" onclick="exportCSV()">⬇ Exportar CSV</button>
 </div>
 
@@ -271,7 +271,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
     <div class="mbody">
       <div class="fgrid">
         <div class="flabel">Datos de Registro</div>
-        <div class="fg"><label>N° Correlativo</label><input type="number" id="f_num" min="1"><span class="fhint">Número de orden</span></div>
+        <div class="fg"><label>N° Correlativo</label><input type="number" id="f_num" min="1"><span class="fhint" id="hint_num">Número de orden</span></div>
         <div class="fg"><label>N° Instrucción</label><input type="number" id="f_instruc" min="1"><span class="fhint">Número interno</span></div>
         <div class="fg"><label>Fecha de Ingreso *</label><input type="date" id="f_fecha_ingreso" required></div>
         <div class="fg"><label>Fecha del Documento</label><input type="date" id="f_fecha_doc"></div>
@@ -303,12 +303,14 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
       <div class="atab" onclick="switchAtab('tabC')">☁️ Nube</div>
     </div>
     <div id="tabU" class="apanel active">
+      <div id="uSyncInfo" style="font-size:12px;color:#667;margin-bottom:10px"></div>
       <table class="utbl">
         <thead><tr><th style="width:44px"></th><th>Usuario</th><th>Nombre completo</th><th>Rol</th><th>Acceso</th><th>Acciones</th></tr></thead>
         <tbody id="utbody"></tbody>
       </table>
     </div>
     <div id="tabN" class="apanel">
+      <div id="formTitulo" style="font-family:inherit;font-weight:800;color:#1a2e6e;font-size:14px;margin-bottom:12px">➕ Nuevo usuario</div>
       <input type="hidden" id="edit_uid">
       <div class="fgrid">
         <div class="fg"><label>Nombre de usuario *</label><input type="text" id="a_user" placeholder="ej: carmen (sin espacios)"></div>
@@ -349,6 +351,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
         <button class="btn-s" style="background:#16a34a" onclick="cloudLoad(false)">⬇️ Descargar de la nube</button>
         <button class="btn-s" style="background:#7c3aed" onclick="repararMeses()">🗓️ Recalcular meses de la nube</button>
         <button class="btn-s" style="background:#b45309" onclick="migrarALaNube()">⬆️ Subir registros locales a la nube</button>
+        <button class="btn-s" style="background:#be185d" onclick="sincronizarUsuarios()">👥 Sincronizar usuarios entre PCs</button>
       </div>
       <div style="font-size:11.5px;color:#889;margin-top:14px;line-height:1.6">
         <strong>Subir registros locales</strong> se usa solo la primera vez, para migrar los datos que ya tenías guardados en este navegador.
@@ -465,9 +468,35 @@ const DEFAULT_USERS=[{
   hash:'366ccf82f56d1165198ba6f1a81fca34ad3cf17e8b70f46cd147d642142ab1ca'
 }];
 
-function loadUsers(){try{const s=localStorage.getItem('enee_users_v2');if(s)return JSON.parse(s);}catch(e){}return JSON.parse(JSON.stringify(DEFAULT_USERS));}
+function loadUsers(){
+  try{
+    const s=localStorage.getItem('enee_users_v2');
+    if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)return a;}
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_USERS));
+}
 function saveUsers(u){try{localStorage.setItem('enee_users_v2',JSON.stringify(u));}catch(e){}}
 let USERS=loadUsers();
+
+// --- helpers de usuarios -------------------------------------------------
+function normU(s){return String(s||'').trim().toLowerCase();}
+// Lista visible: excluye los marcados como eliminados (lápidas de sincronización)
+function activeUsers(){return USERS.filter(u=>u&&u.username&&!u.deleted);}
+function findUser(id){return USERS.find(u=>u.id===id);}
+
+// Une dos listas de usuarios. Gana el registro con 'updated' más reciente.
+function mergeUsers(base,extra){
+  const map={};
+  const put=u=>{
+    if(!u||!u.username)return;
+    const k=normU(u.username);
+    const prev=map[k];
+    if(!prev||(+u.updated||0)>=(+prev.updated||0))map[k]=Object.assign({},prev||{},u);
+  };
+  (base||[]).forEach(put);
+  (extra||[]).forEach(put);
+  return Object.keys(map).map(k=>map[k]);
+}
 
 async function sha256(msg){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
@@ -487,7 +516,15 @@ async function doLogin(){
   const pass=document.getElementById('linput_pass').value;
   if(!username||!pass){document.getElementById('lerror').textContent='⚠ Completa usuario y contraseña.';return;}
   USERS=loadUsers();
-  const u=USERS.find(x=>x.username.toLowerCase()===username);
+  // Espera (máx. 8 s) a que lleguen los usuarios de la nube: así un usuario
+  // creado en otra PC puede entrar aquí la primera vez.
+  if(!usersSynced&&usersReadyP){
+    document.getElementById('lerror').textContent='⏳ Verificando usuarios...';
+    try{await Promise.race([usersReadyP,new Promise(r=>setTimeout(r,8000))]);}catch(e){}
+    document.getElementById('lerror').textContent='';
+    USERS=loadUsers();
+  }
+  const u=activeUsers().find(x=>normU(x.username)===username);
   if(!u){shake();document.getElementById('lerror').textContent='⚠ Usuario no encontrado.';return;}
   const hash=await sha256(pass);
   if(hash!==u.hash){shake();document.getElementById('lerror').textContent='⚠ Contraseña incorrecta.';document.getElementById('linput_pass').value='';document.getElementById('linput_pass').focus();return;}
@@ -506,10 +543,20 @@ function renderChip(){
   if(!currentUser)return;
   const u=currentUser;
   document.getElementById('hright').style.display='flex';
-  document.getElementById('userChip').innerHTML=`
-    <div class="uchip-av" style="background:${u.color};color:#fff">${u.emoji}</div>
-    <div><div class="uchip-name">${u.short||u.name}</div><div class="uchip-role">${u.role}</div></div>`;
+  document.getElementById('userChip').innerHTML=
+    '<div class="uchip-av" style="background:'+esc(u.color)+';color:#fff">'+esc(u.emoji)+'</div>'+
+    '<div><div class="uchip-name">'+esc(u.short||u.name)+'</div><div class="uchip-role">'+esc(u.role)+'</div></div>';
   document.getElementById('btnAdmin').style.display=(u.access==='admin')?'inline-flex':'none';
+  aplicarPermisos();
+}
+
+// Nivel de acceso: 'readonly' no puede registrar, editar, importar ni borrar
+function puedeEditar(){return !!currentUser&&currentUser.access!=='readonly';}
+function aplicarPermisos(){
+  const ed=puedeEditar();
+  const bn=document.getElementById('btnNuevo');   if(bn)bn.style.display=ed?'':'none';
+  const bi=document.getElementById('btnImportar');if(bi)bi.style.display=ed?'':'none';
+  renderTable();
 }
 
 function doLogout(){
@@ -526,8 +573,20 @@ function doLogout(){
 // init auth
 (function(){
   const s=sessionStorage.getItem('enee_session');
-  if(s){try{currentUser=JSON.parse(s);document.getElementById('loginScreen').style.display='none';renderChip();populateRecibido();setTimeout(()=>cloudLoad(true),400);}catch(e){}}
-  else setTimeout(()=>document.getElementById('linput_user').focus(),150);
+  if(s){try{
+    const ses=JSON.parse(s);
+    // Revalidar contra la lista actual: si el usuario fue eliminado o le
+    // cambiaron el nivel de acceso, la sesión vieja no debe seguir mandando.
+    const real=activeUsers().find(x=>normU(x.username)===normU(ses.username));
+    if(!real){sessionStorage.removeItem('enee_session');}
+    else{
+      currentUser=Object.assign({},real);
+      sessionStorage.setItem('enee_session',JSON.stringify(currentUser));
+      document.getElementById('loginScreen').style.display='none';
+      renderChip();populateRecibido();setTimeout(()=>cloudLoad(true),400);
+    }
+  }catch(e){}}
+  if(!currentUser)setTimeout(()=>{const el=document.getElementById('linput_user');if(el)el.focus();},150);
 })();
 
 // ============================================================
@@ -538,44 +597,57 @@ let selEmoji=EMOJIS[0], selColor=COLORS[0];
 function openAdmin(){renderUTable();document.getElementById('adminOverlay').classList.add('open');switchAtab('tabU');}
 function closeAdmin(){document.getElementById('adminOverlay').classList.remove('open');}
 
-function switchAtab(id){
+// ATENCIÓN: 'conservar' evita que se limpie el formulario cuando venimos de
+// editUser(). Antes se llamaba initUForm() siempre y eso borraba el edit_uid,
+// por lo que al guardar se creaba un usuario nuevo en lugar de actualizar.
+function switchAtab(id,conservar){
   document.querySelectorAll('.apanel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.atab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   const idx=['tabU','tabN','tabC'].indexOf(id);
   document.querySelectorAll('.atab')[idx].classList.add('active');
-  if(id==='tabN')initUForm();
+  if(id==='tabN'&&!conservar)initUForm(null);
+  const t=document.getElementById('formTitulo');
+  if(t)t.textContent=document.getElementById('edit_uid').value?'✏️ Editando usuario':'➕ Nuevo usuario';
 }
 
 function renderUTable(){
   USERS=loadUsers();
-  document.getElementById('utbody').innerHTML=USERS.map(u=>`
-    <tr>
-      <td><span style="font-size:20px">${u.emoji}</span></td>
-      <td><code style="background:#f0f4fb;padding:2px 7px;border-radius:5px;font-size:12px">${u.username}</code></td>
-      <td><strong>${u.name}</strong></td>
-      <td><span class="rbadge ${u.access==='admin'?'r-admin':u.access==='readonly'?'r-read':'r-user'}">${u.role}</span></td>
-      <td style="font-size:11px;color:#778">${u.access==='admin'?'Administrador':u.access==='readonly'?'Solo lectura':'Usuario'}</td>
-      <td>
-        <button class="bsm bsm-e" onclick="editUser('${u.id}')">✏️ Editar</button>
-        ${u.access!=='admin'||USERS.filter(x=>x.access==='admin').length>1?`<button class="bsm bsm-d" onclick="deleteUser('${u.id}')">🗑️</button>`:''}
-      </td>
-    </tr>`).join('');
+  const lista=activeUsers();
+  const admins=lista.filter(x=>x.access==='admin').length;
+  document.getElementById('utbody').innerHTML=lista.map(u=>
+    '<tr>'+
+      '<td><span style="font-size:20px">'+esc(u.emoji)+'</span></td>'+
+      '<td><code style="background:#f0f4fb;padding:2px 7px;border-radius:5px;font-size:12px">'+esc(u.username)+'</code></td>'+
+      '<td><strong>'+esc(u.name)+'</strong></td>'+
+      '<td><span class="rbadge '+(u.access==='admin'?'r-admin':u.access==='readonly'?'r-read':'r-user')+'">'+esc(u.role)+'</span></td>'+
+      '<td style="font-size:11px;color:#778">'+(u.access==='admin'?'Administrador':u.access==='readonly'?'Solo lectura':'Usuario')+'</td>'+
+      '<td>'+
+        '<button class="bsm bsm-e" onclick="editUser(\''+esc(u.id)+'\')">✏️ Editar</button>'+
+        ((u.access!=='admin'||admins>1)?'<button class="bsm bsm-d" onclick="deleteUser(\''+esc(u.id)+'\')">🗑️</button>':'')+
+      '</td>'+
+    '</tr>').join('');
+  const st=document.getElementById('uSyncInfo');
+  if(st)st.innerHTML=lista.length+' usuario(s) · '+(usersSynced
+    ?'<span style="color:#166534">☁️ sincronizados con la nube</span>'
+    :'<span style="color:#b45309">⚠️ solo en esta PC ('+esc(usersSyncMsg)+')</span>');
 }
 
 function initUForm(u){
   document.getElementById('edit_uid').value=u?u.id:'';
   document.getElementById('a_user').value=u?u.username:'';
-  document.getElementById('a_user').disabled=!!(u); // no cambiar username al editar
+  document.getElementById('a_user').disabled=false; // se puede corregir; se valida duplicado
   document.getElementById('a_name').value=u?u.name:'';
-  document.getElementById('a_short').value=u?u.short:'';
+  document.getElementById('a_short').value=u?(u.short||''):'';
   document.getElementById('a_role').value=u?u.role:'Analista';
   document.getElementById('a_access').value=u?u.access:'user';
   document.getElementById('a_pass').value='';
   document.getElementById('pass_hint').style.display=u?'inline':'none';
-  selEmoji=u?u.emoji:EMOJIS[0];
-  selColor=u?u.color:COLORS[0];
+  selEmoji=(u&&u.emoji)?u.emoji:EMOJIS[0];
+  selColor=(u&&u.color)?u.color:COLORS[0];
   buildEmoRow();buildColRow();
+  const t=document.getElementById('formTitulo');
+  if(t)t.textContent=u?'✏️ Editando usuario':'➕ Nuevo usuario';
 }
 
 function buildEmoRow(){document.getElementById('emoRow').innerHTML=EMOJIS.map(e=>`<span class="emo${e===selEmoji?' sel':''}" onclick="pickEmo('${e}')">${e}</span>`).join('');}
@@ -583,13 +655,31 @@ function pickEmo(e){selEmoji=e;buildEmoRow();}
 function buildColRow(){document.getElementById('colRow').innerHTML=COLORS.map(c=>`<div class="cdot${c===selColor?' sel':''}" style="background:${c}" onclick="pickCol('${c}')"></div>`).join('');}
 function pickCol(c){selColor=c;buildColRow();}
 
-function editUser(id){const u=USERS.find(x=>x.id===id);if(!u)return;initUForm(u);switchAtab('tabN');}
+function editUser(id){
+  USERS=loadUsers();
+  const u=findUser(id);
+  if(!u){showToast('Usuario no encontrado','',true);renderUTable();return;}
+  switchAtab('tabN',true);   // primero cambiar de pestaña
+  initUForm(u);              // y después llenar el formulario
+}
 function cancelEdit(){initUForm(null);switchAtab('tabU');}
 
-function deleteUser(id){
-  if(!confirm('¿Eliminar este usuario?'))return;
-  USERS=USERS.filter(u=>u.id!==id);
+async function deleteUser(id){
+  USERS=loadUsers();
+  const u=findUser(id);
+  if(!u)return;
+  if(currentUser&&normU(u.username)===normU(currentUser.username)){
+    showToast('No puedes eliminar tu propio usuario','',true);return;
+  }
+  if(u.access==='admin'&&activeUsers().filter(x=>x.access==='admin').length<=1){
+    showToast('Debe quedar al menos un administrador','',true);return;
+  }
+  if(!confirm('¿Eliminar al usuario "'+u.name+'"?'))return;
+  // Lápida: se marca como eliminado (con fecha) para que el borrado también
+  // viaje a las demás PCs en vez de "resucitar" en la próxima sincronización.
+  u.deleted=true;u.updated=Date.now();
   saveUsers(USERS);renderUTable();populateRecibido();showToast('Usuario eliminado');
+  await syncUsers(true);renderUTable();
 }
 
 async function saveUser(){
@@ -601,32 +691,122 @@ async function saveUser(){
   const access=document.getElementById('a_access').value;
   const passVal=document.getElementById('a_pass').value;
   if(!username||!name){showToast('Usuario y nombre son obligatorios','',true);return;}
-  // Verificar duplicado de username
-  if(!uid && USERS.find(u=>u.username===username)){showToast('Ese nombre de usuario ya existe','',true);return;}
+
+  // Releer del almacenamiento por si otra pestaña/PC cambió la lista
+  USERS=mergeUsers(loadUsers(),USERS);
+
+  const actual=uid?findUser(uid):null;
+  if(uid&&!actual){showToast('El usuario que editabas ya no existe','',true);renderUTable();switchAtab('tabU');return;}
+
+  // Duplicado de nombre de usuario (al crear Y al editar, ignorándose a sí mismo)
+  const choque=activeUsers().find(u=>normU(u.username)===username&&(!actual||u.id!==actual.id));
+  if(choque){showToast('Ese nombre de usuario ya existe','',true);return;}
+
   let hash;
   if(passVal){hash=await sha256(passVal);}
-  else if(uid){hash=USERS.find(u=>u.id===uid)?.hash||'';}
+  else if(actual){hash=actual.hash||'';}
   else{showToast('Debes asignar una contraseña al nuevo usuario','',true);return;}
-  if(uid){
-    const idx=USERS.findIndex(u=>u.id===uid);
-    if(idx>=0)USERS[idx]={...USERS[idx],name,short,role,access,emoji:selEmoji,color:selColor,hash};
+
+  if(actual){
+    // Si se cambió el nombre de usuario, dejar lápida del anterior para que
+    // la sincronización no lo reviva como usuario duplicado en otras PCs.
+    const antes=normU(actual.username);
+    if(antes&&antes!==username){
+      USERS.push({id:actual.id+'_ren',username:actual.username,name:actual.name,
+        short:'',role:actual.role,access:'readonly',emoji:actual.emoji,color:actual.color,
+        hash:'',deleted:true,updated:Date.now()});
+    }
+    Object.assign(actual,{username,name,short,role,access,emoji:selEmoji,color:selColor,hash,deleted:false,updated:Date.now()});
+    // Si el admin se editó a sí mismo, refrescar la sesión en curso
+    if(currentUser&&currentUser.id===actual.id){
+      currentUser=Object.assign({},actual);
+      sessionStorage.setItem('enee_session',JSON.stringify(currentUser));
+      renderChip();
+    }
   } else {
-    USERS.push({id:'u_'+Date.now(),username,name,short,role,access,emoji:selEmoji,color:selColor,hash});
+    USERS.push({id:'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      username,name,short,role,access,emoji:selEmoji,color:selColor,hash,updated:Date.now()});
   }
   saveUsers(USERS);renderUTable();populateRecibido();
-  showToast(uid?'✅ Usuario actualizado':'✅ Usuario creado');
+  showToast(actual?'✅ Usuario actualizado':'✅ Usuario creado');
   initUForm(null);switchAtab('tabU');
+  await syncUsers(true);
+  renderUTable();populateRecibido();
 }
 
 function populateRecibido(){
-  USERS=loadUsers();
+  USERS=mergeUsers(loadUsers(),USERS);
   const sel=document.getElementById('f_recibido');
+  if(!sel)return;
   const prev=sel.value;
   sel.innerHTML='<option value="">-- Seleccionar --</option>'+
-    USERS.map(u=>`<option value="${u.name}">${u.name}</option>`).join('')+
+    activeUsers().map(u=>'<option value="'+esc(u.name)+'">'+esc(u.name)+'</option>').join('')+
     '<option value="otro">— Otro —</option>';
   if(prev)sel.value=prev;
 }
+
+// ============================================================
+// SINCRONIZACIÓN DE USUARIOS CON LA NUBE
+// Sin esto, cada PC guarda su propia lista en localStorage y los usuarios
+// creados en una computadora no existen en las demás.
+// ============================================================
+let usersSynced=false, usersSyncMsg='sin conectar', usersReadyP=null;
+
+// Debe ser IDÉNTICO al TOKEN_USUARIOS del Apps Script
+const USERS_TOKEN='DBS-ENEE-2026';
+
+async function cloudGetUsers(){
+  const res=await jsonp({action:'getusers',token:USERS_TOKEN},15000);
+  if(res&&res.ok&&Array.isArray(res.users))return res.users;
+  throw new Error((res&&res.error)||'el servidor aún no maneja usuarios');
+}
+async function cloudPutUsers(list){
+  // Se envía compacto: JSONP viaja en la URL y ésta tiene límite de tamaño
+  const compacto=list.map(u=>{
+    const o={id:u.id,username:u.username,name:u.name,short:u.short,role:u.role,
+             access:u.access,emoji:u.emoji,color:u.color,hash:u.hash,updated:+u.updated||0};
+    if(u.deleted)o.deleted=1;
+    return o;
+  });
+  const res=await jsonp({action:'saveusers',token:USERS_TOKEN,data:JSON.stringify(compacto)},20000);
+  if(!(res&&res.ok))throw new Error((res&&res.error)||'no se pudo guardar');
+  return true;
+}
+
+async function syncUsers(push){
+  if(!syncEnabled){usersSyncMsg='sincronización desactivada';return false;}
+  let remote=null;
+  try{
+    remote=await cloudGetUsers();
+  }catch(e){
+    usersSynced=false;usersSyncMsg=e.message||'sin conexión';
+    return false;
+  }
+  USERS=mergeUsers(remote,mergeUsers(loadUsers(),USERS));
+  saveUsers(USERS);
+  const cambio=push||USERS.length!==remote.length;
+  if(cambio){
+    try{await cloudPutUsers(USERS);}
+    catch(e){usersSynced=false;usersSyncMsg=e.message||'no se pudo guardar';return false;}
+  }
+  usersSynced=true;usersSyncMsg='sincronizados';
+  return true;
+}
+
+async function sincronizarUsuarios(){
+  showToast('🔄 Sincronizando usuarios...');
+  const ok=await syncUsers(true);
+  renderUTable();populateRecibido();
+  showToast(ok?'✅ Usuarios sincronizados con la nube':'⚠️ '+usersSyncMsg,'',!ok);
+}
+
+// Arranca al cargar la página para que el login ya conozca a los usuarios
+// creados en otras computadoras.
+usersReadyP=new Promise(function(listo){
+  setTimeout(async function(){try{await syncUsers(false);}catch(e){}
+    try{renderUTable();populateRecibido();}catch(e){}
+    listo();},0);
+});
 
 // ============================================================
 // DATA
@@ -700,11 +880,19 @@ async function cloudLoad(silent) {
   try {
     const res = await jsonp({action:'get'});
     if (res && res.ok) {
+      // Registros creados sin conexión (todavía sin _id): NO se descartan.
+      const pendientes = DATA.filter(r => r._pend && !r._id);
       DATA = res.data.map(r => normalizarPeriodo(r));
+      if (pendientes.length) {
+        pendientes.forEach(r => DATA.push(r));
+        saveLocal();
+        cloudUploadAll(pendientes).then(() => { pendientes.forEach(r=>{ if(r._id) delete r._pend; }); saveLocal(); });
+      }
       saveLocal();
       buildTabs(); renderTable();
       setSyncStatus('ok','Sincronizado (' + DATA.length + ')');
-      if (!silent) showToast('☁️ ' + DATA.length + ' registros cargados de la nube');
+      if (!silent) showToast('☁️ ' + DATA.length + ' registros cargados de la nube' +
+        (pendientes.length ? ' · ' + pendientes.length + ' pendiente(s) subiendo' : ''));
     } else {
       setSyncStatus('err','Error');
       if (!silent) showToast('Error al cargar: ' + (res && res.error), '', true);
@@ -846,12 +1034,35 @@ function renderTable(){
     '<td class="col-ent" style="font-size:12px;color:#1a501a;font-weight:700">'+esc(r.entregado)+'</td>'+
     '<td class="col-fent" style="white-space:nowrap;font-size:12px;color:#2a5a2a;font-weight:700">'+esc(r.fecha_entregado||'')+'</td>'+
     '<td class="col-act" onclick="event.stopPropagation()">'+
-      '<button class="btn-edit" onclick="openEdit('+r._i+')" title="Editar">✏️</button>'+
-      '<button class="btn-del" onclick="confirmDelete('+r._i+')" title="Eliminar">🗑️</button>'+
+      (puedeEditar()
+        ?'<button class="btn-edit" onclick="openEdit('+r._i+')" title="Editar">✏️</button>'+
+         '<button class="btn-del" onclick="confirmDelete('+r._i+')" title="Eliminar">🗑️</button>'
+        :'<span style="color:#aab;font-size:11px">—</span>')+
     '</td></tr>').join('');
   const mc=rows.filter(r=>r.num&&r.num!=='').length;
   document.getElementById('countBadge').textContent=rows.length+' registros ('+mc+' principales)';
   document.getElementById('totalBadge').textContent='Total '+activeYear+': '+DATA.filter(r=>r.year===activeYear).length+' docs';
+}
+
+// ============================================================
+// CORRELATIVOS (N° y N° INSTRUCCIÓN)
+// El número lo reserva el servidor de forma atómica: si dos PCs registran
+// al mismo tiempo, cada una recibe un número distinto.
+// ============================================================
+let sugeridos={num:'',instruc:''}, guardando=false;
+
+function maxNumMes(y,m){return DATA.filter(r=>r.year===y&&r.month===m).reduce((a,r)=>Math.max(a,parseInt(r.num)||0),0);}
+function maxInstruc(){return DATA.reduce((a,r)=>Math.max(a,parseInt(r.instruc)||0),0);}
+
+async function reservarCorrelativos(y,m){
+  if(!syncEnabled)return null;
+  try{
+    const res=await jsonp({action:'reservar',token:USERS_TOKEN,
+      periodo:y+'-'+String(m).padStart(2,'0'),
+      minnum:maxNumMes(y,m), mininstruc:maxInstruc()},15000);
+    if(res&&res.ok&&res.num&&res.instruc)return {num:String(res.num),instruc:String(res.instruc)};
+  }catch(e){}
+  return null;
 }
 
 function today(){return new Date().toISOString().split('T')[0];}
@@ -859,12 +1070,19 @@ function parseDI(s){if(!s)return '';const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$
 function fmtD(s){if(!s)return '';const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return s;}
 
 function openModal(){
+  if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
   editIdx=null;
   document.getElementById('modalTitle').textContent='Registrar Nueva Correspondencia';
   document.getElementById('btnSave').textContent='💾 Guardar';
   const mr=DATA.filter(r=>r.year===activeYear&&r.month===activeMonth);
-  document.getElementById('f_num').value=(mr.reduce((m,r)=>Math.max(m,parseInt(r.num)||0),0)||0)+1;
-  document.getElementById('f_instruc').value=(DATA.reduce((m,r)=>Math.max(m,parseInt(r.instruc)||0),0)||0)+1;
+  const sugNum=maxNumMes(activeYear,activeMonth)+1, sugIns=maxInstruc()+1;
+  document.getElementById('f_num').value=sugNum;
+  document.getElementById('f_instruc').value=sugIns;
+  // Se recuerda lo sugerido: si el usuario NO lo cambia a mano, el número
+  // definitivo lo reserva el servidor al guardar (evita repetidos entre PCs).
+  sugeridos={num:String(sugNum),instruc:String(sugIns)};
+  const hn=document.getElementById('hint_num');
+  if(hn)hn.textContent=syncEnabled?'Se confirma al guardar':'Número de orden';
   document.getElementById('f_fecha_ingreso').value=today();
   ['f_fecha_doc','f_memo','f_asunto','f_entregado','f_fecha_entregado'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f_dirigido').value='Lic. Cinthia Murillo    Jefe Depto.  Bienestar Social';
@@ -878,6 +1096,7 @@ function openModal(){
 }
 
 function openEdit(idx){
+  if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
   const r=DATA[idx];editIdx=idx;
   document.getElementById('modalTitle').textContent='Editar Registro';
   document.getElementById('btnSave').textContent='💾 Actualizar';
@@ -903,7 +1122,9 @@ document.getElementById('f_recibido').addEventListener('change',function(){
   document.getElementById('rec_otro_g').style.display=this.value==='otro'?'flex':'none';
 });
 
-function saveRecord(){
+async function saveRecord(){
+  if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
+  if(guardando)return;                       // evita doble clic = doble registro
   const memo=document.getElementById('f_memo').value.trim();
   const asunto=document.getElementById('f_asunto').value.trim();
   const fi=document.getElementById('f_fecha_ingreso').value;
@@ -911,7 +1132,25 @@ function saveRecord(){
   const rs=document.getElementById('f_recibido').value;
   const recibido=rs==='otro'?document.getElementById('f_recibido_otro').value.trim():rs;
   const dt=new Date(fi+'T12:00:00'),year=dt.getFullYear(),month=dt.getMonth()+1;
-  const rec={num:document.getElementById('f_num').value.trim(),instruc:document.getElementById('f_instruc').value.trim(),
+
+  // Registro nuevo con los números que sugirió la app (no tocados a mano):
+  // se pide el correlativo al servidor para que no choque con otra PC.
+  let vNum=document.getElementById('f_num').value.trim();
+  let vIns=document.getElementById('f_instruc').value.trim();
+  if(editIdx===null&&vNum===sugeridos.num&&vIns===sugeridos.instruc){
+    guardando=true;
+    const btn=document.getElementById('btnSave');
+    const txt=btn.textContent; btn.textContent='⏳ Asignando N°...'; btn.disabled=true;
+    const asignado=await reservarCorrelativos(year,month);
+    btn.textContent=txt; btn.disabled=false; guardando=false;
+    if(asignado){
+      if(asignado.num!==vNum)showToast('N° asignado por el servidor: '+asignado.num);
+      vNum=asignado.num; vIns=asignado.instruc;
+      document.getElementById('f_num').value=vNum;
+      document.getElementById('f_instruc').value=vIns;
+    }
+  }
+  const rec={num:vNum,instruc:vIns,
     fecha_ingreso:fmtD(fi),memo,asunto,dirigido:document.getElementById('f_dirigido').value.trim(),
     fecha_doc:fmtD(document.getElementById('f_fecha_doc').value),recibido,
     entregado:document.getElementById('f_entregado').value.trim(),
@@ -929,10 +1168,14 @@ function saveRecord(){
   rec._user = currentUser ? currentUser.name : '';
   saveLocal();
   activeYear=year;activeMonth=month;closeModal();buildTabs();renderTable();
-  cloudSave(rec).then(()=>saveLocal());
+  cloudSave(rec).then(res=>{
+    if(res&&res.ok){delete rec._pend;}
+    else{rec._pend=true;showToast('⚠️ Guardado local: se subirá a la nube al reconectar','',true);}
+    saveLocal();
+  });
 }
 
-function confirmDelete(idx){deleteIdx=idx;document.getElementById('confirmMsg').textContent=`Se eliminará: "${DATA[idx].memo||DATA[idx].asunto.slice(0,50)}..."`;document.getElementById('confirmOverlay').classList.add('open');}
+function confirmDelete(idx){if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}deleteIdx=idx;document.getElementById('confirmMsg').textContent=`Se eliminará: "${DATA[idx].memo||DATA[idx].asunto.slice(0,50)}..."`;document.getElementById('confirmOverlay').classList.add('open');}
 function closeConfirm(){document.getElementById('confirmOverlay').classList.remove('open');deleteIdx=null;}
 function doDelete(){if(deleteIdx===null)return;const rid=DATA[deleteIdx]._id;DATA.splice(deleteIdx,1);saveLocal();closeConfirm();buildTabs();renderTable();showToast('🗑️ Eliminado');if(rid)cloudDelete(rid);}
 
@@ -1230,6 +1473,7 @@ function buildExcelPreview() {
 }
 
 async function doImport(){
+  if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
   if(!impRows.length)return;
   const batch=impRows.slice();
   batch.forEach(r=>{r._user=currentUser?currentUser.name:'';});
