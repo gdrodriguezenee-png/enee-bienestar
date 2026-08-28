@@ -200,6 +200,116 @@
   .avisocierre button{margin-left:8px;padding:4px 10px;font-size:11.5px;border-radius:6px;
     border:1px solid #e0b070;background:#fff;font-weight:600;color:var(--naranja)}
   tr.candado td{background:#fdf3f2}
+
+  /* ================= MODO OSCURO ================= */
+  .temabtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);
+    color:#fff;padding:7px 11px;border-radius:7px;font-size:13px;line-height:1;white-space:nowrap}
+  .temabtn:hover{background:rgba(255,255,255,.28)}
+  table.list tr.tot td{background:#eef2f6;font-weight:700}
+  html[data-tema="oscuro"] table.list tr.tot td{background:#1e2734}
+  .temalogin{width:100%;margin-top:12px;background:#fff;border:1px solid var(--borde);
+    color:var(--suave);padding:9px;font-weight:600}
+  .temalogin:hover{background:#f0f3f7}
+  html[data-tema="oscuro"] .temalogin{background:var(--sup2);color:var(--texto);border-color:var(--borde)}
+  html[data-tema="oscuro"] .temalogin:hover{background:#2b3746}
+
+  html[data-tema="oscuro"]{
+    --azul:#6cb2ee; --azul2:#8ac6f5;
+    --verde:#57c98a; --verde2:#6ed69b;
+    --gris:#0f141a; --borde:#2b3644; --texto:#e6ebf2; --suave:#93a2b4;
+    --amarillo:#4b421f; --rojo:#f4837a; --naranja:#e5a851;
+    --sup:#171e27; --sup2:#1e2734; --sup3:#243040;
+    color-scheme:dark;
+  }
+  html[data-tema="oscuro"] body{background:var(--gris);color:var(--texto)}
+
+  /* superficies que llevan texto blanco encima: se mantienen oscuras */
+  html[data-tema="oscuro"] #login{background:linear-gradient(135deg,#0b2136 0%,#0d2b21 100%)}
+  html[data-tema="oscuro"] .login-card{background:var(--sup)}
+  html[data-tema="oscuro"] .login-card .logo,
+  html[data-tema="oscuro"] .btn-primary{background:#1a5a95}
+  html[data-tema="oscuro"] .btn-primary:hover{background:#216fb5}
+  html[data-tema="oscuro"] header.top{background:#0d2438}
+  html[data-tema="oscuro"] header.top .mark{background:#e6ebf2;color:#0d2438}
+  html[data-tema="oscuro"] .tabs{background:#131a23}
+  html[data-tema="oscuro"] table.ben th,
+  html[data-tema="oscuro"] table.inf th{background:#1b3854}
+  html[data-tema="oscuro"] .mv:hover:not(:disabled){background:#1a5a95;border-color:#1a5a95;color:#fff}
+  html[data-tema="oscuro"] .btn-gen{background:#1f7a45;color:#fff}
+  html[data-tema="oscuro"] .btn-gen:hover{background:#268f52}
+  html[data-tema="oscuro"] .rmv{background:#a5352a;color:#fff}
+
+  /* tarjetas y campos */
+  html[data-tema="oscuro"] .card,
+  html[data-tema="oscuro"] .kpi,
+  html[data-tema="oscuro"] .permsbox{background:var(--sup)}
+  html[data-tema="oscuro"] .kpi.fuerte{background:#16283c;border-color:#26496b}
+  html[data-tema="oscuro"] .fg input,
+  html[data-tema="oscuro"] .fg select,
+  html[data-tema="oscuro"] .field input,
+  html[data-tema="oscuro"] .toolbar input.search,
+  html[data-tema="oscuro"] .infbox textarea,
+  html[data-tema="oscuro"] select,
+  html[data-tema="oscuro"] input[type="number"],
+  html[data-tema="oscuro"] input[type="date"]{background:var(--sup2);color:var(--texto);border-color:var(--borde)}
+  html[data-tema="oscuro"] .fg input[readonly]{background:#151c25;color:#9fb0c2}
+  html[data-tema="oscuro"] ::placeholder{color:#7d8a99}
+
+  /* botones secundarios */
+  html[data-tema="oscuro"] .btn-sec,
+  html[data-tema="oscuro"] .btn-add,
+  html[data-tema="oscuro"] .act button,
+  html[data-tema="oscuro"] .sello button,
+  html[data-tema="oscuro"] .infbox .cab button,
+  html[data-tema="oscuro"] .mv{background:var(--sup2);color:var(--texto);border-color:var(--borde)}
+  html[data-tema="oscuro"] .btn-add{color:var(--azul2)}
+  html[data-tema="oscuro"] .btn-sec:hover,
+  html[data-tema="oscuro"] .act button:hover,
+  html[data-tema="oscuro"] .sello button:hover,
+  html[data-tema="oscuro"] .btn-add:hover,
+  html[data-tema="oscuro"] .infbox .cab button:hover{background:#2b3746}
+
+  /* tablas */
+  html[data-tema="oscuro"] table.list th{background:var(--sup3);color:var(--azul)}
+  html[data-tema="oscuro"] table.list tr:hover td{background:#1b2531}
+  html[data-tema="oscuro"] table.ben input,
+  html[data-tema="oscuro"] table.inf input,
+  html[data-tema="oscuro"] table.ben textarea{color:var(--texto)}
+  html[data-tema="oscuro"] table.ben input:focus,
+  html[data-tema="oscuro"] table.inf input:focus,
+  html[data-tema="oscuro"] table.ben textarea:focus{background:#1d3145}
+  html[data-tema="oscuro"] table.ben input.ro,
+  html[data-tema="oscuro"] table.inf input.ro{background:#151c25;color:#9fb0c2}
+  html[data-tema="oscuro"] table.ben tr.tot td,
+  html[data-tema="oscuro"] table.inf tr.tot td{background:#1e2734}
+  html[data-tema="oscuro"] table.inf tr.auto-row td{background:#16261e}
+  html[data-tema="oscuro"] table.inf input.auto{background:#16311f;color:var(--verde)}
+  html[data-tema="oscuro"] table.ben input.clave,
+  html[data-tema="oscuro"] table.ben input.memodev{background:#3f3818;color:#f0e4a8}
+  html[data-tema="oscuro"] table.ben input.pct{background:#16283c;color:var(--azul2)}
+  html[data-tema="oscuro"] table.ben input.aviso,
+  html[data-tema="oscuro"] table.ben input.penee.manual,
+  html[data-tema="oscuro"] table.ben input.pemp.manual{background:#3a2a14;color:var(--naranja)}
+  html[data-tema="oscuro"] table.ben input.fac.dup{background:#3a1a17;color:var(--rojo)}
+  html[data-tema="oscuro"] tr.candado td{background:#241a1a}
+
+  /* avisos */
+  html[data-tema="oscuro"] .msg.ok{background:#13301f;color:var(--verde)}
+  html[data-tema="oscuro"] .msg.err{background:#331a18;color:var(--rojo)}
+  html[data-tema="oscuro"] .msg.info{background:#152438;color:var(--azul)}
+  html[data-tema="oscuro"] .editing,
+  html[data-tema="oscuro"] .avisoinf,
+  html[data-tema="oscuro"] .avisocierre{background:#332614;border-color:#5c4620;color:var(--naranja)}
+  html[data-tema="oscuro"] .avisocierre button{background:var(--sup2);border-color:#5c4620;color:var(--naranja)}
+  html[data-tema="oscuro"] .draft{background:#152438;border-color:#27466b;color:#9ec9f0}
+  html[data-tema="oscuro"] .draft b{color:#c3ddf6}
+  html[data-tema="oscuro"] .sello.cerrado{background:#331a18;border-color:#5f2b26;color:var(--rojo)}
+  html[data-tema="oscuro"] .sello.abierto{background:#13301f;border-color:#2a5c3c;color:var(--verde)}
+  html[data-tema="oscuro"] .pill.memo{background:#16283c;color:var(--azul)}
+  html[data-tema="oscuro"] .pill.reem{background:#13301f;color:var(--verde)}
+  html[data-tema="oscuro"] .pill.dev{background:#332614;color:var(--naranja)}
+  html[data-tema="oscuro"] .pill.inf{background:#241b38;color:#b79ae8}
+  html[data-tema="oscuro"] #loginError{color:var(--rojo)}
 </style>
 </head>
 <body>
@@ -215,10 +325,11 @@
     <button class="btn-primary" id="btnLogin" type="submit">Ingresar</button>
     <div id="loginError"></div>
     <div class="modo" id="modoLabel"></div>
+    <button type="button" class="temabtn temalogin" id="btnTemaLogin" onclick="alternarTema()">Oscuro</button>
     <button type="button" class="btn-sec" style="width:100%;margin-top:14px" onclick="probarConexion()">🔌 Probar conexión</button>
-    <div id="diagBox" class="hidden" style="margin-top:10px;text-align:left;background:#f4f6f9;border:1px solid var(--borde);border-radius:8px;padding:11px;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word"></div>
+    <div id="diagBox" class="hidden" style="margin-top:10px;text-align:left;background:var(--gris);border:1px solid var(--borde);border-radius:8px;padding:11px;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word"></div>
     <button type="button" class="btn-sec" style="width:100%;margin-top:10px" onclick="toggleCfg()">☁ Configurar conexión a la nube</button>
-    <div id="cfgBox" class="hidden" style="margin-top:12px;text-align:left;background:#f4f6f9;border:1px solid var(--borde);border-radius:8px;padding:12px">
+    <div id="cfgBox" class="hidden" style="margin-top:12px;text-align:left;background:var(--gris);border:1px solid var(--borde);border-radius:8px;padding:12px">
       <label style="font-size:12px;font-weight:600;color:var(--suave);display:block;margin-bottom:5px">URL de la Aplicación web de Google (termina en /exec)</label>
       <input id="cfgUrl" style="width:100%;padding:9px 10px;border:1px solid var(--borde);border-radius:8px" placeholder="https://script.google.com/macros/s/.../exec">
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -267,6 +378,7 @@
     </div>
     <div class="badge" id="modoBadge"></div>
     <div class="user" id="userLabel"></div>
+    <button class="temabtn" id="btnTema" onclick="alternarTema()">Oscuro</button>
     <button class="logout" onclick="logout()">Salir</button>
   </header>
 
@@ -995,6 +1107,35 @@ function aplicarPermisos(){
 /* ==================================================================
    LOGIN
    ================================================================== */
+
+/* ==================================================================
+   FONDO CLARO / OSCURO
+   El interruptor esta en la barra de arriba. La eleccion se recuerda
+   en esta PC. La impresion de los cuadros sale siempre en blanco.
+   ================================================================== */
+var TEMA_KEY = 'tema_dbs';
+function aplicarTema(t){
+  var oscuro = (t === 'oscuro');
+  document.documentElement.setAttribute('data-tema', oscuro ? 'oscuro' : 'claro');
+  var etiqueta = oscuro ? '\u2600 Fondo claro' : '\uD83C\uDF19 Fondo oscuro';
+  var titulo   = oscuro ? 'Cambiar a fondo blanco' : 'Cambiar a fondo oscuro';
+  var botones = document.querySelectorAll('.temabtn');
+  for(var i = 0; i < botones.length; i++){
+    botones[i].textContent = etiqueta;
+    botones[i].title = titulo;
+  }
+  try{ localStorage.setItem(TEMA_KEY, oscuro ? 'oscuro' : 'claro'); }catch(e){}
+}
+function temaGuardado(){
+  try{ var t = localStorage.getItem(TEMA_KEY); if(t === 'oscuro' || t === 'claro') return t; }catch(e){}
+  try{ if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'oscuro'; }catch(e){}
+  return 'claro';
+}
+function alternarTema(){
+  aplicarTema(document.documentElement.getAttribute('data-tema') === 'oscuro' ? 'claro' : 'oscuro');
+}
+aplicarTema(temaGuardado());
+
 window.addEventListener('DOMContentLoaded', function(){
   var m = CLOUD ? '☁ Modo NUBE — historial compartido entre PCs' : '\u{1F4BB} Modo LOCAL — historial solo en esta PC';
   document.getElementById('modoLabel').innerHTML = m;
@@ -2842,7 +2983,7 @@ function renderCierre(){
              '<td><b>' + (x.memo + x.reem) + '</b></td><td>' + x.dev + '</td>' +
              '<td>L' + fmtMoney(x.monto) + '</td></tr>';
     }).join('') +
-    '<tr class="tot" style="background:#eef2f6;font-weight:700"><td>TOTAL</td><td>' + c.memo + '</td><td>' + c.reem +
+    '<tr class="tot"><td>TOTAL</td><td>' + c.memo + '</td><td>' + c.reem +
     '</td><td>' + suma + '</td><td>' + c.dev + '</td><td>L' + fmtMoney(c.monto) + '</td></tr>';
   }
 
