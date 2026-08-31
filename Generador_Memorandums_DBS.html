@@ -723,8 +723,8 @@
       <div class="actions">
         <button class="btn-sec" onclick="infRecalcular()">&#8635; Recalcular desde los memor&aacute;ndums</button>
         <button class="btn-sec" onclick="infGuardarLocal(true)">&#128190; Guardar borrador en esta PC</button>
-        <button class="btn-sec" onclick="infGuardarNube()">&#9729; Guardar en la nube</button>
-        <button class="btn-sec" onclick="infCargarNube()">&#8681; Traer de la nube</button>
+        <button class="btn-sec" onclick="infSincronizar(false)">&#9729; Sincronizar ahora</button>
+        <button class="btn-sec" onclick="infCargarNube()">&#8681; Descartar y traer de la nube</button>
         <span class="totbar" id="i_estado"></span>
       </div>
       <div class="msg" id="i_msg"></div>
@@ -3191,13 +3191,17 @@ function infInit(){
     INF = infNuevo(mes, anio);
     var guardado = infLeerLocal(INF.zonas[INF.zp], anio, mes);
     if(guardado) INF = guardado;
+    INF_BASE = infLeerBase(INF.zonas[INF.zp], anio, mes);
     INF_INICIADO = true;
     infPintarTodo();
-    infRecalcular();
+    infRecalcular().then(function(){ infSincronizar(true); });
+    infArrancarPoll();
     return;
   }
   INF_INICIADO = true;
   infPintarTodo();
+  infArrancarPoll();
+  infSincronizar(true);
 }
 function infCambioPeriodo(){
   if(!INF_INICIADO) return;
@@ -3207,8 +3211,9 @@ function infCambioPeriodo(){
   var g = infLeerLocal(zona, anio, mes);
   INF = g || infNuevo(mes, anio);
   INF.mes = mes; INF.anio = String(anio);
+  INF_BASE = infLeerBase(zona, anio, mes);
   infPintarTodo();
-  infRecalcular();
+  infRecalcular().then(function(){ infSincronizar(true); });
 }
 
 /* ---------------- pintado ---------------- */
@@ -3473,6 +3478,171 @@ function infTextosAuto(forzar, soloK){
   });
 }
 
+/* ==================================================================
+   SINCRONIZACION DEL INFORME ENTRE COMPUTADORAS
+   Cada PC guarda su borrador local y ademas lo sincroniza con la nube.
+   Al sincronizar se mezcla: de la nube se toma todo, y encima se
+   aplican unicamente las casillas que cambiaron EN ESTA PC. Asi dos
+   personas pueden llenar sus columnas a la vez sin borrarse.
+   ================================================================== */
+var INF_BASE = null;          /* copia de lo ultimo leido de la nube */
+var INF_SYNC_T = null;        /* temporizador del guardado automatico */
+var INF_SYNC_OCUPADO = false;
+var INF_POLL = null;
+
+function infDif(a,b){ return JSON.stringify(a) !== JSON.stringify(b); }
+
+function infMezclar(base, mio, remoto){
+  if(!remoto) return mio;
+  if(!base) base = infNuevo(mio.mes, mio.anio);   /* nunca sincronizado: lo escrito aqui manda */
+  var r = infClon(remoto);
+
+  ['fecha','dest','cargo'].forEach(function(k){
+    if(infDif(mio[k], base[k])) r[k] = mio[k];
+  });
+  /* Los tres textos se regeneran solos cuando cambian los numeros, asi que
+     un cambio por si solo no significa que alguien los haya escrito. Mandan
+     unicamente si el usuario los edito a mano (tocado = true). */
+  ['intro','resumen','nota'].forEach(function(k){
+    var yoLoEdite  = !!(mio.tocado && mio.tocado[k]);
+    var otroLoEdito = !!(remoto.tocado && remoto.tocado[k]);
+    if(yoLoEdite && (!otroLoEdito || infDif(mio[k], base[k]))) r[k] = mio[k];
+    if(yoLoEdite) r.tocado[k] = true;
+  });
+  ['zonas','firmas'].forEach(function(k){
+    if(infDif(mio[k], base[k])) r[k] = infClon(mio[k]);
+  });
+  if(mio.zp !== base.zp) r.zp = mio.zp;
+  Object.keys(mio.cuadro).forEach(function(k){
+    if(mio.cuadro[k] !== base.cuadro[k]) r.cuadro[k] = mio.cuadro[k];
+  });
+
+  /* Si esta PC cambio la lista de personas, sus columnas mandan enteras;
+     si la cambio la otra, mandan las de la nube. */
+  var yoCambiePersonas = infDif(mio.personas, base.personas);
+  if(yoCambiePersonas){
+    r.personas = infClon(mio.personas);
+    r.items = infClon(mio.items);
+    r.mes = mio.mes; r.anio = mio.anio;
+    return infSanear(r);
+  }
+  if(infDif(remoto.personas, base.personas)){
+    r.mes = mio.mes; r.anio = mio.anio;
+    return infSanear(r);
+  }
+
+  var n = Math.max(mio.items.length, r.items.length), i, j, k;
+  var items = [];
+  for(i = 0; i < n; i++){
+    var im = mio.items[i], ir = r.items[i], ib = base.items[i] || { desc:'', per:[], z:[0,0,0] };
+    if(!ir){ items.push(infClon(im)); continue; }
+    if(!im){ items.push(infClon(ir)); continue; }
+    var it = infClon(ir);
+    if(im.desc !== ib.desc) it.desc = im.desc;
+    var largo = Math.max(im.per.length, it.per.length, (ib.per||[]).length);
+    for(j = 0; j < largo; j++){
+      var vm = infEnt(im.per[j] || 0), vb = infEnt((ib.per||[])[j] || 0);
+      if(vm !== vb) it.per[j] = vm;                       /* lo cambie yo */
+      else if(it.per[j] === undefined) it.per[j] = 0;     /* lo dejo la nube */
+    }
+    for(k = 0; k < 3; k++){
+      var zm = infEnt(im.z[k] || 0), zb = infEnt((ib.z||[])[k] || 0);
+      if(zm !== zb) it.z[k] = zm;
+    }
+    items.push(it);
+  }
+  r.items = items;
+  r.mes = mio.mes; r.anio = mio.anio;
+  return infSanear(r);
+}
+
+function infProgramarSync(){
+  if(!CLOUD || !INF_INICIADO) return;
+  clearTimeout(INF_SYNC_T);
+  INF_SYNC_T = setTimeout(function(){ infSincronizar(true); }, 3000 + Math.floor(Math.random()*1500));
+}
+
+async function infSincronizar(silencioso){
+  if(!CLOUD){
+    if(!silencioso) infMsg('err','Esta copia está en modo LOCAL: no hay nube configurada.');
+    return false;
+  }
+  if(!INF || !INF_INICIADO || INF_SYNC_OCUPADO) return false;
+  INF_SYNC_OCUPADO = true;
+  clearTimeout(INF_SYNC_T);
+  var clave = INF.zonas[INF.zp] + '|' + INF.anio + '|' + INF.mes;
+  var foco = document.activeElement ? document.activeElement.id : '';
+  var base = INF_BASE;              /* NO se actualiza hasta confirmar que subio */
+  try{
+    if(!silencioso) infMsg('info','Sincronizando con la nube...');
+    infEstado('Sincronizando...');
+
+    var verificado = false, intentos = 0;
+    while(!verificado && intentos < 3){
+      intentos++;
+
+      var r = await apiCall('getInforme', { clave: clave });
+      var remoto = (r && r.data) ? infDesempacar(r.data) : null;
+
+      var antes = infEmpacar(INF);
+      INF = infMezclar(base, INF, remoto);
+      if(infEmpacar(INF) !== antes){          /* llego algo de otra PC: repintar */
+        infPintarTodo();
+        if(foco){ var el = document.getElementById(foco); if(el && el.focus) el.focus(); }
+      }
+      var mezclado = infEmpacar(INF);
+      try{ localStorage.setItem(infClave(), JSON.stringify(INF)); }catch(e){}
+
+      if(remoto && mezclado === infEmpacar(remoto)){ verificado = true; break; }  /* nada que subir */
+
+      await apiCallRetry('saveInforme', { clave: clave, zona: INF.zonas[INF.zp],
+        anio: INF.anio, mes: INF.mes, usuario: CURRENT.nombre, data: mezclado });
+
+      /* Comprobar que lo escrito quedo: si otra PC guardo al mismo tiempo,
+         se vuelve a mezclar y a subir en vez de dar el dato por perdido. */
+      var v = await apiCall('getInforme', { clave: clave });
+      var quedo = (v && v.data) ? v.data : '';
+      if(quedo === mezclado){ verificado = true; break; }
+      await espera(250 + Math.floor(Math.random() * 900));
+    }
+
+    if(verificado){
+      INF_BASE = infClon(INF);
+      infGuardarBase();
+      infEstado('Sincronizado ' + new Date().toLocaleTimeString('es-HN'));
+      if(!silencioso) infMsg('ok','✓ Informe sincronizado. Lo que llenen las demás computadoras se junta con lo suyo.');
+    }else{
+      infEstado('⚠ Reintentando sincronizar...');
+      infProgramarSync();
+      if(!silencioso) infMsg('info','Otra computadora estaba guardando al mismo tiempo. Se reintenta en unos segundos.');
+    }
+    return verificado;
+  }catch(e){
+    var m = e.message || '';
+    infEstado('⚠ Sin sincronizar — guardado solo en esta PC');
+    if(/DEMASIADO GRANDE/i.test(m))
+      infMsg('err','El informe no cabe en una sola petición. Acorte el texto de la NOTA o quite ítems vacíos.');
+    else if(infErrAccion(m))
+      infMsg('err','El Apps Script todavía no entiende «saveInforme» / «getInforme». Instale el Codigo.gs nuevo y publique una NUEVA VERSIÓN del despliegue.');
+    else if(!silencioso)
+      infMsg('err','No se pudo sincronizar: ' + m);
+    return false;
+  }finally{
+    INF_SYNC_OCUPADO = false;
+  }
+}
+
+/* revisa cada 45 s si otra PC escribio algo, mientras la pestana este abierta */
+function infArrancarPoll(){
+  if(INF_POLL || !CLOUD) return;
+  INF_POLL = setInterval(function(){
+    var v = document.getElementById('viewInf');
+    if(!v || v.classList.contains('hidden')) return;
+    if(document.visibilityState !== 'visible') return;
+    infSincronizar(true);
+  }, 45000);
+}
+
 /* ---------------- guardar / cargar ---------------- */
 function infLeerLocal(zona, anio, mes){
   try{
@@ -3480,17 +3650,31 @@ function infLeerLocal(zona, anio, mes){
     return raw ? infSanear(JSON.parse(raw)) : null;
   }catch(e){ return null; }
 }
+/* copia de lo ultimo que se leyo de la nube, para saber que cambio esta PC */
+function infLeerBase(zona, anio, mes){
+  try{
+    var raw = localStorage.getItem(INF_KEY + zona + '|' + anio + '|' + mes + '|base');
+    return raw ? infSanear(JSON.parse(raw)) : null;
+  }catch(e){ return null; }
+}
+function infGuardarBase(){
+  try{
+    if(INF_BASE) localStorage.setItem(infClave() + '|base', JSON.stringify(INF_BASE));
+  }catch(e){}
+}
+function infClon(o){ return JSON.parse(JSON.stringify(o)); }
+function infEstado(t){ var e = document.getElementById('i_estado'); if(e) e.textContent = t; }
 function infGuardarLocal(avisar){
   if(!INF || !INF_INICIADO) return;
   try{
     localStorage.setItem(infClave(), JSON.stringify(INF));
-    var e = document.getElementById('i_estado');
-    if(e) e.textContent = 'Borrador guardado ' + new Date().toLocaleTimeString('es-HN');
     if(avisar) infMsg('ok','✓ Borrador guardado en esta PC.');
+    infProgramarSync();
   }catch(e){ if(avisar) infMsg('err','No se pudo guardar el borrador: '+e.message); }
 }
 /* formato compacto: el Apps Script recibe todo por la URL (máx. ~7500 caracteres) */
-function infEmpacar(){
+function infEmpacar(S){
+  var INF = S || window.INF;
   return JSON.stringify({ v:1, m:INF.mes, a:INF.anio, f:INF.fecha, d:INF.dest, c:INF.cargo,
     zn:INF.zonas, zp:INF.zp, p:INF.personas,
     it:INF.items.map(function(it,i){
@@ -3541,7 +3725,9 @@ async function infCargarNube(){
     var r = await apiCall('getInforme', { clave: INF.zonas[INF.zp]+'|'+INF.anio+'|'+INF.mes });
     if(!r || !r.data){ infMsg('err','No hay ningún informe guardado en la nube para ese mes y esa zona.'); return; }
     INF = infDesempacar(r.data);
-    infPintarTodo(); infGuardarLocal(false);
+    INF_BASE = infClon(INF); infGuardarBase();
+    infPintarTodo();
+    try{ localStorage.setItem(infClave(), JSON.stringify(INF)); }catch(e){}
     infMsg('ok','✓ Informe traído de la nube'+(r.usuario?' (guardado por '+r.usuario+')':'')+'.');
   }catch(e){
     var m = e.message||'';
@@ -3584,19 +3770,13 @@ function infTablaImpresion(cols, valorDe){
           (cols.length>1 ? '<th>TOTAL</th>' : '') + '</tr>' +
           '<tr><th></th><th></th>' + cols.map(function(){ return '<th>No,</th>'; }).join('') +
           (cols.length>1 ? '<th>No,</th>' : '') + '</tr></thead><tbody>';
-  var sumas = cols.map(function(){ return 0; }), granTotal = 0;
   INF.items.forEach(function(it,i){
     var vals = cols.map(function(c,j){ return infEnt(valorDe(i,j)); });
     var tot = vals.reduce(function(a,b){ return a+b; }, 0);
-    vals.forEach(function(v,j){ sumas[j] += v; });
-    granTotal += tot;
     h += '<tr><td class="it">'+(i+1)+'</td><td class="ds">'+esc(it.desc)+'</td>' +
          vals.map(function(v){ return '<td>'+v+'</td>'; }).join('') +
          (cols.length>1 ? '<td class="tt">'+tot+'</td>' : '') + '</tr>';
   });
-  h += '<tr class="tot"><td></td><td class="ds">TOTAL</td>' +
-       sumas.map(function(s){ return '<td>'+s+'</td>'; }).join('') +
-       (cols.length>1 ? '<td>'+granTotal+'</td>' : '') + '</tr>';
   return h + '</tbody></table>';
 }
 function infImprimir(cual){
