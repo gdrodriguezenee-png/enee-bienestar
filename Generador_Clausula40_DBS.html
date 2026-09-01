@@ -324,6 +324,11 @@ tbody tr.repetido:hover td{background:#fbe3e3}
           <button class="ok" onclick="nuevoAnterior()">Registrar memorando anterior</button>
           <button class="sec" onclick="abrirPegarMemos()">Importar desde Excel</button>
           <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
+          <label id="h-cerrados-caja" style="display:none;text-transform:none;font-size:13px;
+            font-weight:500;color:var(--texto);margin:0;align-items:center;gap:6px">
+            <input type="checkbox" id="h-cerrados" onchange="renderHist()"
+              style="width:auto;margin:0"> Ver meses cerrados
+          </label>
           <button class="sec" onclick="unificarNombres()">Unificar nombres</button>
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
@@ -2043,18 +2048,24 @@ function renderHist(){
   var an = $('h-anio').value;
   var rep = numerosRepetidos();
   avisoRepetidos(rep);
-  var h = '', n = 0;
+  var verCerrados = $('h-cerrados') && $('h-cerrados').checked;
+  var h = '', n = 0, ocultos = 0;
   for(var i=0;i<HISTORIAL.length;i++){
     var m = HISTORIAL[i];
     var txt = (m.no+' '+m.dep+' '+m.mesPago+' '+m.anioPago+' '+(m.usuario||'')).toLowerCase();
     if(q && txt.indexOf(q) === -1) continue;
     if(an && String(m.anioPago) !== an) continue;
+    // Los meses ya cerrados se guardan fuera de la vista para no estorbar
+    var cer = cierreDeFecha(m.fecha);
+    if(cer && !verCerrados){ ocultos++; continue; }
     n++;
     var dup = rep[String(m.no||'').trim()];
     h += '<tr' + (dup ? ' class="repetido"' : '') + '>'
       + '<td><b>'+esc(m.no)+'</b>'
       + (dup ? '<span class="marca-dup">repetido &times;'+dup+'</span>' : '') + '</td>'
-      + '<td>'+esc(fechaLarga(m.fecha))+'</td>'
+      + '<td>'+esc(fechaLarga(m.fecha))
+      + (cer ? ' <span class="marca-dup" style="background:#eef2f7;color:#44586e;'
+        + 'border-color:#dde3ed">mes cerrado</span>' : '') + '</td>'
       + '<td>'+esc(m.dep)+'</td>'
       + '<td>'+esc(m.mesPago)+' '+esc(m.anioPago)+'</td>'
       + '<td style="text-align:right">'+m.empleados+'</td>'
@@ -2068,11 +2079,19 @@ function renderHist(){
       + '<button class="bdel" onclick="borrarMemo(\''+m.id+'\')">&times;</button></td>'
       + '</tr>';
   }
-  if(!n) h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">Sin memorandos.</td></tr>';
+  if(!n){
+    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
+      + (ocultos ? ocultos + ' memorando(s) de meses cerrados. Marque «Ver meses cerrados» '
+                   + 'para mostrarlos.'
+                 : 'Sin memorandos.') + '</td></tr>';
+  }
   $('h-tb').innerHTML = h;
   var pend = memosPendientes().length;
   $('h-cont').textContent = n + ' de ' + HISTORIAL.length + ' memorandos'
+    + (ocultos ? ' · ' + ocultos + ' de meses cerrados, ocultos' : '')
     + (pend ? ' · ' + pend + ' sin subir a la hoja' : '');
+  if($('h-cerrados-caja'))
+    $('h-cerrados-caja').style.display = (ocultos || verCerrados) ? 'flex' : 'none';
   if($('btn-pend')) $('btn-pend').style.display = pend ? '' : 'none';
   poblarAnios();
 }
@@ -6019,6 +6038,7 @@ function cargarCierresSheets(cb, silencioso){
     }
     guardarLS(LS.cierres, CIERRES);
     renderCierres();
+    renderHist();
     avisarCierre();
     if(cb) cb(true);
   });
@@ -6055,8 +6075,8 @@ function cerrarMes(){
   guardarLS(LS.cierres, CIERRES);
   enviarCierresSheets();
   registrarBitacora('Cerro mes', nombre + ' ' + anio, nota);
-  renderCierres(); renderInforme(); avisarCierre();
-  toast(nombre + ' ' + anio + ' quedó cerrado.','ok');
+  renderCierres(); renderInforme(); renderHist(); avisarCierre();
+  toast(nombre + ' ' + anio + ' quedó cerrado. Sus memorandos se ocultan del historial.','ok');
 }
 function reabrirMes(i){
   if(!esAdmin()){ toast('Solo un administrador puede reabrir el mes.','err'); return; }
@@ -6068,7 +6088,7 @@ function reabrirMes(i){
   guardarLS(LS.cierres, CIERRES);
   enviarCierresSheets();
   registrarBitacora('Reabrio mes', c.mesNombre + ' ' + c.anio, '');
-  renderCierres(); renderInforme(); avisarCierre();
+  renderCierres(); renderInforme(); renderHist(); avisarCierre();
   toast(c.mesNombre + ' ' + c.anio + ' quedó abierto de nuevo.','ok');
 }
 function renderCierres(){
