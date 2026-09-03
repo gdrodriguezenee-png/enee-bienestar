@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script>(function(){try{var t=localStorage.getItem('dbs-tema');
+if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light';}
+document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google" content="notranslate">
@@ -20,31 +24,31 @@ h1,h2,h3,.tab-btn,.badge,thead th,button{font-family:'Barlow Condensed',sans-ser
 button{cursor:pointer;border:none;border-radius:7px;padding:9px 15px;font-size:14px;
   font-weight:600;letter-spacing:.4px;background:var(--azul);color:#fff;transition:.15s}
 button:hover{background:var(--azul-med)}
-button.sec{background:#fff;color:var(--azul);border:1.5px solid var(--raya)}
+button.sec{background:var(--sf1);color:var(--azul-ink);border:1.5px solid var(--raya)}
 button.sec:hover{background:var(--azul-claro)}
 button.ok{background:var(--verde)}button.ok:hover{background:#145f36}
 button.danger{background:var(--rojo)}button.danger:hover{background:#a81b2a}
 button.gold{background:var(--acento);color:#3a2a00}button.gold:hover{background:#d99400}
 button:disabled{opacity:.5;cursor:not-allowed}
 input,select,textarea{font-family:'Barlow',sans-serif;font-size:14px;color:var(--texto);
-  border:1.5px solid var(--gris1);border-radius:6px;padding:8px 10px;background:#fff;width:100%}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--azul-med);background:#fbfdff}
-input[readonly]{background:#eef2f7;color:#44586e}
+  border:1.5px solid var(--gris1);border-radius:6px;padding:8px 10px;background:var(--sf1);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--azul-med);background:var(--sf2)}
+input[readonly]{background:var(--sf3);color:var(--tk4)}
 label{display:block;font-size:11.5px;font-weight:600;letter-spacing:.7px;
-  text-transform:uppercase;color:var(--gris2);margin-bottom:4px}
+  text-transform:uppercase;color:var(--gris2-ink);margin-bottom:4px}
 
 /* ---------- LOGIN ---------- */
 #login{position:fixed;inset:0;background:linear-gradient(150deg,#00203f,#003366 55%,#00509e);
   display:flex;align-items:center;justify-content:center;z-index:900}
-.login-card{background:#fff;border-radius:16px;padding:34px 32px;width:370px;
+.login-card{background:var(--sf1);border-radius:16px;padding:34px 32px;width:370px;
   box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .login-card .esc{width:60px;height:60px;border-radius:50%;background:var(--acento);
   display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 14px}
-.login-card h2{text-align:center;color:var(--azul);font-size:24px;letter-spacing:.5px}
-.login-card p.sub{text-align:center;color:var(--gris2);font-size:12.5px;margin-bottom:20px;
+.login-card h2{text-align:center;color:var(--azul-ink);font-size:24px;letter-spacing:.5px}
+.login-card p.sub{text-align:center;color:var(--gris2-ink);font-size:12.5px;margin-bottom:20px;
   letter-spacing:.5px;text-transform:uppercase}
 .login-card .fila{margin-bottom:13px}
-#login-err{color:var(--rojo);font-size:12.5px;text-align:center;height:16px;margin-top:8px}
+#login-err{color:var(--rojo-ink);font-size:12.5px;text-align:center;height:16px;margin-top:8px}
 
 /* ---------- APP ---------- */
 #app{display:none}
@@ -55,25 +59,25 @@ header .logo{width:40px;height:40px;border-radius:50%;background:var(--acento);
 header h1{font-size:20px;letter-spacing:.6px;line-height:1.1}
 header .sub{font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;opacity:.72}
 header .sp{flex:1}
-.pill{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
+.pill{background:var(--sf5);border:1px solid var(--sf6);
   border-radius:20px;padding:6px 14px;font-size:13px;display:flex;align-items:center;gap:8px}
 .pill .av{width:24px;height:24px;border-radius:50%;background:var(--acento);color:#3a2a00;
   display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
 .tabs-bar{background:#00284f;display:flex;gap:2px;padding:0 18px;overflow-x:auto}
 .tab-btn{background:transparent;color:#a9c4e0;border-radius:8px 8px 0 0;padding:11px 20px;
   font-size:14.5px;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap}
-.tab-btn:hover{background:rgba(255,255,255,.07);color:#fff}
-.tab-btn.active{background:var(--bg);color:var(--verde)}
-.tab-btn[data-t="Nuevo"].active{color:#1a7a44}
-.tab-btn[data-t="Historial"].active{color:#003366}
-.tab-btn[data-t="Empleados"].active{color:#7a3a00}
-.tab-btn[data-t="Informe"].active{color:#7a0030}
-.tab-btn[data-t="Config"].active{color:#5a0080}
+.tab-btn:hover{background:var(--sf7);color:#fff}
+.tab-btn.active{background:var(--bg);color:var(--verde-ink)}
+.tab-btn[data-t="Nuevo"].active{color:var(--tk8)}
+.tab-btn[data-t="Historial"].active{color:var(--tk9)}
+.tab-btn[data-t="Empleados"].active{color:var(--tk10)}
+.tab-btn[data-t="Informe"].active{color:var(--tk11)}
+.tab-btn[data-t="Config"].active{color:var(--tk12)}
 main{padding:20px 22px 60px;max-width:1500px;margin:0 auto}
 .vista{display:none}.vista.on{display:block}
-.card{background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:16px;
+.card{background:var(--sf1);border-radius:12px;padding:18px 20px;margin-bottom:16px;
   box-shadow:0 2px 16px rgba(0,30,80,.08)}
-.card h3{color:var(--azul);font-size:17px;letter-spacing:.7px;text-transform:uppercase;
+.card h3{color:var(--azul-ink);font-size:17px;letter-spacing:.7px;text-transform:uppercase;
   margin-bottom:14px;padding-bottom:9px;border-bottom:2px solid var(--azul-claro);
   display:flex;align-items:center;gap:8px}
 .grid{display:grid;gap:13px}
@@ -87,19 +91,19 @@ main{padding:20px 22px 60px;max-width:1500px;margin:0 auto}
 
 /* ---------- TABLA ---------- */
 .tabla-wrap{overflow-x:auto;border-radius:10px}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;background:var(--sf1);border-radius:10px;overflow:hidden}
 thead tr{background:var(--azul);color:#fff}
 thead th{font-weight:600;font-size:12.5px;letter-spacing:.6px;text-transform:uppercase;
   padding:10px 8px;white-space:nowrap;text-align:left}
 tbody tr:nth-child(even){background:var(--azul-claro)}
-tbody tr:hover{background:#d0e4f7}
-td{padding:5px 6px;border-right:1px solid var(--raya);border-bottom:1px solid #eef1f6;vertical-align:middle}
+tbody tr:hover{background:var(--sf13)}
+td{padding:5px 6px;border-right:1px solid var(--raya);border-bottom:1px solid var(--sf14);vertical-align:middle}
 td input,td select{padding:6px 7px;font-size:13px;border-width:1px}
 td.num input{text-align:right}
 .tot-cel{text-align:right;font-weight:600;font-family:'Barlow Condensed',sans-serif;
-  font-size:15px;color:var(--verde);white-space:nowrap;padding-right:10px}
-.idx{text-align:center;color:var(--gris2);font-weight:600;font-size:13px}
-.bdel{background:#fdecec;color:var(--rojo);border:1px solid #f5c6c6;border-radius:6px;
+  font-size:15px;color:var(--verde-ink);white-space:nowrap;padding-right:10px}
+.idx{text-align:center;color:var(--gris2-ink);font-weight:600;font-size:13px}
+.bdel{background:var(--sf15);color:var(--rojo-ink);border:1px solid var(--sf16);border-radius:6px;
   padding:5px 9px;font-size:13px;line-height:1}
 .bdel:hover{background:var(--rojo);color:#fff}
 tfoot tr{background:#00284f;color:#fff}
@@ -109,61 +113,83 @@ tfoot td{font-family:'Barlow Condensed',sans-serif;font-size:15.5px;font-weight:
 /* ---------- RESUMEN ---------- */
 .resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
 @media(max-width:800px){.resumen{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:linear-gradient(140deg,#f7fbff,#e8f0f8);border:1.5px solid var(--raya);
+.kpi{background:linear-gradient(140deg,var(--sf17),var(--sf18));border:1.5px solid var(--raya);
   border-radius:10px;padding:12px 14px}
-.kpi .lbl{font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--gris2);font-weight:600}
-.kpi .val{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:700;color:var(--azul);line-height:1.15}
-.kpi.verde{background:linear-gradient(140deg,#f2fbf6,var(--verde-claro));border-color:#b6dfc8}
-.kpi.verde .val{color:var(--verde)}
-.letras{margin-top:12px;background:var(--verde-claro);border:1.5px dashed #9ccdb2;border-radius:9px;
-  padding:11px 14px;font-size:14.5px;font-weight:600;color:#14603a;letter-spacing:.3px}
-.badge{display:inline-block;background:var(--verde-claro);color:var(--verde);border-radius:20px;
+.kpi .lbl{font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--gris2-ink);font-weight:600}
+.kpi .val{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:700;color:var(--azul-ink);line-height:1.15}
+.kpi.verde{background:linear-gradient(140deg,var(--sf19),var(--verde-claro));border-color:var(--sf20)}
+.kpi.verde .val{color:var(--verde-ink)}
+.letras{margin-top:12px;background:var(--verde-claro);border:1.5px dashed var(--sf21);border-radius:9px;
+  padding:11px 14px;font-size:14.5px;font-weight:600;color:var(--tk22);letter-spacing:.3px}
+.badge{display:inline-block;background:var(--verde-claro);color:var(--verde-ink);border-radius:20px;
   padding:3px 11px;font-size:12.5px;font-weight:600;letter-spacing:.6px}
-.hint{font-size:12.5px;color:var(--gris2);margin-top:6px;line-height:1.5}
-tbody tr.repetido td{background:#fdf0f0}
-tbody tr.repetido:hover td{background:#fbe3e3}
-.marca-dup{display:inline-block;background:#fdecec;color:var(--rojo);border:1px solid #f2c4c4;
+.hint{font-size:12.5px;color:var(--gris2-ink);margin-top:6px;line-height:1.5}
+tbody tr.repetido td{background:var(--sf23)}
+tbody tr.repetido:hover td{background:var(--sf24)}
+.marca-dup{display:inline-block;background:var(--sf15);color:var(--rojo-ink);border:1px solid var(--sf25);
   border-radius:20px;padding:1px 8px;font-size:11.5px;font-weight:600;margin-left:6px}
-.aviso-campo{font-size:12.5px;font-weight:600;color:var(--rojo);margin-top:5px;line-height:1.45}
-.warn{background:#fff8e6;border:1.5px solid #f0d79a;border-radius:9px;padding:11px 14px;
-  font-size:13px;color:#7a5800;line-height:1.55;margin-bottom:14px}
+.aviso-campo{font-size:12.5px;font-weight:600;color:var(--rojo-ink);margin-top:5px;line-height:1.45}
+.warn{background:var(--sf26);border:1.5px solid var(--sf27);border-radius:9px;padding:11px 14px;
+  font-size:13px;color:var(--tk28);line-height:1.55;margin-bottom:14px}
 
 /* ---------- MODAL ---------- */
 .modal{position:fixed;inset:0;background:rgba(0,15,35,.62);display:none;
   align-items:flex-start;justify-content:center;z-index:800;padding:26px 14px;overflow-y:auto}
 .modal.on{display:flex}
-.modal-box{background:#fff;border-radius:14px;width:100%;max-width:900px;
+.modal-box{background:var(--sf1);border-radius:14px;width:100%;max-width:900px;
   box-shadow:0 26px 70px rgba(0,0,0,.4)}
 .modal-head{background:var(--azul);color:#fff;padding:13px 20px;border-radius:14px 14px 0 0;
   display:flex;align-items:center;gap:10px}
 .modal-head h3{font-size:18px;letter-spacing:.6px;flex:1;color:#fff;border:none;margin:0;padding:0}
-.modal-head .x{background:rgba(255,255,255,.15);border-radius:6px;padding:4px 11px;font-size:17px}
+.modal-head .x{background:var(--sf29);border-radius:6px;padding:4px 11px;font-size:17px}
 .modal-body{padding:20px}
 .modal-foot{padding:14px 20px;border-top:1.5px solid var(--gris1);display:flex;gap:9px;justify-content:flex-end}
 
 /* ---------- PREVIEW MEMO ---------- */
 #prev-box{max-width:900px}
-.hoja{background:#fff;border:1px solid var(--gris1);padding:30px 34px;font-family:'Times New Roman',serif;
-  font-size:13px;color:#000;line-height:1.35}
+.hoja{background:var(--sf1);border:1px solid var(--gris1);padding:30px 34px;font-family:'Times New Roman',serif;
+  font-size:13px;color:var(--tk30);line-height:1.35}
 .hoja table{border-collapse:collapse;border-radius:0}
-.hoja thead tr{background:#fff;color:#000}
+.hoja thead tr{background:var(--sf1);color:var(--tk30)}
 .hoja th,.hoja td{border:1px solid #000;padding:4px 6px;font-size:10.5px;
-  font-family:'Times New Roman',serif;color:#000;text-align:left;letter-spacing:0;text-transform:none}
-.hoja tbody tr:nth-child(even){background:#fff}
+  font-family:'Times New Roman',serif;color:var(--tk30);text-align:left;letter-spacing:0;text-transform:none}
+.hoja tbody tr:nth-child(even){background:var(--sf1)}
 
 /* ---------- TOAST / LOADING ---------- */
 #toast{position:fixed;bottom:22px;right:22px;background:var(--azul);color:#fff;padding:12px 20px;
   border-radius:9px;box-shadow:0 8px 26px rgba(0,0,0,.3);font-size:14px;display:none;z-index:950;max-width:340px}
 #toast.err{background:var(--rojo)}#toast.ok{background:var(--verde)}
-#loading{position:fixed;inset:0;background:rgba(240,243,248,.8);display:none;
+#loading{position:fixed;inset:0;background:var(--sf31);display:none;
   align-items:center;justify-content:center;z-index:940;flex-direction:column;gap:14px}
 #loading.on{display:flex}
 .spin{width:44px;height:44px;border:5px solid var(--raya);border-top-color:var(--azul);
   border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-.estado{font-size:12.5px;color:var(--gris2);display:flex;align-items:center;gap:6px}
+.estado{font-size:12.5px;color:var(--gris2-ink);display:flex;align-items:center;gap:6px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--gris2)}
 .dot.ok{background:var(--verde)}.dot.err{background:var(--rojo)}
+
+:root{color-scheme:light;--azul-ink:#003366;--gris2-ink:#8899aa;--rojo-ink:#cc2233;--verde-ink:#1a7a44;--sf1:#ffffff;--sf2:#fbfdff;--sf3:#eef2f7;--sf5:rgba(255,255,255,.13);--sf6:rgba(255,255,255,.22);--sf7:rgba(255,255,255,.07);--sf13:#d0e4f7;--sf14:#eef1f6;--sf15:#fdecec;--sf16:#f5c6c6;--sf17:#f7fbff;--sf18:#e8f0f8;--sf19:#f2fbf6;--sf20:#b6dfc8;--sf21:#9ccdb2;--sf23:#fdf0f0;--sf24:#fbe3e3;--sf25:#f2c4c4;--sf26:#fff8e6;--sf27:#f0d79a;--sf29:rgba(255,255,255,.15);--sf31:rgba(240,243,248,.8);--sf32:#e8a0a0;--sf34:#e9edf3;--tk4:#44586e;--tk8:#1a7a44;--tk9:#003366;--tk10:#7a3a00;--tk11:#7a0030;--tk12:#5a0080;--tk22:#14603a;--tk28:#7a5800;--tk30:#000000;--tk33:#8a1f2a;--tk35:#8899aa;--tk36:#747474;--tk37:#cc2233}
+:root[data-theme="dark"]{color-scheme:dark;--azul-ink:#a6cbf0;--azul-claro:#1c3145;--bg:#0e1520;--blanco:#1b2430;--gris1:#243045;--gris2-ink:#90a0b0;--texto:#bccfe1;--raya:#26374d;--rojo-ink:#e87580;--verde-ink:#99e9bc;--verde-claro:#214635;--sf1:#1b2430;--sf2:#1b2430;--sf3:#1f2e41;--sf5:rgba(27,36,48,.13);--sf6:rgba(27,36,48,.22);--sf7:rgba(27,36,48,.07);--sf13:#1f364b;--sf14:#212c3f;--sf15:#431b1b;--sf16:#4e2020;--sf17:#1b2430;--sf18:#1c3145;--sf19:#1b422c;--sf20:#26563b;--sf21:#2f5c43;--sf23:#421b1b;--sf24:#461c1c;--sf25:#4f2020;--sf26:#44391c;--sf27:#5a4b25;--sf29:rgba(27,36,48,.15);--sf31:rgba(30,43,64,.8);--sf32:#5b2525;--sf34:#232e40;--tk4:#abbacb;--tk8:#99e9bc;--tk9:#a6cbf0;--tk10:#efc59e;--tk11:#ef9ebe;--tk12:#d69cef;--tk22:#a4ecc8;--tk28:#efd99e;--tk30:#dce0e5;--tk33:#e7939c;--tk35:#90a0b0;--tk36:#a5afbb;--tk37:#e87580}
+@media print{:root[data-theme="dark"]{color-scheme:light;--azul:#003366;--azul-med:#005599;--azul-claro:#e8f0f8;--acento:#f0a500;--bg:#f0f3f8;--blanco:#fff;--gris1:#dde3ed;--gris2:#8899aa;--texto:#1a2a3a;--raya:#c8d4e4;--rojo:#cc2233;--verde:#1a7a44;--verde-claro:#dff0e8;--azul-ink:#003366;--gris2-ink:#8899aa;--rojo-ink:#cc2233;--verde-ink:#1a7a44;--sf1:#ffffff;--sf2:#fbfdff;--sf3:#eef2f7;--sf5:rgba(255,255,255,.13);--sf6:rgba(255,255,255,.22);--sf7:rgba(255,255,255,.07);--sf13:#d0e4f7;--sf14:#eef1f6;--sf15:#fdecec;--sf16:#f5c6c6;--sf17:#f7fbff;--sf18:#e8f0f8;--sf19:#f2fbf6;--sf20:#b6dfc8;--sf21:#9ccdb2;--sf23:#fdf0f0;--sf24:#fbe3e3;--sf25:#f2c4c4;--sf26:#fff8e6;--sf27:#f0d79a;--sf29:rgba(255,255,255,.15);--sf31:rgba(240,243,248,.8);--sf32:#e8a0a0;--sf34:#e9edf3;--tk4:#44586e;--tk8:#1a7a44;--tk9:#003366;--tk10:#7a3a00;--tk11:#7a0030;--tk12:#5a0080;--tk22:#14603a;--tk28:#7a5800;--tk30:#000000;--tk33:#8a1f2a;--tk35:#8899aa;--tk36:#747474;--tk37:#cc2233}}
+
+/* ===== INTERRUPTOR DE TEMA CLARO / OSCURO ===== */
+#tema-switch{position:fixed;right:16px;bottom:16px;z-index:99999;display:flex;align-items:center;gap:7px;
+  padding:7px 13px 7px 9px;border-radius:999px;cursor:pointer;user-select:none;font-size:12px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;font-family:'Barlow Condensed','Segoe UI',sans-serif;
+  border:1.5px solid rgba(255,255,255,.32);background:rgba(15,26,40,.86);color:#fff;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  box-shadow:0 6px 22px rgba(0,0,0,.32);transition:transform .15s,background .2s,color .2s}
+#tema-switch:hover{transform:translateY(-2px)}
+#tema-switch .ts-pista{width:34px;height:18px;border-radius:999px;background:rgba(255,255,255,.26);
+  position:relative;flex:none;transition:background .2s}
+#tema-switch .ts-bolita{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:#f0a500;transition:left .2s,background .2s}
+:root[data-theme="dark"] #tema-switch{background:rgba(232,239,248,.93);color:#12202f;border-color:rgba(0,0,0,.2)}
+:root[data-theme="dark"] #tema-switch .ts-pista{background:rgba(0,0,0,.2)}
+:root[data-theme="dark"] #tema-switch .ts-bolita{left:18px;background:#12202f}
+@media print{#tema-switch{display:none!important}}
+@media (max-width:600px){#tema-switch{right:10px;bottom:10px;padding:6px 10px 6px 8px;font-size:11px}}
 </style>
 </head>
 <body>
@@ -324,16 +350,11 @@ tbody tr.repetido:hover td{background:#fbe3e3}
           <button class="ok" onclick="nuevoAnterior()">Registrar memorando anterior</button>
           <button class="sec" onclick="abrirPegarMemos()">Importar desde Excel</button>
           <button class="sec" onclick="quitarDuplicados()">Quitar repetidos</button>
-          <label id="h-cerrados-caja" style="display:none;text-transform:none;font-size:13px;
-            font-weight:500;color:var(--texto);margin:0;align-items:center;gap:6px">
-            <input type="checkbox" id="h-cerrados" onchange="renderHist()"
-              style="width:auto;margin:0"> Ver meses cerrados
-          </label>
           <button class="sec" onclick="unificarNombres()">Unificar nombres</button>
           <button class="sec" onclick="exportarHistorial()">Exportar CSV</button>
           <span class="estado"><span class="dot" id="dot-sync"></span><span id="txt-sync">Local</span></span>
         </div>
-        <div class="warn" id="h-dup" style="display:none;border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a"></div>
+        <div class="warn" id="h-dup" style="display:none;border-color:var(--sf32);background:var(--sf23);color:var(--tk33)"></div>
         <div class="tabla-wrap">
           <table>
             <thead><tr>
@@ -547,7 +568,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
       <div class="card" id="card-micuenta">
         <h3>Mi cuenta</h3>
         <div class="acciones">
-          <span class="pill" style="background:var(--azul-claro);color:var(--azul);border-color:var(--raya)">
+          <span class="pill" style="background:var(--azul-claro);color:var(--azul-ink);border-color:var(--raya)">
             <span class="av" id="mc-av">?</span><span id="mc-nom">&mdash;</span>
           </span>
           <span class="badge" id="mc-rol">usuario</span>
@@ -595,7 +616,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
 <div class="modal" id="m-prev">
   <div class="modal-box" id="prev-box">
     <div class="modal-head"><h3>Vista previa del memorando</h3><button class="x" onclick="cerrar('m-prev')">&times;</button></div>
-    <div class="modal-body" style="background:#e9edf3"><div id="prev-hoja"></div></div>
+    <div class="modal-body" style="background:var(--sf34)"><div id="prev-hoja"></div></div>
     <div class="modal-foot">
       <button class="sec" onclick="cerrar('m-prev')">Cerrar</button>
       <button class="ok" onclick="generarWord()">Descargar Word y registrar</button>
@@ -664,7 +685,7 @@ tbody tr.repetido:hover td{background:#fbe3e3}
     <div class="modal-head"><h3>Números de memorando repetidos</h3>
       <button class="x" onclick="cerrar('m-dup')">&times;</button></div>
     <div class="modal-body">
-      <div class="warn" style="border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a" id="dup-texto"></div>
+      <div class="warn" style="border-color:var(--sf32);background:var(--sf23);color:var(--tk33)" id="dup-texto"></div>
       <div class="tabla-wrap" style="max-height:260px;overflow-y:auto">
         <table>
           <thead><tr><th>N.º memorando</th><th>Ya en el historial</th><th>Se va a registrar</th></tr></thead>
@@ -1195,7 +1216,7 @@ function renderFilas(){
       + '</tr>';
   }
   if(!FILAS.length){
-    h = '<tr><td colspan="12" style="text-align:center;padding:26px;color:#8899aa">'
+    h = '<tr><td colspan="12" style="text-align:center;padding:26px;color:var(--tk35)">'
       + 'Sin empleados. Use <b>Agregar fila</b> y escriba la clave: los datos del '
       + 'empleado se completan solos desde el catálogo.</td></tr>';
   }
@@ -1592,7 +1613,7 @@ function renderEmp(){
   /* Sin búsqueda ni filtro no se dibuja la lista: con miles de empleados
      no sirve de nada y hace lenta la pantalla. */
   if(!q && !dep){
-    $('e-tb').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#8899aa">'
+    $('e-tb').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--tk35)">'
       + 'Escriba una clave, un nombre o una identidad para buscar,<br>'
       + 'o elija una dependencia en la lista.</td></tr>';
     $('e-cont').textContent = EMPLEADOS.length + ' empleados en el catálogo';
@@ -1618,7 +1639,7 @@ function renderEmp(){
       + '<button class="bdel" onclick="borrarEmpleado('+i+')">&times;</button></td></tr>';
   }
   if(!n){
-    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
+    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tk35)">'
       + 'Sin resultados para esa búsqueda.</td></tr>';
     $('e-cont').textContent = '0 de ' + EMPLEADOS.length + ' empleados';
   } else if(n > dibujadas){
@@ -1753,7 +1774,7 @@ function htmlMemo(paraWord){
 
   var cuerpo =
       encabezado
-    + '<div style="text-align:center;font-weight:bold;font-size:13.5pt;color:#747474;margin:20px 0 16px">MEMORANDO '+esc(d.no)+'</div>'
+    + '<div style="text-align:center;font-weight:bold;font-size:13.5pt;color:var(--tk36);margin:20px 0 16px">MEMORANDO '+esc(d.no)+'</div>'
     + tablaDatos([
         ['Para:', '<b>'+esc(d.para)+'</b><br><b>'+esc(d.cargo)+'</b>'],
         ['De:',   '<b>'+esc(d.de)+'</b>'],
@@ -2048,29 +2069,23 @@ function renderHist(){
   var an = $('h-anio').value;
   var rep = numerosRepetidos();
   avisoRepetidos(rep);
-  var verCerrados = $('h-cerrados') && $('h-cerrados').checked;
-  var h = '', n = 0, ocultos = 0;
+  var h = '', n = 0;
   for(var i=0;i<HISTORIAL.length;i++){
     var m = HISTORIAL[i];
     var txt = (m.no+' '+m.dep+' '+m.mesPago+' '+m.anioPago+' '+(m.usuario||'')).toLowerCase();
     if(q && txt.indexOf(q) === -1) continue;
     if(an && String(m.anioPago) !== an) continue;
-    // Los meses ya cerrados se guardan fuera de la vista para no estorbar
-    var cer = cierreDeFecha(m.fecha);
-    if(cer && !verCerrados){ ocultos++; continue; }
     n++;
     var dup = rep[String(m.no||'').trim()];
     h += '<tr' + (dup ? ' class="repetido"' : '') + '>'
       + '<td><b>'+esc(m.no)+'</b>'
       + (dup ? '<span class="marca-dup">repetido &times;'+dup+'</span>' : '') + '</td>'
-      + '<td>'+esc(fechaLarga(m.fecha))
-      + (cer ? ' <span class="marca-dup" style="background:#eef2f7;color:#44586e;'
-        + 'border-color:#dde3ed">mes cerrado</span>' : '') + '</td>'
+      + '<td>'+esc(fechaLarga(m.fecha))+'</td>'
       + '<td>'+esc(m.dep)+'</td>'
       + '<td>'+esc(m.mesPago)+' '+esc(m.anioPago)+'</td>'
       + '<td style="text-align:right">'+m.empleados+'</td>'
       + '<td style="text-align:right">'+m.cenas+'</td>'
-      + '<td style="text-align:right;font-weight:600;color:#1a7a44">L '+fmt(m.total)+'</td>'
+      + '<td style="text-align:right;font-weight:600;color:var(--tk8)">L '+fmt(m.total)+'</td>'
       + '<td>'+esc(m.usuario||'')
       + (m.pendiente ? ' <span class="marca-dup" style="background:#fff4e0;color:#7a5800;'
         + 'border-color:#f0d79a">sin subir</span>' : '') + '</td>'
@@ -2079,19 +2094,11 @@ function renderHist(){
       + '<button class="bdel" onclick="borrarMemo(\''+m.id+'\')">&times;</button></td>'
       + '</tr>';
   }
-  if(!n){
-    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
-      + (ocultos ? ocultos + ' memorando(s) de meses cerrados. Marque «Ver meses cerrados» '
-                   + 'para mostrarlos.'
-                 : 'Sin memorandos.') + '</td></tr>';
-  }
+  if(!n) h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tk35)">Sin memorandos.</td></tr>';
   $('h-tb').innerHTML = h;
   var pend = memosPendientes().length;
   $('h-cont').textContent = n + ' de ' + HISTORIAL.length + ' memorandos'
-    + (ocultos ? ' · ' + ocultos + ' de meses cerrados, ocultos' : '')
     + (pend ? ' · ' + pend + ' sin subir a la hoja' : '');
-  if($('h-cerrados-caja'))
-    $('h-cerrados-caja').style.display = (ocultos || verCerrados) ? 'flex' : 'none';
   if($('btn-pend')) $('btn-pend').style.display = pend ? '' : 'none';
   poblarAnios();
 }
@@ -2367,18 +2374,18 @@ function pintarDiagnostico(res){
     if(!r.ok) fallos.push(r);
     h += '<tr><td><b>' + esc(r.hoja) + '</b></td>'
       + '<td>' + (r.ok
-          ? '<span style="color:#1a7a44;font-weight:600">Responde bien</span>'
-          : '<span style="color:#cc2233;font-weight:600">Falla</span>') + '</td>'
+          ? '<span style="color:var(--tk8);font-weight:600">Responde bien</span>'
+          : '<span style="color:var(--tk37);font-weight:600">Falla</span>') + '</td>'
       + '<td>' + (r.ok ? r.filas : '—') + '</td></tr>';
   }
   h += '</tbody></table></div>';
 
   if(!fallos.length){
-    h += '<div class="warn" style="margin-top:14px;border-color:#9ccdb2;background:#f2fbf6;color:#14603a">'
+    h += '<div class="warn" style="margin-top:14px;border-color:var(--sf21);background:var(--sf19);color:var(--tk22)">'
        + 'La conexión funciona. Si aun así no ve datos, revise que las hojas tengan '
        + 'contenido y que los nombres coincidan con los de Configuración.</div>';
   } else {
-    h += '<div class="warn" style="margin-top:14px;border-color:#e8a0a0;background:#fdf0f0;color:#8a1f2a">'
+    h += '<div class="warn" style="margin-top:14px;border-color:var(--sf32);background:var(--sf23);color:var(--tk33)">'
        + '<b>Motivo informado:</b><br>' + esc(fallos[0].error || 'sin detalle') + '</div>';
     if(fallos[0].crudo){
       h += '<div class="hint"><b>Respuesta recibida:</b><br>'
@@ -2764,8 +2771,8 @@ function pintarUsuarios(){
       + '<td>' + esc(u.iniciales || inicialesDe(u.completo || u.nombre)) + '</td>'
       + '<td>' + esc(u.rol) + '</td>'
       + '<td>' + (u.activo === false
-          ? '<span style="color:#cc2233;font-weight:600">Inactivo</span>'
-          : '<span style="color:#1a7a44;font-weight:600">Activo</span>') + '</td>'
+          ? '<span style="color:var(--tk37);font-weight:600">Inactivo</span>'
+          : '<span style="color:var(--tk8);font-weight:600">Activo</span>') + '</td>'
       + '<td>' + (admin
           ? '<button class="sec" onclick="editarUsuario(' + i + ')">Editar</button> '
             + '<button class="bdel" onclick="borrarUsuario(' + i + ')">&times;</button>'
@@ -5097,7 +5104,7 @@ function renderInforme(){
       + '<td style="text-align:center">40</td>'
       + '<td><b>' + esc(m.no) + '</b></td>'
       + '<td>' + esc(asuntoInforme(m)) + '</td>'
-      + '<td style="text-align:right;font-weight:600;color:#1a7a44">L ' + fmt(m.total) + '</td>'
+      + '<td style="text-align:right;font-weight:600;color:var(--tk8)">L ' + fmt(m.total) + '</td>'
       + '<td style="text-align:center">' + esc(fechaCorta(m.fecha)) + '</td>'
       + '<td style="text-align:right">' + num(m.empleados) + '</td>'
       + '<td><select onchange="setGerencia(\'' + m.id + '\', this.value)">'
@@ -5107,7 +5114,7 @@ function renderInforme(){
       + '</tr>';
   }
   if(!lista.length){
-    h = '<tr><td colspan="8" style="text-align:center;padding:26px;color:#8899aa">'
+    h = '<tr><td colspan="8" style="text-align:center;padding:26px;color:var(--tk35)">'
       + 'No hay memorandos elaborados en ese mes.</td></tr>';
   }
   $('i-tb').innerHTML   = h;
@@ -5962,7 +5969,7 @@ function renderInformesGenerados(){
       + '<td>' + esc(g.de) + '</td>'
       + '<td style="text-align:right">' + g.tramites + '</td>'
       + '<td style="text-align:right">' + g.benef + '</td>'
-      + '<td style="text-align:right;font-weight:600;color:#1a7a44">L ' + fmt(g.monto) + '</td>'
+      + '<td style="text-align:right;font-weight:600;color:var(--tk8)">L ' + fmt(g.monto) + '</td>'
       + '<td>' + esc(g.formato) + '</td>'
       + '<td>' + esc(g.generadoPor) + '</td>'
       + '<td>' + esc(g.generadoEl) + '</td>'
@@ -5970,7 +5977,7 @@ function renderInformesGenerados(){
       + '</tr>';
   }
   if(!INFORMES.length){
-    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:#8899aa">'
+    h = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--tk35)">'
       + 'Todavía no se ha generado ningún informe.</td></tr>';
   }
   $('g-tb').innerHTML = h;
@@ -6038,7 +6045,6 @@ function cargarCierresSheets(cb, silencioso){
     }
     guardarLS(LS.cierres, CIERRES);
     renderCierres();
-    renderHist();
     avisarCierre();
     if(cb) cb(true);
   });
@@ -6075,8 +6081,8 @@ function cerrarMes(){
   guardarLS(LS.cierres, CIERRES);
   enviarCierresSheets();
   registrarBitacora('Cerro mes', nombre + ' ' + anio, nota);
-  renderCierres(); renderInforme(); renderHist(); avisarCierre();
-  toast(nombre + ' ' + anio + ' quedó cerrado. Sus memorandos se ocultan del historial.','ok');
+  renderCierres(); renderInforme(); avisarCierre();
+  toast(nombre + ' ' + anio + ' quedó cerrado.','ok');
 }
 function reabrirMes(i){
   if(!esAdmin()){ toast('Solo un administrador puede reabrir el mes.','err'); return; }
@@ -6088,7 +6094,7 @@ function reabrirMes(i){
   guardarLS(LS.cierres, CIERRES);
   enviarCierresSheets();
   registrarBitacora('Reabrio mes', c.mesNombre + ' ' + c.anio, '');
-  renderCierres(); renderInforme(); renderHist(); avisarCierre();
+  renderCierres(); renderInforme(); avisarCierre();
   toast(c.mesNombre + ' ' + c.anio + ' quedó abierto de nuevo.','ok');
 }
 function renderCierres(){
@@ -6103,7 +6109,7 @@ function renderCierres(){
       + '</td></tr>';
   }
   if(!CIERRES.length){
-    h = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#8899aa">'
+    h = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tk35)">'
       + 'Ningún mes cerrado.</td></tr>';
   }
   $('c-tb').innerHTML = h;
@@ -6111,7 +6117,7 @@ function renderCierres(){
   var cer = mesCerrado($('i-anio').value, parseInt($('i-mes').value,10));
   if($('i-estado')){
     $('i-estado').innerHTML = cer
-      ? '<span class="badge" style="background:#fdecec;color:#cc2233">Mes cerrado el '
+      ? '<span class="badge" style="background:var(--sf15);color:var(--tk37)">Mes cerrado el '
         + esc(cer.fecha) + ' por ' + esc(cer.por) + '</span>'
       : '<span class="badge">Mes abierto</span>';
   }
@@ -6154,6 +6160,29 @@ function permiteMesCerrado(){
   // ingreso esté al día aunque nadie haya entrado todavía.
   if(CFG.url) cargarUsuariosSheets(null, true);
   $('lg-pass').addEventListener('keydown', function(e){ if(e.key === 'Enter') entrar(); });
+})();
+</script>
+
+<div id="tema-switch" onclick="dbsAlternarTema()" title="Cambiar entre fondo claro y oscuro" role="button" tabindex="0">
+  <span class="ts-pista"><span class="ts-bolita"></span></span>
+  <span id="tema-txt">Oscuro</span>
+</div>
+<script>
+function dbsAplicarTema(t){
+  document.documentElement.setAttribute('data-theme',t);
+  var l=document.getElementById('tema-txt');
+  if(l) l.textContent=(t==='dark')?'Claro':'Oscuro';
+  try{localStorage.setItem('dbs-tema',t);}catch(e){}
+}
+function dbsAlternarTema(){
+  dbsAplicarTema(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+}
+(function(){
+  var t='light';
+  try{t=localStorage.getItem('dbs-tema')||((window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');}catch(e){}
+  dbsAplicarTema(t);
+  var sw=document.getElementById('tema-switch');
+  if(sw)sw.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();dbsAlternarTema();}});
 })();
 </script>
 </body>
