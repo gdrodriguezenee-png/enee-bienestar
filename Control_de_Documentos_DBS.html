@@ -466,7 +466,7 @@ function rebuildLoginSelect(){
 }
 
 function apiGet(tipo,cb){
-  var cbName='_gs_'+tipo.replace(/[^a-z]/gi,'')+'_'+Date.now();
+  var cbName='_gs_'+tipo.replace(/[^a-z]/gi,'')+'_'+nombreCallback();
   var s=document.createElement('script');
   var done=false;
   var t=setTimeout(function(){if(!done){done=true;cb(new Error('Timeout'));}delete window[cbName];if(s.parentNode)s.parentNode.removeChild(s);},15000);
@@ -476,8 +476,21 @@ function apiGet(tipo,cb){
   document.head.appendChild(s);
 }
 
+/* Nombre unico para cada peticion JSONP.
+   Antes se usaba solo Date.now(): dos peticiones lanzadas en el MISMO
+   milisegundo (la cola cada 5 s y el refresco cada 30 s se cruzan a
+   menudo) recibian el mismo nombre, la segunda pisaba a la primera y
+   el callback de la primera NUNCA se ejecutaba. La cola se quedaba con
+   colaEnviando=true y ya no volvia a enviar nada: "solo sale
+   reintentando". */
+var _cbSeq = 0;
+function nombreCallback(){
+  _cbSeq++;
+  return Date.now().toString(36) + '_' + _cbSeq + '_' + Math.random().toString(36).slice(2,8);
+}
+
 function apiPost(body,cb){
-  var cbName='_gsp_'+Date.now();
+  var cbName='_gsp_'+nombreCallback();
   var s=document.createElement('script');
   var done=false;
   var t=setTimeout(function(){if(!done){done=true;cb(new Error('Timeout'));}delete window[cbName];if(s.parentNode)s.parentNode.removeChild(s);},15000);
@@ -765,7 +778,7 @@ function filaAObjCirug(f){
 
 // Peticion JSONP a leerTodo: trae los 6 tipos en una sola llamada
 function apiGetTodo(cb){
-  var cbName='_gst_'+Date.now();
+  var cbName='_gst_'+nombreCallback();
   var s=document.createElement('script');
   var done=false;
   var t=setTimeout(function(){if(!done){done=true;cb(new Error('Timeout'));}delete window[cbName];if(s.parentNode)s.parentNode.removeChild(s);},20000);
@@ -1301,7 +1314,24 @@ function quitarDeCola(opId){
   colaGuardar();
 }
 
+var colaDesde = 0;   // cuando arranco el envio en curso
+
+/* Ningun candado interno puede quedarse trabado. Si un envio lleva mas
+   de 40 s sin resolverse (peticion perdida, pestaña dormida, cualquier
+   cosa), se suelta y se vuelve a intentar. */
+function vigilarCola(){
+  if(colaEnviando && colaDesde && (Date.now()-colaDesde) > 40000){
+    colaEnviando = false;
+    guardandoAhora = false;
+    hideLoad();
+  }
+  if(!COLA.length && guardandoAhora && colaDesde && (Date.now()-colaDesde) > 40000){
+    guardandoAhora = false;
+  }
+}
+
 function procesarCola(inmediato){
+  vigilarCola();
   if(colaEnviando) return;
   if(!COLA.length){ if(!guardandoAhora) syncStatus('ok','Sincronizado'); return; }
 
@@ -1309,9 +1339,11 @@ function procesarCola(inmediato){
   for(var i=0;i<COLA.length;i++){ if(!COLA[i].proximo || COLA[i].proximo<=Date.now()){ it=COLA[i]; break; } }
   if(!it) return;
 
-  if(!enLinea()){
+  if(!enLinea() && !inmediato && it.intentos>0){
+    // navigator.onLine se equivoca a menudo (VPN, wifi captivo). Se respeta
+    // como pista, pero igual se reintenta cuando toca el turno del elemento.
     syncStatus('err','Sin conexion — '+COLA.length+' pendiente'+(COLA.length>1?'s':''));
-    return;
+    if(it.proximo > Date.now()) return;
   }
   if(BACKEND_OK===false){
     syncStatus('err','Falta actualizar el Apps Script — '+COLA.length+' en espera');
@@ -1320,6 +1352,7 @@ function procesarCola(inmediato){
   if(BACKEND_OK===null){ verificarBackend(function(ok){ if(ok) procesarCola(true); }); return; }
 
   colaEnviando = true;
+  colaDesde    = Date.now();
   guardandoAhora = true;
   syncStatus('load','Enviando '+COLA.length+' pendiente'+(COLA.length>1?'s':'')+'...');
 
@@ -1391,7 +1424,7 @@ function procesarCola(inmediato){
 function iniciarCola(){
   colaCargar();
   clearInterval(colaTimer);
-  colaTimer = setInterval(function(){ try{ procesarCola(); }catch(e){} }, 5000);
+  colaTimer = setInterval(function(){ try{ vigilarCola(); procesarCola(); }catch(e){} }, 5000);
   if(COLA.length) procesarCola(true);
 }
 
