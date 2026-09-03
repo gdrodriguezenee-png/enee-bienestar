@@ -592,6 +592,7 @@ function doLogin(){
     if(permitidos2.length>0) cambiarTab(permitidos2[0].id, true);
     // Carga completa UNA sola vez al entrar
     cargarDatos(false);
+    verificarBackend();     // ¿el Apps Script ya es el nuevo?
     iniciarCola();          // reanuda lo que quedo pendiente de enviar
     clearInterval(reloadTimer);
     reloadTimer=setInterval(function(){ if(!guardandoAhora && !cargandoAhora){ try{cargarDatos(true);}catch(e){} } },30000);
@@ -1357,6 +1358,17 @@ function abrirModal(idx){
     // NUEVO: ya NO se aparta ningun numero. El correlativo lo asigna el
     // servidor en el instante en que se guarda, dentro de un candado.
     // Esto es lo que impide que dos personas tomen el mismo N.
+    if(BACKEND_OK===false){
+      campoNo.value='No disponible';
+      btnG.disabled=true;
+      chip.className='res-chip warn show';
+      chip.innerHTML='&#9888; <b>Falta publicar la nueva version del Apps Script.</b> '+
+                     'Hasta entonces no se pueden crear registros: el servidor los guardaria sin numero. '+
+                     'Editar y borrar si funcionan.';
+      document.getElementById('modal-doc').classList.add('show');
+      modalSnapshot = fotoModal();
+      return;
+    }
     var aprox = numeroAproximado(tipoActual);
     campoNo.value = 'Se asigna al guardar';
     campoNo.className = 'no-field';
@@ -1491,6 +1503,7 @@ function eliminarPorNo(no){
    El numero ya no se aparta: lo asigna el servidor al escribir.
    ============================================================ */
 
+var BACKEND_OK  = null;                   // null=sin comprobar, true=script nuevo, false=script viejo
 var COLA        = [];                     // registros pendientes de enviar
 var COLA_KEY    = 'dbs_cola_envio';
 var colaTimer   = null;
@@ -1502,6 +1515,25 @@ function idUnico(){
   return 'op-' + Date.now().toString(36) + '-' +
          Math.random().toString(36).slice(2,10) + '-' +
          Math.random().toString(36).slice(2,6);
+}
+
+/* Comprueba UNA vez si el Apps Script desplegado es el nuevo.
+   El script viejo no conoce la accion 'siguiente' y contesta
+   {ok:false}. Si es el viejo, NO se envia nada: el viejo aceptaria
+   el registro y escribiria una fila con el N en blanco, y como no
+   devuelve numero el sistema reintentaria sin parar, ensuciando la
+   hoja. Mejor detenerse y avisar. */
+function verificarBackend(cb){
+  apiPost({accion:'siguiente', tipo:'Memorando', anio:String(new Date().getFullYear())}, function(err,res){
+    if(err){ if(cb) cb(null); return; }              // sin red: no se concluye nada
+    BACKEND_OK = !!(res && res.ok && res.numero);
+    if(BACKEND_OK===false){
+      syncStatus('err','Falta actualizar el Apps Script');
+      toast('El servidor todavia tiene la version anterior. No se guardaran registros nuevos hasta actualizarlo.','error');
+    }
+    render();
+    if(cb) cb(BACKEND_OK);
+  });
 }
 
 function colaCargar(){
@@ -1560,6 +1592,11 @@ function procesarCola(inmediato){
     syncStatus('err','Sin conexion — '+COLA.length+' pendiente'+(COLA.length>1?'s':''));
     return;
   }
+  if(BACKEND_OK===false){
+    syncStatus('err','Falta actualizar el Apps Script — '+COLA.length+' en espera');
+    return;                       // se queda esperando, sin escribir basura en la hoja
+  }
+  if(BACKEND_OK===null){ verificarBackend(function(ok){ if(ok) procesarCola(true); }); return; }
 
   colaEnviando = true;
   guardandoAhora = true;
@@ -1593,6 +1630,17 @@ function procesarCola(inmediato){
         syncStatus('ok','Sincronizado');
         setTimeout(function(){ guardandoAhora=false; cargarTipo(it.tipo); }, 1200);
       }
+      return;
+    }
+
+    if(!err && res && res.ok && !res.no){
+      // Contesto bien pero no asigno numero: es el script viejo.
+      // Se detiene la cola en vez de reintentar y seguir ensuciando la hoja.
+      BACKEND_OK=false;
+      it.intentos++; it.proximo = Date.now()+60000; colaGuardar();
+      hideLoad(); guardandoAhora=false; render();
+      syncStatus('err','Falta actualizar el Apps Script');
+      toast('El servidor no asigno numero: falta publicar la nueva version del Apps Script.','error');
       return;
     }
 
