@@ -304,7 +304,10 @@ td:last-child{border-right:0}
     <div class="modal-head"><h3>Plan de Cuotas</h3>
       <button class="x" onclick="cerrar('modal-plan')">&times;</button></div>
     <div class="modal-body" id="plan-body"></div>
-    <div class="modal-foot"><button class="btn btn-sec" onclick="cerrar('modal-plan')">Cerrar</button></div>
+    <div class="modal-foot">
+      <button class="btn btn-sec" onclick="cerrar('modal-plan')">Cancelar</button>
+      <button class="btn btn-ok" onclick="guardarPlan()">Guardar cuotas</button>
+    </div>
   </div>
 </div>
 
@@ -505,12 +508,26 @@ function filaAObj(f, i){
     estado:        String(f[11]||'Activo').trim() || 'Activo',
     obs:           String(f[12]==null?'':f[12]),
     anio:          String(f[13]==null?'':f[13]).trim(),
-    registradoPor: String(f[14]==null?'':f[14])
+    registradoPor: String(f[14]==null?'':f[14]),
+    pagos:         parsePagos(f[15])
   };
 }
 function objACols(d){
   return [d.no, d.clave, d.nombre, d.centro, d.factura, d.proveedor, d.fechaFactura,
-          d.monto, d.cuotas, d.mesInicio, d.abono, d.estado, d.obs, d.anio, d.registradoPor];
+          d.monto, d.cuotas, d.mesInicio, d.abono, d.estado, d.obs, d.anio, d.registradoPor,
+          d.pagos && d.pagos.length ? d.pagos.join(',') : ''];
+}
+
+/* Cuotas marcadas a mano: "1,2,5" -> [1,2,5]. Vacio = calculo automatico */
+function parsePagos(v){
+  var t = String(v==null?'':v).trim();
+  if(!t) return [];
+  var out = [], p = t.split(/[,;\s]+/);
+  for(var i=0;i<p.length;i++){
+    var n = parseInt(p[i],10);
+    if(!isNaN(n) && n>0 && out.indexOf(n)===-1) out.push(n);
+  }
+  return out.sort(function(a,b){return a-b;});
 }
 
 /* ==================================================================
@@ -529,14 +546,24 @@ function calc(d, corte){
 
   var porAbono = base>0 ? Math.floor((d.abono+0.005)/base) : 0;
 
-  var pagadas = porTiempo + porAbono;
-  if(d.estado==='Liquidado') pagadas = n;
-  if(pagadas>n) pagadas = n;
-  if(pagadas<0) pagadas = 0;
+  var manual = (d.pagos && d.pagos.length) ? d.pagos.filter(function(x){return x<=n;}) : null;
+  var pagadas, esManual = false, setPag = {};
+
+  if(manual && manual.length){
+    esManual = true;
+    for(var q=0;q<manual.length;q++) setPag[manual[q]] = 1;
+    pagadas = manual.length;
+  }else{
+    pagadas = porTiempo + porAbono;
+    if(d.estado==='Liquidado') pagadas = n;
+    if(pagadas>n) pagadas = n;
+    if(pagadas<0) pagadas = 0;
+    for(var w=1;w<=pagadas;w++) setPag[w] = 1;
+  }
 
   var pend  = n - pagadas;
   var abon  = 0;
-  for(var k=1;k<=pagadas;k++) abon += (k===n?ultima:base);
+  for(var k=1;k<=n;k++) if(setPag[k]) abon += (k===n?ultima:base);
   abon  = Math.round(abon*100)/100;
   var saldo = Math.round((d.monto - abon)*100)/100;
   if(saldo<0) saldo = 0;
@@ -546,13 +573,15 @@ function calc(d, corte){
   var cuotaMes = 0, nroCuotaMes = 0;
   if(ini!==null && cor!==null && cor>=ini && cor<=ini+n-1 && d.estado==='Activo' && pend>0){
     nroCuotaMes = cor - ini + 1;
-    cuotaMes = (nroCuotaMes===n?ultima:base);
+    cuotaMes = setPag[nroCuotaMes] ? 0 : (nroCuotaMes===n?ultima:base);
+    if(!cuotaMes) nroCuotaMes = 0;
   }
   var estadoCalc = d.estado;
   if(d.estado==='Activo' && pend===0) estadoCalc = 'Liquidado';
 
   return {base:base, ultima:ultima, pagadas:pagadas, pend:pend, abonado:abon,
-          saldo:saldo, fin:fin, cuotaMes:cuotaMes, nroCuotaMes:nroCuotaMes, estadoCalc:estadoCalc};
+          saldo:saldo, fin:fin, cuotaMes:cuotaMes, nroCuotaMes:nroCuotaMes,
+          estadoCalc:estadoCalc, esManual:esManual, setPag:setPag};
 }
 
 /* ==================================================================
@@ -925,7 +954,8 @@ function pintarRegistro(lista, corte){
       '<td>'+ymLabel(d.mesInicio)+'</td>'+
       '<td>'+ymLabel(c.fin)+'</td>'+
       '<td class="num"><span class="prog"><i class="'+(c.pend?'p':'')+'" style="width:'+pct+'%"></i></span>'+
-        c.pagadas+'/'+d.cuotas+'</td>'+
+        c.pagadas+'/'+d.cuotas+
+        (c.esManual?' <span title="Cuotas marcadas manualmente" style="color:#c05000;font-weight:700">M</span>':'')+'</td>'+
       '<td class="num"><b>'+c.pend+'</b></td>'+
       '<td class="num">'+L(c.saldo)+'</td>'+
       '<td>'+badge(c.estadoCalc)+'</td>'+
@@ -993,11 +1023,55 @@ function pintarEmpleado(lista, corte){
 /* ==================================================================
    PLAN DE CUOTAS (detalle mes a mes)
 ================================================================== */
+var planFila = null;   // financiamiento abierto en el modal de plan
+var planEdit = null;   // copia de trabajo de las cuotas marcadas
+
 function verPlan(fila){
   var d = null;
   for(var i=0;i<DATOS.length;i++) if(DATOS[i].fila===fila) d = DATOS[i];
   if(!d) return;
-  var corte = corteYm(), c = calc(d, corte);
+  planFila = fila;
+  var c0 = calc(d, corteYm());
+  // arranca desde lo que hay: manual si existe, si no lo calculado automaticamente
+  planEdit = [];
+  for(var k=1;k<=d.cuotas;k++) if(c0.setPag[k]) planEdit.push(k);
+  pintarPlan();
+  document.getElementById('modal-plan').className = 'modal on';
+}
+
+function togglePlan(k){
+  var i = planEdit.indexOf(k);
+  if(i===-1) planEdit.push(k); else planEdit.splice(i,1);
+  planEdit.sort(function(a,b){return a-b;});
+  pintarPlan();
+}
+function planTodas(){
+  var d = filaDe(planFila); if(!d) return;
+  planEdit = [];
+  for(var k=1;k<=d.cuotas;k++) planEdit.push(k);
+  pintarPlan();
+}
+function planNinguna(){ planEdit = []; pintarPlan(); }
+function planAuto(){
+  var d = filaDe(planFila); if(!d) return;
+  var copia = {}; for(var x in d) copia[x] = d[x];
+  copia.pagos = [];                       // fuerza el calculo por mes
+  var c = calc(copia, corteYm());
+  planEdit = [];
+  for(var k=1;k<=d.cuotas;k++) if(c.setPag[k]) planEdit.push(k);
+  pintarPlan();
+}
+function filaDe(fila){
+  for(var i=0;i<DATOS.length;i++) if(DATOS[i].fila===fila) return DATOS[i];
+  return null;
+}
+
+function pintarPlan(){
+  var d = filaDe(planFila); if(!d) return;
+  var corte = corteYm();
+  var copia = {}; for(var x in d) copia[x] = d[x];
+  copia.pagos = planEdit.slice();
+  var c = calc(copia, corte);
   var ini = ymIdx(d.mesInicio), cor = ymIdx(corte);
 
   var h = '<div class="calc-box">'+
@@ -1007,26 +1081,64 @@ function verPlan(fila){
     '<div><span>Pagadas</span><b>'+c.pagadas+' / '+d.cuotas+'</b></div>'+
     '<div><span>Saldo</span><b>'+L(c.saldo)+'</b></div>'+
     '</div>';
-  h += '<div style="font-size:13px;color:#8899aa;margin-bottom:8px">Factura '+esc(d.factura)+
+  h += '<div style="font-size:13px;color:#8899aa;margin-bottom:10px">Factura '+esc(d.factura)+
        ' &mdash; '+esc(d.proveedor)+' &mdash; Corte: '+ymLabel(corte)+'</div>';
-  h += '<table class="plan-tab"><thead><tr><th>Cuota</th><th>Mes</th><th>Monto</th><th>Saldo despues</th><th>Estado</th></tr></thead><tbody>';
+  h += '<div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+
+       '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:12.5px;letter-spacing:.6px;'+
+       'text-transform:uppercase;color:#8899aa">Marcar cuotas:</span>'+
+       '<button class="btn btn-sec" onclick="planTodas()">Todas pagadas</button>'+
+       '<button class="btn btn-sec" onclick="planNinguna()">Ninguna</button>'+
+       '<button class="btn btn-sec" onclick="planAuto()">Autom&aacute;tico por mes</button>'+
+       '</div>';
+  h += '<table class="plan-tab"><thead><tr><th style="width:38px"></th><th>Cuota</th><th>Mes</th>'+
+       '<th>Monto</th><th>Saldo despues</th><th>Estado</th></tr></thead><tbody>';
   var acum = 0;
   for(var k=1;k<=d.cuotas;k++){
-    var m = (ini!==null)? idxYm(ini+k-1) : '';
+    var m  = (ini!==null)? idxYm(ini+k-1) : '';
     var mo = (k===d.cuotas? c.ultima : c.base);
-    acum += mo;
+    var pagada = !!c.setPag[k];
+    if(pagada) acum += mo;
     var sal = Math.round((d.monto-acum)*100)/100; if(sal<0) sal=0;
-    var pagada = k<=c.pagadas;
     var actual = (ini!==null && cor!==null && (ini+k-1)===cor);
-    h += '<tr class="'+(actual?'act':(pagada?'pag':''))+'">'+
+    h += '<tr class="'+(actual?'act':(pagada?'pag':''))+'" style="cursor:pointer" onclick="togglePlan('+k+')">'+
+      '<td style="text-align:center"><input type="checkbox" '+(pagada?'checked':'')+
+        ' onclick="event.stopPropagation();togglePlan('+k+')" style="width:16px;height:16px;cursor:pointer"></td>'+
       '<td>'+k+'</td><td>'+ymLabel(m)+'</td><td class="num">'+L(mo)+'</td>'+
       '<td class="num">'+L(sal)+'</td>'+
       '<td>'+(pagada?'<span class="badge b-act">Pagada</span>':'<span class="badge b-sus">Pendiente</span>')+
       (actual?' <span class="badge b-mora">Mes actual</span>':'')+'</td></tr>';
   }
   h += '</tbody></table>';
+  h += '<div style="font-size:11.5px;color:#8899aa;margin-top:9px">'+
+       'Haga clic en una fila para marcarla como pagada o pendiente, luego guarde.</div>';
   document.getElementById('plan-body').innerHTML = h;
-  document.getElementById('modal-plan').className = 'modal on';
+}
+
+function guardarPlan(){
+  var d = filaDe(planFila);
+  if(!d){ cerrar('modal-plan'); return; }
+  var copia = {}; for(var x in d) copia[x] = d[x];
+  copia.pagos = planEdit.slice();
+  var c = calc(copia, corteYm());
+  if(c.pend===0 && copia.estado==='Activo') copia.estado = 'Liquidado';
+  if(c.pend>0  && copia.estado==='Liquidado') copia.estado = 'Activo';
+
+  cargando(true);
+  apiPost({accion:'editar', tipo:HOJA, fila:planFila, cols:objACols(copia)}, function(ok, j, msg){
+    cargando(false);
+    if(ok){
+      d.pagos  = planEdit.slice();
+      d.estado = copia.estado;
+      toast('Cuotas actualizadas: '+c.pagadas+' de '+d.cuotas+' pagadas','ok');
+      registrarBitacora('Marco cuotas', d.no,
+        (d.clave||d.nombre)+' - pagadas: '+(planEdit.length?planEdit.join(','):'ninguna'));
+      cerrar('modal-plan');
+      render();
+      setTimeout(function(){ cargarDatos(true); }, 1200);
+    }else{
+      toast('NO SE GUARDO: '+(msg||'error desconocido'),'err');
+    }
+  });
 }
 
 /* ==================================================================
@@ -1338,13 +1450,14 @@ function exportar(){
   var lista = filtrar(), corte = corteYm();
   var rows = [['No.','Clave','Empleado','Centro','Factura','Proveedor','Fecha factura',
                'Monto total','Cuotas','Cuota mensual','Inicio','Fin','Pagadas','Pendientes',
-               'Abonado','Saldo','Cuota '+ymLabel(corte),'Estado','Observaciones']];
+               'Abonado','Saldo','Cuota '+ymLabel(corte),'Estado','Cuotas pagadas','Observaciones']];
   for(var i=0;i<lista.length;i++){
     var d=lista[i], c=d._c;
     rows.push([d.no,d.clave,d.nombre,d.centro,d.factura,d.proveedor,d.fechaFactura,
                d.monto.toFixed(2), d.cuotas, c.base.toFixed(2), ymLabel(d.mesInicio), ymLabel(c.fin),
                c.pagadas, c.pend, c.abonado.toFixed(2), c.saldo.toFixed(2),
-               c.cuotaMes.toFixed(2), c.estadoCalc, d.obs]);
+               c.cuotaMes.toFixed(2), c.estadoCalc,
+               (d.pagos&&d.pagos.length? d.pagos.join(' ') : 'auto'), d.obs]);
   }
   var csv = rows.map(function(r){
     return r.map(function(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }).join(',');
