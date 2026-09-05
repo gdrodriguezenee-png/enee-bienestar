@@ -382,6 +382,21 @@
     location.replace(CONFIG.loginPage + (motivo ? '?motivo=' + encodeURIComponent(motivo) : ''));
   }
 
+  /* Cerrar el modulo SIN cerrar la sesion: se cierra esta pestana y el
+     usuario queda en la del portal, que sigue conectada. La sesion solo se
+     cierra desde el boton SALIR del portal (o cuando vence sola).
+     El navegador unicamente deja cerrar las pestanas que abrio el portal;
+     si no puede, medio segundo despues volvemos al portal en esta misma
+     pestana, que al haber sesion muestra el panel de modulos.
+     Las salidas automaticas (sesion vencida, o cerrada desde otra pestana)
+     siguen usando salir(): esas si borran la sesion y redirigen. */
+  function cerrarModulo() {
+    if (esLogin()) return;
+    try { if (global.opener && !global.opener.closed) global.opener.focus(); } catch (e) {}
+    try { global.close(); } catch (e) {}
+    setTimeout(function () { location.replace(CONFIG.loginPage); }, 500);
+  }
+
   /* ==========================================================================
      9. PERMISOS
      ========================================================================== */
@@ -495,7 +510,7 @@
       '<div class="gb-user"><div class="gb-av">' + esc(iniciales(ses.nombre)) + '</div>' +
       '<span>' + esc(ses.nombre) + '</span></div>' +
       '<button class="gb-back" type="button">Panel</button>' +
-      '<button class="gb-out" type="button">Salir</button>';
+      '<button class="gb-out" type="button" title="Cierra este modulo. La sesion del portal sigue abierta.">Cerrar</button>';
     // Si esta pestana la abrio el portal, volvemos a esa pestana en vez de
     // reemplazar el modulo: asi se puede trabajar en varios a la vez.
     bar.querySelector('.gb-back').onclick = function () {
@@ -504,7 +519,7 @@
       } catch (e) {}
       location.href = CONFIG.loginPage;
     };
-    bar.querySelector('.gb-out').onclick  = function () { salir('salida'); };
+    bar.querySelector('.gb-out').onclick  = function () { cerrarModulo(); };
     document.body.insertBefore(bar, document.body.firstChild);
   }
 
@@ -570,6 +585,7 @@
     buscarUsuario:   buscarUsuario,
     login:  login,
     salir:  salir,
+    cerrarModulo: cerrarModulo,
     sesion: leerSesion,
     publicarSSO: publicarSSO,
     puede: puede,

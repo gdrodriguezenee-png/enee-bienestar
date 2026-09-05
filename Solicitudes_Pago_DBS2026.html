@@ -208,7 +208,7 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
   </div>
   <div class="der">
     <div class="chip-user"><span id="u-nombre"></span><span class="rol" id="u-rol"></span></div>
-    <button class="btn-salir" onclick="salir()">Salir</button>
+    <button class="btn-salir" onclick="salir()">Cerrar</button>
   </div>
 </header>
 
@@ -524,10 +524,16 @@ function salir(){
    a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
    contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
 function salirAlPortal(){
-  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
-  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
-  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
-  location.replace('index.html');
+  /* Cierra este modulo SIN cerrar la sesion: la del portal se queda abierta
+     a proposito, para no tener que escribir la clave cada vez que se pasa de
+     un modulo a otro. Se cierra esta pestana y el usuario queda en la del
+     portal, ya conectado, viendo el panel de modulos.
+     El navegador solo deja cerrar las pestanas que abrio el portal; si no
+     puede, medio segundo despues volvemos al portal en esta misma pestana.
+     Para cerrar la sesion de verdad esta el boton SALIR del portal. */
+  try{ if(window.opener && !window.opener.closed) window.opener.focus(); }catch(e){}
+  try{ window.close(); }catch(e){}
+  setTimeout(function(){ location.replace('index.html'); }, 500);
 }
 
 

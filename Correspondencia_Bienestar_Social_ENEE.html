@@ -231,7 +231,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
     <div class="hright" id="hright" style="display:none">
       <div class="user-chip" id="userChip"></div>
       <button class="btn-admin" id="btnAdmin" onclick="openAdmin()" style="display:none">⚙️ Admin</button>
-      <button class="btn-logout" onclick="doLogout()">⎋ Salir</button>
+      <button class="btn-logout" onclick="doLogout()">⎋ Cerrar</button>
     </div>
     <button class="btn-nuevo" id="btnNuevo" onclick="openModal()">＋ Nueva Correspondencia</button>
     <div class="hbadge" id="totalBadge">Cargando...</div>
@@ -568,10 +568,16 @@ function doLogout(){
    a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
    contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
 function salirAlPortal(){
-  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
-  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
-  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
-  location.replace('index.html');
+  /* Cierra este modulo SIN cerrar la sesion: la del portal se queda abierta
+     a proposito, para no tener que escribir la clave cada vez que se pasa de
+     un modulo a otro. Se cierra esta pestana y el usuario queda en la del
+     portal, ya conectado, viendo el panel de modulos.
+     El navegador solo deja cerrar las pestanas que abrio el portal; si no
+     puede, medio segundo despues volvemos al portal en esta misma pestana.
+     Para cerrar la sesion de verdad esta el boton SALIR del portal. */
+  try{ if(window.opener && !window.opener.closed) window.opener.focus(); }catch(e){}
+  try{ window.close(); }catch(e){}
+  setTimeout(function(){ location.replace('index.html'); }, 500);
 }
 
 
