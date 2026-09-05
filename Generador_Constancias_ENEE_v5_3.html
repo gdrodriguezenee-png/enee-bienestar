@@ -570,7 +570,18 @@ function doLogin(){
   if(!found.activo){err.textContent='Usuario desactivado. Contacta al administrador.';err.style.display='block';return;}
   err.style.display='none';CU=found;localStorage.setItem(K_SES,JSON.stringify({id:found.id}));initApp();
 }
-function doLogout(){CU=null;localStorage.removeItem(K_SES);document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.getElementById('l-user').value='';document.getElementById('l-pass').value='';}
+function doLogout(){CU=null;localStorage.removeItem(K_SES);salirAlPortal();}
+/* PORTAL-DBS-SALIR
+   Al salir de un modulo se cierra tambien la sesion del portal y se vuelve
+   a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
+   contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
+function salirAlPortal(){
+  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
+  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
+  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
+  location.replace('index.html');
+}
+
 function resetearApp(){
   if(!confirm('Restablecer usuarios a valores por defecto.\nEl registro de constancias NO se borrará.\n\n¿Continuar?'))return;
   ['enee_users_v4','enee_users_v3','enee_users_v2','enee_users_v1','enee_session_v4','enee_session_v3','enee_session_v2','enee_session_v1'].forEach(k=>localStorage.removeItem(k));

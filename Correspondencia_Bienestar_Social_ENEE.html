@@ -561,13 +561,19 @@ function aplicarPermisos(){
 function doLogout(){
   sessionStorage.removeItem('enee_session');
   currentUser=null;
-  document.getElementById('hright').style.display='none';
-  document.getElementById('linput_user').value='';
-  document.getElementById('linput_pass').value='';
-  document.getElementById('lerror').textContent='';
-  document.getElementById('loginScreen').style.display='flex';
-  setTimeout(()=>document.getElementById('linput_user').focus(),100);
+  salirAlPortal();
 }
+/* PORTAL-DBS-SALIR
+   Al salir de un modulo se cierra tambien la sesion del portal y se vuelve
+   a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
+   contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
+function salirAlPortal(){
+  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
+  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
+  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
+  location.replace('index.html');
+}
+
 
 // init auth
 (function(){

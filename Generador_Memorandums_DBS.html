@@ -1234,7 +1234,18 @@ async function autoEntrarPortal(){
 if(document.readyState === 'loading')
   document.addEventListener('DOMContentLoaded', function(){ setTimeout(autoEntrarPortal, 200); });
 else setTimeout(autoEntrarPortal, 200);
-function logout(){ location.reload(); }
+function logout(){ salirAlPortal(); }
+/* PORTAL-DBS-SALIR
+   Al salir de un modulo se cierra tambien la sesion del portal y se vuelve
+   a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
+   contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
+function salirAlPortal(){
+  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
+  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
+  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
+  location.replace('index.html');
+}
+
 
 /* ==================================================================
    NAVEGACIÓN

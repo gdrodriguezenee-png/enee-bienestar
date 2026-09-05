@@ -637,14 +637,21 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
 
     $('e-permisos').innerHTML = Portal.ARCHIVOS.map(function (a) {
       var on = marcados.indexOf(a.clave) !== -1;
-      var campoClave = a.app
+      /* Las apps ya no piden contrasena: entran solas con la sesion del
+         portal. La unica que todavia valida contra el servidor de Google
+         es Solicitudes de Pago, asi que es la unica que muestra el campo
+         de clave. Ahi se escribe la clave de esa persona en esa app, o
+         "usuario/clave" si el nombre de usuario alli es distinto. */
+      var pideClave = (a.app === 'pago');
+      var campoClave = pideClave
         ? '<div class="clave-app"><input type="text" data-clave="' + esc(a.app) + '" ' +
           'placeholder="clave en esta app, o usuario/clave" value="' + esc(claves[a.app] || '') + '"></div>'
         : '';
       return '<label class="perm' + (on ? ' on' : '') + '" data-perm="' + esc(a.clave) + '">' +
         '<input type="checkbox" ' + (on ? 'checked' : '') + '>' +
         '<div class="tx"><b>' + esc(a.titulo) + '</b>' +
-        '<small>' + (a.backend ? 'valida la clave en el servidor' : 'clave dentro del archivo') + '</small>' +
+        '<small>' + (pideClave ? 'escribe aqui su clave de esta app'
+                               : 'entra solo con la sesion del portal') + '</small>' +
         campoClave + '</div></label>';
     }).join('');
 

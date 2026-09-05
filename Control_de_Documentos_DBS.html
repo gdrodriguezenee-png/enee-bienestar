@@ -625,12 +625,19 @@ function doLogout(){
   clearInterval(reloadTimer);
   clearInterval(resPollTimer);
   usuarioActual=null;
-  document.getElementById('app').style.display='none';
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('l-pass').value='';
-  document.getElementById('l-usuario').value='';
-  document.getElementById('login-error').style.display='none';
+  salirAlPortal();
 }
+/* PORTAL-DBS-SALIR
+   Al salir de un modulo se cierra tambien la sesion del portal y se vuelve
+   a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
+   contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
+function salirAlPortal(){
+  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
+  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
+  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
+  location.replace('index.html');
+}
+
 
 /* Si cierran la pestaña o recargan con F5 sin guardar, el numero se
    devuelve de inmediato en vez de quedar apartado hasta que venza. */

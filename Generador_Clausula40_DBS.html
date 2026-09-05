@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<!-- PORTAL-DBS-GUARD -->
+<script src="guard.js"></script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="google" content="notranslate">
@@ -1107,8 +1110,20 @@ function entrar(){
 }
 function salir(){
   localStorage.removeItem(LS.user);
-  location.reload();
+  usuarioActual = null;
+  salirAlPortal();
 }
+/* PORTAL-DBS-SALIR
+   Al salir de un modulo se cierra tambien la sesion del portal y se vuelve
+   a index.html. Antes se quedaba en la pantalla de esta app, que ya no pide
+   contrasena: cualquiera podia volver a entrar eligiendo un nombre. */
+function salirAlPortal(){
+  try{ if(window.Portal && Portal.salir){ Portal.salir('salida'); return; } }catch(e){}
+  try{ localStorage.removeItem('enee_sso_v1'); }catch(e){}
+  try{ localStorage.removeItem('dbs_sesion'); }catch(e){}
+  location.replace('index.html');
+}
+
 /* PORTAL-DBS-AUTOENTRAR
    Esta app ya no pide contrasena: la unica clave del sistema es la de
    index.html. Aqui solo se decide con que nombre se entra.
