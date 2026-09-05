@@ -3981,5 +3981,271 @@ async function infGenerarWord(){
 
 </script>
 <!-- PORTAL-DBS-SSO retirado: esta app ya entra sola, sin contrasena. -->
+<!-- RESPALDO-MENSUAL-DBS -->
+<script>
+/* =========================================================================
+   RESPALDO MENSUAL  -  Portal DBS
+
+   Cada mes le recuerda al administrador que baje una copia completa de la
+   informacion de esta app en un archivo de Excel, para que si algo falla
+   no se pierda nada.
+
+   - El aviso sale la primera vez que un admin abre la app en un mes nuevo.
+   - Nada se descarga solo: siempre hay que darle clic al boton.
+   - Queda ademas un boton "Respaldo" abajo a la izquierda, por si se quiere
+     bajar una copia en cualquier momento.
+   - Solo lo ven los usuarios con rol de administrador.
+   - Si no hay internet para cargar el componente de Excel, baja la misma
+     informacion en un archivo CSV.
+
+   Para cambiar que se respalda, edita CFG aqui abajo.
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  var CFG = {
+    app: 'memo',
+    titulo: 'Generador de Memorandums DBS',
+    esAdmin: function(){ return !!(CURRENT && CURRENT.rol === 'admin'); },
+    quien:   function(){ return CURRENT ? CURRENT.nombre : ''; },
+    hojas: function(obj){
+      var h = [];
+      h.push(obj('Historial', HIST_CACHE || [],
+        ['tipo','num','fecha','detalle','total','usuario','ts'],
+        {tipo:'Tipo', num:'No.', fecha:'Fecha', detalle:'Detalle',
+         total:'Total', usuario:'Usuario', ts:'Registrado'}));
+      return h;
+    }
+  };
+
+  /* ---------- utilidades ---------- */
+  var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio',
+               'agosto','septiembre','octubre','noviembre','diciembre'];
+  var CDN_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  var LLAVE = 'dbs_respaldo_' + CFG.app;
+
+  function mesActual(){ var d = new Date(); return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2); }
+  function etiquetaMes(){ var d = new Date(); return MESES[d.getMonth()] + ' de ' + d.getFullYear(); }
+  function ultimoRespaldo(){ try { return localStorage.getItem(LLAVE) || ''; } catch(e){ return ''; } }
+  function marcarHecho(){ try { localStorage.setItem(LLAVE, mesActual()); } catch(e){} }
+  function pospuesto(){ try { return sessionStorage.getItem(LLAVE + '_luego') === '1'; } catch(e){ return false; } }
+  function posponer(){ try { sessionStorage.setItem(LLAVE + '_luego','1'); } catch(e){} }
+  function soyAdmin(){ try { return !!CFG.esAdmin(); } catch(e){ return false; } }
+
+  /* Arma una hoja a partir de una lista de objetos. Toma TODAS las claves
+     que aparezcan, para que no se quede ningun dato fuera del respaldo. */
+  function hojaObjetos(nombre, lista, preferidas, etiquetas, soloEstas){
+    lista = lista || [];
+    var claves = [], vistas = {}, i, k;
+    for(i = 0; i < (preferidas||[]).length; i++){
+      k = preferidas[i];
+      if(!vistas[k]){ vistas[k] = 1; claves.push(k); }
+    }
+    for(i = 0; !soloEstas && i < lista.length; i++){
+      var o = lista[i];
+      if(!o || typeof o !== 'object') continue;
+      for(k in o){
+        if(!Object.prototype.hasOwnProperty.call(o,k)) continue;
+        if(k.charAt(0) === '_' || vistas[k]) continue;
+        vistas[k] = 1; claves.push(k);
+      }
+    }
+    var enc = [], fil = [];
+    for(i = 0; i < claves.length; i++) enc.push((etiquetas && etiquetas[claves[i]]) || claves[i]);
+    for(i = 0; i < lista.length; i++){
+      var r = [];
+      for(k = 0; k < claves.length; k++) r.push(lista[i] ? lista[i][claves[k]] : '');
+      fil.push(r);
+    }
+    return { nombre: nombre, encabezados: enc, filas: fil };
+  }
+
+  function valorCelda(v){
+    if(v === null || v === undefined) return '';
+    if(typeof v === 'object'){ try { return JSON.stringify(v); } catch(e){ return String(v); } }
+    return v;
+  }
+  function nombreHoja(n, usados){
+    var s = String(n || 'Hoja').replace(/[:\\\/?*\[\]]/g,'-').substring(0,31) || 'Hoja';
+    var base = s, i = 2;
+    while(usados[s]){ s = (base.substring(0, 28) + '_' + i).substring(0,31); i++; }
+    usados[s] = 1; return s;
+  }
+
+  function armarHojas(){
+    var crudas = [];
+    try { crudas = CFG.hojas(hojaObjetos) || []; } catch(e){ crudas = []; }
+    var usados = {}, salida = [], total = 0;
+    for(var i = 0; i < crudas.length; i++){
+      var h = crudas[i];
+      if(!h) continue;
+      var aoa = [ (h.encabezados || []).slice() ];
+      var fil = h.filas || [];
+      for(var j = 0; j < fil.length; j++){
+        var r = [];
+        for(var k = 0; k < fil[j].length; k++) r.push(valorCelda(fil[j][k]));
+        aoa.push(r);
+      }
+      total += fil.length;
+      salida.push({ nombre: nombreHoja(h.nombre, usados), aoa: aoa, filas: fil.length });
+    }
+    return { hojas: salida, total: total };
+  }
+
+  function portada(res){
+    var d = new Date();
+    var aoa = [
+      ['RESPALDO — ' + CFG.titulo],
+      [],
+      ['Generado', d.toLocaleString('es-HN')],
+      ['Generado por', (function(){ try { return CFG.quien ? CFG.quien() : ''; } catch(e){ return ''; } })()],
+      ['Registros en total', res.total],
+      [],
+      ['Hoja', 'Registros']
+    ];
+    for(var i = 0; i < res.hojas.length; i++) aoa.push([res.hojas[i].nombre, res.hojas[i].filas]);
+    return aoa;
+  }
+
+  function bajarBlobRespaldo(blob, nombre){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+  function campoCSV(v){ return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g,'""') + '"'; }
+
+  function cargarXLSX(cb){
+    if(window.XLSX){ cb(true); return; }
+    var s = document.createElement('script');
+    s.src = CDN_XLSX;
+    s.onload  = function(){ cb(!!window.XLSX); };
+    s.onerror = function(){ cb(false); };
+    document.head.appendChild(s);
+    setTimeout(function(){ if(!window.XLSX) cb(false); }, 12000);
+  }
+
+  var generando = false;
+  function generar(){
+    if(generando) return;
+    var res = armarHojas();
+    if(!res.total){
+      alert('Todavia no hay informacion cargada para respaldar.\n\nEspera a que la app termine de cargar los datos e intenta de nuevo.');
+      return;
+    }
+    generando = true;
+    pintarBotones('Generando...', true);
+    var base = 'Respaldo_' + CFG.app + '_' + mesActual();
+    var listo = false;
+    cargarXLSX(function(hayXLSX){
+      if(listo) return; listo = true;
+      try {
+        if(hayXLSX){
+          var wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(portada(res)), 'Respaldo');
+          for(var i = 0; i < res.hojas.length; i++)
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(res.hojas[i].aoa), res.hojas[i].nombre);
+          XLSX.writeFile(wb, base + '.xlsx');
+        } else {
+          /* Sin internet no se puede traer la libreria de Excel: se baja un
+             CSV con todo, separado por hojas. No se pierde nada. */
+          var t = [];
+          for(var h = 0; h < res.hojas.length; h++){
+            t.push('### ' + res.hojas[h].nombre);
+            for(var f = 0; f < res.hojas[h].aoa.length; f++)
+              t.push(res.hojas[h].aoa[f].map(campoCSV).join(','));
+            t.push('');
+          }
+          bajarBlobRespaldo(new Blob(['﻿' + t.join('\r\n')], {type:'text/csv;charset=utf-8;'}), base + '.csv');
+          alert('No se pudo cargar el componente de Excel (sin internet).\n\nSe descargo un archivo CSV con la misma informacion: ' + base + '.csv');
+        }
+        marcarHecho();
+        ocultarAviso();
+      } catch(e){
+        alert('No se pudo generar el respaldo.\n\n' + (e && e.message ? e.message : e));
+      }
+      generando = false;
+      pintarBotones('Descargar respaldo', false);
+    });
+  }
+
+  /* ---------- interfaz ---------- */
+  function estilos(){
+    if(document.getElementById('dbs-resp-css')) return;
+    var st = document.createElement('style');
+    st.id = 'dbs-resp-css';
+    st.textContent =
+      '#dbs-resp-aviso{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99998;' +
+        'max-width:min(560px,94vw);background:#003366;color:#fff;border-radius:12px;' +
+        'box-shadow:0 10px 34px rgba(0,20,60,.4);padding:14px 18px;' +
+        'font-family:Barlow,Segoe UI,system-ui,sans-serif;font-size:13.5px;line-height:1.5}' +
+      '#dbs-resp-aviso b{display:block;font-size:15px;margin-bottom:3px}' +
+      '#dbs-resp-aviso .acc{margin-top:11px;display:flex;gap:9px;flex-wrap:wrap}' +
+      '#dbs-resp-aviso button{border:0;border-radius:7px;padding:8px 15px;font-size:13px;' +
+        'font-weight:700;cursor:pointer;font-family:inherit}' +
+      '#dbs-resp-aviso .si{background:#f0a500;color:#003366}' +
+      '#dbs-resp-aviso .no{background:rgba(255,255,255,.16);color:#fff}' +
+      '#dbs-resp-pill{position:fixed;left:16px;bottom:16px;z-index:99997;border:0;cursor:pointer;' +
+        'border-radius:999px;padding:8px 15px;font-size:12px;font-weight:700;letter-spacing:.4px;' +
+        'font-family:Barlow,Segoe UI,system-ui,sans-serif;background:rgba(15,26,40,.86);color:#fff;' +
+        'box-shadow:0 4px 16px rgba(0,0,0,.28)}' +
+      '#dbs-resp-pill:hover{background:#003366}' +
+      '#dbs-resp-pill[disabled],#dbs-resp-aviso button[disabled]{opacity:.6;cursor:default}' +
+      '@media print{#dbs-resp-aviso,#dbs-resp-pill{display:none!important}}';
+    document.head.appendChild(st);
+  }
+
+  function pintarBotones(txt, off){
+    var b1 = document.querySelector('#dbs-resp-aviso .si'), b2 = document.getElementById('dbs-resp-pill');
+    if(b1){ b1.textContent = txt; b1.disabled = !!off; }
+    if(b2){ b2.textContent = off ? txt : '🗄 Respaldo'; b2.disabled = !!off; }
+  }
+  function ocultarAviso(){
+    var a = document.getElementById('dbs-resp-aviso');
+    if(a && a.parentNode) a.parentNode.removeChild(a);
+  }
+  function montarPill(){
+    if(document.getElementById('dbs-resp-pill')) return;
+    estilos();
+    var b = document.createElement('button');
+    b.id = 'dbs-resp-pill';
+    b.type = 'button';
+    b.textContent = '🗄 Respaldo';
+    b.title = 'Descargar una copia de toda la informacion de esta app';
+    b.onclick = generar;
+    document.body.appendChild(b);
+  }
+  function montarAviso(){
+    if(document.getElementById('dbs-resp-aviso')) return;
+    estilos();
+    var d = document.createElement('div');
+    d.id = 'dbs-resp-aviso';
+    d.innerHTML =
+      '<b>Respaldo de ' + etiquetaMes() + ' pendiente</b>' +
+      'Descarga una copia en Excel de toda la informacion de ' + CFG.titulo +
+      ', para que si algo falla no se pierda nada.' +
+      '<div class="acc"><button type="button" class="si">Descargar respaldo</button>' +
+      '<button type="button" class="no">Ahora no</button></div>';
+    d.querySelector('.si').onclick = generar;
+    d.querySelector('.no').onclick = function(){ posponer(); ocultarAviso(); };
+    document.body.appendChild(d);
+  }
+
+  function revisar(){
+    if(!soyAdmin()) return;
+    montarPill();
+    if(ultimoRespaldo() !== mesActual() && !pospuesto()) montarAviso();
+  }
+
+  function arrancar(){
+    setTimeout(revisar, 3000);
+    setInterval(revisar, 15000);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar);
+  else arrancar();
+
+})();
+</script>
 </body>
 </html>
