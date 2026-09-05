@@ -321,7 +321,7 @@
     <h1>Generador de Memorándums</h1>
     <p>Departamento de Bienestar Social — ENEE</p>
     <div class="field"><label>Usuario</label><input id="usr" autocomplete="username" autofocus></div>
-    <div class="field"><label>Contraseña</label><input id="pwd" type="password" autocomplete="current-password"></div>
+    <div class="field" style="display:none"><label>Contraseña</label><input id="pwd" type="password" autocomplete="current-password"></div>
     <button class="btn-primary" id="btnLogin" type="submit">Ingresar</button>
     <div id="loginError"></div>
     <div class="modo" id="modoLabel"></div>
@@ -1155,37 +1155,85 @@ function clearCfg(){
   try{ localStorage.removeItem('api_url_dbs'); }catch(e){}
   location.reload();
 }
+/* PORTAL-DBS: esta app ya no pide contrasena. La unica clave del sistema
+   es la de index.html; aqui solo se decide con que nombre se entra, para
+   que los permisos y el historial sigan siendo correctos. */
+function entrarComo(a){
+  CURRENT = { user:a.user, nombre:a.nombre||a.user, rol:a.rol||'user' };
+  MIS_PERMISOS = permsAObjeto(a.perms!=null ? a.perms : PERMS_POR_DEFECTO);
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('userLabel').textContent = '\u{1F464} ' + CURRENT.nombre + '  (' + CURRENT.rol + ')';
+  document.getElementById('modoBadge').textContent = CLOUD ? '☁ Nube' : '\u{1F4BB} Local';
+  aplicarPermisos();
+  initApp();
+}
+
+/* Lista de accesos, de la nube o del respaldo local */
+async function listaAccesos(){
+  var lista = [];
+  try{ lista = await storeUsers(); }catch(e){ lista = []; }
+  if(!lista || !lista.length){
+    lista = [];
+    for(var k in USERS){
+      if(!Object.prototype.hasOwnProperty.call(USERS,k)) continue;
+      lista.push({ user:k, nombre:USERS[k].nombre, rol:USERS[k].rol, perms:USERS[k].perms });
+    }
+  }
+  return lista;
+}
+function buscarAcceso(lista, quien){
+  var q = String(quien||'').trim().toLowerCase();
+  if(!q) return null;
+  for(var i=0;i<lista.length;i++){
+    if(String(lista[i].user||'').trim().toLowerCase() === q) return lista[i];
+  }
+  return null;
+}
+
 async function doLogin(ev){
-  ev.preventDefault();
+  if(ev) ev.preventDefault();
   var u = document.getElementById('usr').value.trim();
-  var p = document.getElementById('pwd').value;
   var err = document.getElementById('loginError');
   var btn = document.getElementById('btnLogin');
-  err.textContent=''; btn.disabled=true; btn.textContent='Verificando...';
-  var avisoLento = setTimeout(function(){ if(btn.disabled) err.textContent='Sigue intentando conectar con la nube... espere unos segundos.'; }, 6000);
+  if(!u){ err.textContent = 'Escriba su nombre de usuario.'; return false; }
+  err.textContent=''; btn.disabled=true; btn.textContent='Entrando...';
   try{
-    var r = await storeLogin(u,p);
-    if(r && r.ok){
-      CURRENT = { user:u, nombre:r.nombre||u, rol:r.rol||'user' };
-      MIS_PERMISOS = permsAObjeto(r.perms!=null ? r.perms : PERMS_POR_DEFECTO);
-      document.getElementById('login').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
-      document.getElementById('userLabel').textContent = '\u{1F464} ' + CURRENT.nombre + '  (' + CURRENT.rol + ')';
-      document.getElementById('modoBadge').textContent = CLOUD ? '☁ Nube' : '\u{1F4BB} Local';
-      aplicarPermisos();
-      initApp();
-    } else {
-      err.textContent = 'Usuario o contraseña incorrectos.';
-    }
+    var a = buscarAcceso(await listaAccesos(), u);
+    if(a) entrarComo(a);
+    else   err.textContent = 'Ese usuario no existe.';
   }catch(e){
     err.textContent = e.message;
     diagPrint('No se pudo ingresar.\n\n' + e.message + '\n\nPulse "Probar conexión" para ver el detalle.', 'err');
   }
-  clearTimeout(avisoLento);
   btn.disabled=false; btn.textContent='Ingresar';
-  document.getElementById('pwd').value='';
   return false;
 }
+
+/* PORTAL-DBS-AUTOENTRAR
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con 'admin' (o el primero de la lista).
+   Si algo falla, queda visible el campo de usuario, sin contrasena. */
+async function autoEntrarPortal(){
+  var pant = document.getElementById('login');
+  if(pant) pant.style.visibility = 'hidden';
+  var soltar = function(){ if(pant) pant.style.visibility = ''; };
+  setTimeout(soltar, 20000);
+  try{
+    var quiero = null;
+    try{
+      var d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null');
+      if(d && d.id && Date.now() - (d.ts||0) <= 12*60*60*1000) quiero = d.id;
+    }catch(e){}
+    var lista = await listaAccesos();
+    var a = buscarAcceso(lista, quiero) || buscarAcceso(lista, 'admin') || lista[0];
+    if(a){ entrarComo(a); return; }
+  }catch(e){}
+  soltar();
+}
+if(document.readyState === 'loading')
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(autoEntrarPortal, 200); });
+else setTimeout(autoEntrarPortal, 200);
 function logout(){ location.reload(); }
 
 /* ==================================================================
@@ -3932,75 +3980,6 @@ async function infGenerarWord(){
 }
 
 </script>
-<!-- PORTAL-DBS-SSO -->
-<script>
-/* Login unico del Portal DBS: toma la sesion abierta en index.html y
-   completa el login de esta app. Si algo no cuadra, la app muestra su
-   login normal y nada se rompe. */
-(function () {
-  'use strict';
-  var APP = 'memo', SEL_U = '#usr', SEL_P = '#pwd', SEL_PANT = '#login';
-
-  var d = null;
-  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
-  if (!d || !d.id) return;
-  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
-
-  /* La clave de la app puede venir como "clave" o como "usuario/clave"
-     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
-  var usuario = d.id, clave = d.pass || '';
-  var propio = d.claves && d.claves[APP];
-  if (propio) {
-    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
-    if (m) { usuario = m[1]; clave = m[2]; }
-    else   { clave = propio; }
-  }
-  if (!clave) return;
-
-  var intentos = 0, enviado = false;
-
-  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
-  function visible(el) {
-    if (!el) return false;
-    var cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-    return el.getClientRects().length > 0;
-  }
-
-  function paso() {
-    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
-
-    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
-    if (pant && !visible(pant)) return;                   // la app ya entro sola
-
-    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
-    if (!cu || !cp) { setTimeout(paso, 250); return; }
-
-    if (cu.tagName === 'SELECT') {
-      var hay = false;
-      for (var i = 0; i < cu.options.length; i++) {
-        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
-          cu.selectedIndex = i; hay = true; break;
-        }
-      }
-      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
-    } else {
-      cu.value = usuario;
-    }
-    cp.value = clave;
-    ['input', 'change'].forEach(function (ev) {
-      cu.dispatchEvent(new Event(ev, { bubbles: true }));
-      cp.dispatchEvent(new Event(ev, { bubbles: true }));
-    });
-
-    enviado = true;                                       // un solo intento
-    try { var f=document.querySelector('#login form');if(f){f.requestSubmit?f.requestSubmit():f.dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));} } catch (e) {}
-  }
-
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
-  else setTimeout(paso, 250);
-})();
-</script>
+<!-- PORTAL-DBS-SSO retirado: esta app ya entra sola, sin contrasena. -->
 </body>
 </html>

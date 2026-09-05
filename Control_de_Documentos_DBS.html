@@ -173,7 +173,7 @@ tbody tr.reservada:hover{background:#fbead0!important;}
         <option value="">Seleccione su nombre</option>
       </select>
     </div>
-    <div class="lc"><label>Contrasena</label>
+    <div class="lc" id="lc-pass" style="display:none"><label>Contrasena</label>
       <input type="password" id="l-pass" placeholder="Ingrese su contrasena">
     </div>
     <button class="btn-login" id="btn-ingresar">Ingresar</button>
@@ -564,12 +564,11 @@ function doLogin(){
   var pass = document.getElementById('l-pass').value;
   var err = document.getElementById('login-error');
   if(!uid){ err.textContent='Seleccione un usuario.'; err.style.display='block'; return; }
-  if(!pass){ err.textContent='Ingrese su contrasena.'; err.style.display='block'; return; }
   document.getElementById('btn-ingresar').disabled=true;
   err.style.display='none';
   function buscarUsuario(){
     for(var i=0;i<USUARIOS.length;i++){
-      if(USUARIOS[i].id===uid && USUARIOS[i].pass===pass.trim()) return USUARIOS[i];
+      if(USUARIOS[i].id===uid) return USUARIOS[i];   /* PORTAL-DBS: sin contrasena */
     }
     return null;
   }
@@ -580,7 +579,7 @@ function doLogin(){
   cargarUsuarios(function(){
     var u2=buscarUsuario();
     document.getElementById('btn-ingresar').disabled=false;
-    if(!u2){ err.textContent='Usuario o contrasena incorrectos.'; err.style.display='block'; return; }
+    if(!u2){ err.textContent='Ese usuario ya no existe. Avisa al administrador.'; err.style.display='block'; return; }
     completarLogin(u2);
   });
   function completarLogin(u){
@@ -1865,74 +1864,73 @@ window.addEventListener('beforeunload', function(ev){
 // Esto evita 6 peticiones innecesarias al Apps Script al abrir la pagina.
 
 </script>
-<!-- PORTAL-DBS-SSO -->
+<!-- PORTAL-DBS-AUTOENTRAR -->
 <script>
-/* Login unico del Portal DBS: toma la sesion abierta en index.html y
-   completa el login de esta app. Si algo no cuadra, la app muestra su
-   login normal y nada se rompe. */
+/* Acceso unico del Portal DBS.
+   Esta app ya no pide contrasena: la unica clave del sistema es la de
+   index.html. Aqui solo se decide con que nombre se entra, para que la
+   bitacora y los permisos sigan siendo correctos.
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con 'admin'.
+   Si algo falla, queda visible el selector de usuario, sin contrasena. */
 (function () {
   'use strict';
-  var APP = 'cdd', SEL_U = '#l-usuario', SEL_P = '#l-pass', SEL_PANT = '#login-screen';
+  var USUARIO_POR_DEFECTO = 'admin';
 
-  var d = null;
-  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
-  if (!d || !d.id) return;
-  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
-
-  /* La clave de la app puede venir como "clave" o como "usuario/clave"
-     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
-  var usuario = d.id, clave = d.pass || '';
-  var propio = d.claves && d.claves[APP];
-  if (propio) {
-    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
-    if (m) { usuario = m[1]; clave = m[2]; }
-    else   { clave = propio; }
+  function delPortal() {
+    var d = null;
+    try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return null; }
+    if (!d || !d.id) return null;
+    if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return null;   // sesion de mas de 12 h
+    return String(d.id).toLowerCase();
   }
-  if (!clave) return;
 
-  var intentos = 0, enviado = false;
+  var intentos = 0, entrado = false;
 
-  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
-  function visible(el) {
-    if (!el) return false;
-    var cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-    return el.getClientRects().length > 0;
+  function elegir(sel) {
+    var quiero = [delPortal(), USUARIO_POR_DEFECTO];
+    for (var q = 0; q < quiero.length; q++) {
+      if (!quiero[q]) continue;
+      for (var i = 0; i < sel.options.length; i++) {
+        var v = String(sel.options[i].value || '');
+        if (v && v.toLowerCase() === quiero[q]) return v;
+      }
+    }
+    for (var k = 0; k < sel.options.length; k++) {
+      if (sel.options[k].value) return sel.options[k].value;   // el primero que exista
+    }
+    return '';
   }
 
   function paso() {
-    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
+    if (entrado) return;
+    if (++intentos > 60) { mostrarLogin(); return; }             // ~15 s como maximo
 
-    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
-    if (pant && !visible(pant)) return;                   // la app ya entro sola
+    var pant = document.getElementById('login-screen');
+    if (pant && pant.style.display === 'none') { entrado = true; return; }   // ya entro
 
-    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
-    if (!cu || !cp) { setTimeout(paso, 250); return; }
+    var sel = document.getElementById('l-usuario');
+    var btn = document.getElementById('btn-ingresar');
+    if (!sel || !btn || btn.disabled || !elegir(sel)) { setTimeout(paso, 250); return; }
 
-    if (cu.tagName === 'SELECT') {
-      var hay = false;
-      for (var i = 0; i < cu.options.length; i++) {
-        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
-          cu.selectedIndex = i; hay = true; break;
-        }
-      }
-      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
-    } else {
-      cu.value = usuario;
-    }
-    cp.value = clave;
-    ['input', 'change'].forEach(function (ev) {
-      cu.dispatchEvent(new Event(ev, { bubbles: true }));
-      cp.dispatchEvent(new Event(ev, { bubbles: true }));
-    });
-
-    enviado = true;                                       // un solo intento
-    try { doLogin(); } catch (e) {}
+    sel.value = elegir(sel);
+    entrado = true;
+    try { doLogin(); } catch (e) { mostrarLogin(); }
   }
 
+  function mostrarLogin() {
+    var pant = document.getElementById('login-screen');
+    if (pant) pant.style.visibility = '';
+  }
+
+  // Mientras intenta entrar, no se ve la pantalla de login: evita el parpadeo.
+  var pant0 = document.getElementById('login-screen');
+  if (pant0) pant0.style.visibility = 'hidden';
+  setTimeout(mostrarLogin, 16000);   // red de seguridad
+
   if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
-  else setTimeout(paso, 250);
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 200); });
+  else setTimeout(paso, 200);
 })();
 </script>
 </body>

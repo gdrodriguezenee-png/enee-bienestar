@@ -204,7 +204,7 @@ tbody tr.repetido:hover td{background:var(--sf24)}
       <label>Usuario</label>
       <select id="lg-user"></select>
     </div>
-    <div class="fila">
+    <div class="fila" style="display:none">
       <label>Contraseña</label>
       <input type="password" id="lg-pass" placeholder="••••••••">
     </div>
@@ -1117,9 +1117,9 @@ function pintarLogin(){
 }
 function entrar(){
   var u = buscarUsuario($('lg-user').value);
-  var pass = $('lg-pass').value;
-  if(!u || u.activo === false || u.pass !== pass){
-    $('login-err').textContent = 'Usuario o contraseña incorrectos.';
+  /* PORTAL-DBS: la unica contrasena del sistema es la de index.html */
+  if(!u || u.activo === false){
+    $('login-err').textContent = 'Ese usuario no existe o esta desactivado.';
     return;
   }
   usuarioActual = u;
@@ -1129,6 +1129,31 @@ function entrar(){
 function salir(){
   localStorage.removeItem(LS.user);
   location.reload();
+}
+/* PORTAL-DBS-AUTOENTRAR
+   Esta app ya no pide contrasena: la unica clave del sistema es la de
+   index.html. Aqui solo se decide con que nombre se entra.
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con 'admin' (o el primer usuario activo).
+   Si algo falla, queda visible el selector de usuario, sin contrasena. */
+function autoEntrarPortal(){
+  if(usuarioActual) return true;
+  var quiero = null;
+  try{
+    var d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null');
+    if(d && d.id && Date.now() - (d.ts||0) <= 12*60*60*1000) quiero = String(d.id).toLowerCase();
+  }catch(e){}
+  var activos = [];
+  for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].activo !== false) activos.push(USUARIOS[i]);
+  if(!activos.length) return false;
+  var u = null, j;
+  if(quiero) for(j=0;j<activos.length;j++) if(String(activos[j].id).toLowerCase() === quiero) u = activos[j];
+  if(!u) for(j=0;j<activos.length;j++) if(activos[j].id === 'admin') u = activos[j];
+  if(!u) u = activos[0];
+  usuarioActual = u;
+  guardarLS(LS.user, {id:u.id});
+  iniciarApp();
+  return true;
 }
 function iniciarApp(){
   $('login').style.display = 'none';
@@ -6156,6 +6181,7 @@ function permiteMesCerrado(){
     for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id === u.id) usuarioActual = USUARIOS[i];
   }
   if(usuarioActual) iniciarApp();
+  else autoEntrarPortal();
   // Los accesos viven en la hoja: se traen al abrir para que la lista de
   // ingreso esté al día aunque nadie haya entrado todavía.
   if(CFG.url) cargarUsuariosSheets(null, true);

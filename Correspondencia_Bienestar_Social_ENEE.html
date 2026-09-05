@@ -205,7 +205,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
         <label>Nombre de usuario</label>
         <input type="text" id="linput_user" placeholder="Ej: cinthia" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('linput_pass').focus()">
       </div>
-      <div class="lfield">
+      <div class="lfield" id="lfield_pass" style="display:none">
         <label>Contraseña</label>
         <div class="pass-wrap">
           <input type="password" id="linput_pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
@@ -514,7 +514,7 @@ function togglePassAdmin(){const i=document.getElementById('a_pass');i.type=i.ty
 async function doLogin(){
   const username=document.getElementById('linput_user').value.trim().toLowerCase();
   const pass=document.getElementById('linput_pass').value;
-  if(!username||!pass){document.getElementById('lerror').textContent='⚠ Completa usuario y contraseña.';return;}
+  if(!username){document.getElementById('lerror').textContent='⚠ Escribe tu nombre de usuario.';return;}
   USERS=loadUsers();
   // Espera (máx. 8 s) a que lleguen los usuarios de la nube: así un usuario
   // creado en otra PC puede entrar aquí la primera vez.
@@ -526,8 +526,7 @@ async function doLogin(){
   }
   const u=activeUsers().find(x=>normU(x.username)===username);
   if(!u){shake();document.getElementById('lerror').textContent='⚠ Usuario no encontrado.';return;}
-  const hash=await sha256(pass);
-  if(hash!==u.hash){shake();document.getElementById('lerror').textContent='⚠ Contraseña incorrecta.';document.getElementById('linput_pass').value='';document.getElementById('linput_pass').focus();return;}
+  /* PORTAL-DBS: la unica contrasena del sistema es la de index.html */
   currentUser={...u};
   sessionStorage.setItem('enee_session',JSON.stringify(currentUser));
   document.getElementById('loginScreen').style.display='none';
@@ -586,8 +585,36 @@ function doLogout(){
       renderChip();populateRecibido();setTimeout(()=>cloudLoad(true),400);
     }
   }catch(e){}}
-  if(!currentUser)setTimeout(()=>{const el=document.getElementById('linput_user');if(el)el.focus();},150);
+  if(!currentUser)setTimeout(autoEntrarPortal,150);
 })();
+
+/* PORTAL-DBS-AUTOENTRAR
+   Esta app ya no pide contrasena: la unica clave del sistema es la de
+   index.html. Aqui solo se decide con que nombre se entra.
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con el primer usuario activo.
+   Si algo falla, queda visible el campo de usuario, sin contrasena. */
+async function autoEntrarPortal(){
+  const pant=document.getElementById('loginScreen');
+  if(pant) pant.style.visibility='hidden';
+  const soltar=()=>{ if(pant) pant.style.visibility=''; };
+  setTimeout(soltar,16000);
+  try{
+    if(usersReadyP){ await Promise.race([usersReadyP,new Promise(r=>setTimeout(r,9000))]); }
+    USERS=loadUsers();
+    let quiero=null;
+    try{
+      const d=JSON.parse(localStorage.getItem('enee_sso_v1')||'null');
+      if(d&&d.id&&Date.now()-(d.ts||0)<=12*60*60*1000) quiero=normU(d.id);
+    }catch(e){}
+    const lista=activeUsers();
+    if(!lista.length){ soltar(); return; }
+    const u=(quiero&&lista.find(x=>normU(x.username)===quiero))||lista[0];
+    document.getElementById('linput_user').value=u.username;
+    await doLogin();
+  }catch(e){}
+  if(!currentUser) soltar();
+}
 
 // ============================================================
 // PANEL ADMIN
@@ -1586,75 +1613,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeC
 // INIT
 initActive();buildTabs();renderTable();populateRecibido();
 </script>
-<!-- PORTAL-DBS-SSO -->
-<script>
-/* Login unico del Portal DBS: toma la sesion abierta en index.html y
-   completa el login de esta app. Si algo no cuadra, la app muestra su
-   login normal y nada se rompe. */
-(function () {
-  'use strict';
-  var APP = 'corr', SEL_U = '#linput_user', SEL_P = '#linput_pass', SEL_PANT = '#loginScreen';
-
-  var d = null;
-  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
-  if (!d || !d.id) return;
-  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
-
-  /* La clave de la app puede venir como "clave" o como "usuario/clave"
-     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
-  var usuario = d.id, clave = d.pass || '';
-  var propio = d.claves && d.claves[APP];
-  if (propio) {
-    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
-    if (m) { usuario = m[1]; clave = m[2]; }
-    else   { clave = propio; }
-  }
-  if (!clave) return;
-
-  var intentos = 0, enviado = false;
-
-  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
-  function visible(el) {
-    if (!el) return false;
-    var cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-    return el.getClientRects().length > 0;
-  }
-
-  function paso() {
-    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
-
-    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
-    if (pant && !visible(pant)) return;                   // la app ya entro sola
-
-    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
-    if (!cu || !cp) { setTimeout(paso, 250); return; }
-
-    if (cu.tagName === 'SELECT') {
-      var hay = false;
-      for (var i = 0; i < cu.options.length; i++) {
-        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
-          cu.selectedIndex = i; hay = true; break;
-        }
-      }
-      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
-    } else {
-      cu.value = usuario;
-    }
-    cp.value = clave;
-    ['input', 'change'].forEach(function (ev) {
-      cu.dispatchEvent(new Event(ev, { bubbles: true }));
-      cp.dispatchEvent(new Event(ev, { bubbles: true }));
-    });
-
-    enviado = true;                                       // un solo intento
-    try { doLogin(); } catch (e) {}
-  }
-
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
-  else setTimeout(paso, 250);
-})();
-</script>
+<!-- PORTAL-DBS-SSO retirado: esta app ya entra sola, sin contrasena. -->
 </body>
 </html>

@@ -187,10 +187,10 @@ body{font-family:Arial,sans-serif;background:#f0f2f5;min-height:100vh;}
     <hr class="lsep">
     <label class="lbl">Usuario</label>
     <input class="linput" type="text" id="l-user" placeholder="Nombre de usuario" autocomplete="username"
-      onkeydown="if(event.key==='Enter')document.getElementById('l-pass').focus()"/>
-    <label class="lbl">Contraseña</label>
-    <input class="linput" type="password" id="l-pass" placeholder="Contraseña" autocomplete="current-password"
       onkeydown="if(event.key==='Enter')doLogin()"/>
+    <label class="lbl" style="display:none">Contraseña</label>
+    <input class="linput" type="password" id="l-pass" placeholder="Contraseña" autocomplete="current-password"
+      style="display:none" onkeydown="if(event.key==='Enter')doLogin()"/>
     <button class="login-btn" onclick="doLogin()">Iniciar sesión</button>
     <div class="login-err" id="login-err"></div>
     <div class="login-foot">
@@ -229,7 +229,6 @@ body{font-family:Arial,sans-serif;background:#f0f2f5;min-height:100vh;}
       <button class="tab" id="tab-u" onclick="go('u')">👥 Usuarios</button>
       <button class="tab" id="tab-re" onclick="go('re')">🗺 Regiones</button>
       <button class="tab" id="tab-b" onclick="go('b')">Base de datos</button>
-      <button class="tab" id="tab-fin" onclick="go('fin')">💰 Financiamiento</button>
     </div>
 
     <!-- GENERAR -->
@@ -500,20 +499,6 @@ body{font-family:Arial,sans-serif;background:#f0f2f5;min-height:100vh;}
         <p id="ti" style="font-size:11px;color:#aaa;margin-top:8px;"></p>
       </div>
     </div>
-    <div id="pfin" style="display:none;">
-      <div class="card">
-        <div class="card-title">
-          <span>Financiamiento en Cuotas &mdash; DBS</span>
-          <a class="btn-sm" style="background:#f0f0f0;color:#555;border:1px solid #ddd;text-decoration:none;"
-             href="https://gdrodriguezenee-png.github.io/enee-bienestar/Financiamiento_Cuotas_DBS.html" target="_blank" rel="noopener">&#x2197; Abrir en pesta&ntilde;a nueva</a>
-        </div>
-        <iframe id="fin-frame" src="about:blank" title="Financiamiento en Cuotas"
-                style="width:100%;height:78vh;min-height:560px;border:1px solid #e8e8e8;border-radius:6px;background:#f0f3f8;"></iframe>
-        <p style="font-size:11px;color:#aaa;margin-top:8px;">
-          Sistema independiente con su propio inicio de sesi&oacute;n. Si no carga, use "Abrir en pesta&ntilde;a nueva".
-        </p>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -581,7 +566,7 @@ function doLogin(){
   const err=document.getElementById('login-err');
   const found=users.find(x=>x.username.toLowerCase()===u);
   if(!found){err.textContent='Usuario "'+u+'" no existe. Disponibles: '+users.map(x=>x.username).join(', ');err.style.display='block';document.getElementById('l-pass').value='';return;}
-  if(found.password!==p){err.textContent='Contraseña incorrecta para "'+u+'".';err.style.display='block';document.getElementById('l-pass').value='';return;}
+  /* PORTAL-DBS: la unica contrasena del sistema es la de index.html */
   if(!found.activo){err.textContent='Usuario desactivado. Contacta al administrador.';err.style.display='block';return;}
   err.style.display='none';CU=found;localStorage.setItem(K_SES,JSON.stringify({id:found.id}));initApp();
 }
@@ -610,9 +595,37 @@ function importarUsuariosLogin(input){
   reader.readAsText(file);
 }
 
-(function(){
+/* PORTAL-DBS-AUTOENTRAR
+   Esta app ya no pide contrasena: la unica clave del sistema es la de
+   index.html. Aqui solo se decide con que nombre se entra.
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con 'admin' (o el primer usuario activo).
+   Si algo falla, queda visible el campo de usuario, sin contrasena. */
+function autoEntrarPortal(){
+  if(CU) return true;
+  let quiero=null;
+  try{
+    const d=JSON.parse(localStorage.getItem('enee_sso_v1')||'null');
+    if(d&&d.id&&Date.now()-(d.ts||0)<=12*60*60*1000) quiero=String(d.id).toLowerCase();
+  }catch(e){}
+  const activos=getUsers().filter(x=>x&&x.activo);
+  if(!activos.length) return false;
+  const u=(quiero&&activos.find(x=>String(x.username).toLowerCase()===quiero))
+        ||activos.find(x=>String(x.username).toLowerCase()==='admin')
+        ||activos[0];
+  CU=u;
+  localStorage.setItem(K_SES,JSON.stringify({id:u.id}));
+  initApp();
+  return true;
+}
+
+/* Se arranca al final del script: initApp() usa variables declaradas mas
+   abajo con let, y llamarla aqui mismo reventaba con "Cannot access 'tipo'
+   before initialization" (por eso la sesion guardada nunca se restauraba). */
+setTimeout(function(){
   try{const s=JSON.parse(localStorage.getItem(K_SES));if(s?.id){const u=getUsers().find(x=>x.id===s.id&&x.activo);if(u){CU=u;initApp();return;}}localStorage.removeItem(K_SES);}catch(e){localStorage.removeItem(K_SES);}
-})();
+  autoEntrarPortal();
+}, 0);
 
 function initApp(){
   document.getElementById('login-screen').style.display='none';
@@ -630,24 +643,12 @@ function initApp(){
 
 // ── TABS ──────────────────────────────────────────────────────────────────
 function go(t){
-  ['g','r','u','re','b','fin'].forEach(x=>{document.getElementById('p'+x)&&(document.getElementById('p'+x).style.display=t===x?'':'none');document.getElementById('tab-'+x)?.classList.toggle('on',t===x);});
+  ['g','r','u','re','b'].forEach(x=>{document.getElementById('p'+x)&&(document.getElementById('p'+x).style.display=t===x?'':'none');document.getElementById('tab-'+x)?.classList.toggle('on',t===x);});
   if(t==='g'){const ok=CU.rol==='admin'||CU.rol==='operador';document.getElementById('no-gen').style.display=ok?'none':'';document.getElementById('yes-gen').style.display=ok?'':'none';}
   if(t==='r')renderReg(false);
   if(t==='u'){const ok=CU.rol==='admin';document.getElementById('no-users').style.display=ok?'none':'';document.getElementById('yes-users').style.display=ok?'':'none';if(ok)renderUsers();}
   if(t==='re'){const ok=CU.rol==='admin';document.getElementById('no-re').style.display=ok?'none':'';document.getElementById('yes-re').style.display=ok?'':'none';if(ok)renderRegiones();}
   if(t==='b'){fil('');actualizarContadorBD();}
-  if(t==='fin'){
-    try{
-      localStorage.setItem('enee_sso_v1', JSON.stringify({
-        id:      (CU.username||'').toLowerCase(),
-        nombre:  CU.operador || CU.nombre || CU.username,
-        rol:     CU.rol==='admin' ? 'admin' : 'usuario',
-        ts:      Date.now()
-      }));
-    }catch(e){}
-    const fr=document.getElementById('fin-frame');
-    if(fr&&fr.src==='about:blank')fr.src='https://gdrodriguezenee-png.github.io/enee-bienestar/Financiamiento_Cuotas_DBS.html';
-  }
 }
 
 // ── FORMULARIO GENERAR ────────────────────────────────────────────────────
@@ -1442,75 +1443,6 @@ function verPdfModal(url){
 
 function showMsg(id,cls,txt){const el=document.getElementById(id);if(!el)return;el.innerHTML='<div class="msg '+cls+'">'+txt+'</div>';if(cls!=='er')setTimeout(()=>el.innerHTML='',5000);}
 </script>
-<!-- PORTAL-DBS-SSO -->
-<script>
-/* Login unico del Portal DBS: toma la sesion abierta en index.html y
-   completa el login de esta app. Si algo no cuadra, la app muestra su
-   login normal y nada se rompe. */
-(function () {
-  'use strict';
-  var APP = 'cons', SEL_U = '#l-user', SEL_P = '#l-pass', SEL_PANT = '#login-screen';
-
-  var d = null;
-  try { d = JSON.parse(localStorage.getItem('enee_sso_v1') || 'null'); } catch (e) { return; }
-  if (!d || !d.id) return;
-  if (Date.now() - (d.ts || 0) > 12 * 60 * 60 * 1000) return;   // sesion vieja: que pida clave
-
-  /* La clave de la app puede venir como "clave" o como "usuario/clave"
-     cuando el nombre de usuario dentro de esa app es distinto al del portal. */
-  var usuario = d.id, clave = d.pass || '';
-  var propio = d.claves && d.claves[APP];
-  if (propio) {
-    var m = String(propio).match(/^([A-Za-z0-9._-]{1,30})\/(.+)$/);
-    if (m) { usuario = m[1]; clave = m[2]; }
-    else   { clave = propio; }
-  }
-  if (!clave) return;
-
-  var intentos = 0, enviado = false;
-
-  // offsetParent no sirve aqui: muchas pantallas de login son position:fixed.
-  function visible(el) {
-    if (!el) return false;
-    var cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
-    return el.getClientRects().length > 0;
-  }
-
-  function paso() {
-    if (enviado || ++intentos > 60) return;               // ~15 s como maximo
-
-    var pant = SEL_PANT ? document.querySelector(SEL_PANT) : null;
-    if (pant && !visible(pant)) return;                   // la app ya entro sola
-
-    var cu = document.querySelector(SEL_U), cp = document.querySelector(SEL_P);
-    if (!cu || !cp) { setTimeout(paso, 250); return; }
-
-    if (cu.tagName === 'SELECT') {
-      var hay = false;
-      for (var i = 0; i < cu.options.length; i++) {
-        if (String(cu.options[i].value).toLowerCase() === String(usuario).toLowerCase()) {
-          cu.selectedIndex = i; hay = true; break;
-        }
-      }
-      if (!hay) { setTimeout(paso, 250); return; }        // la lista aun no termina de cargar
-    } else {
-      cu.value = usuario;
-    }
-    cp.value = clave;
-    ['input', 'change'].forEach(function (ev) {
-      cu.dispatchEvent(new Event(ev, { bubbles: true }));
-      cp.dispatchEvent(new Event(ev, { bubbles: true }));
-    });
-
-    enviado = true;                                       // un solo intento
-    try { doLogin(); } catch (e) {}
-  }
-
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(paso, 250); });
-  else setTimeout(paso, 250);
-})();
-</script>
+<!-- PORTAL-DBS-SSO retirado: esta app ya entra sola, sin contrasena. -->
 </body>
 </html>

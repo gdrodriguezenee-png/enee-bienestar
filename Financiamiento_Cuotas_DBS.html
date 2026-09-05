@@ -197,7 +197,7 @@ td:last-child{border-right:0}
     <h2>Financiamiento</h2>
     <p>Registro de cuotas &mdash; DBS / DDH</p>
     <select id="lg-user"><option value="">Seleccione usuario...</option></select>
-    <input type="password" id="lg-pass" placeholder="Contrase&ntilde;a" onkeydown="if(event.key==='Enter')entrar()">
+    <input type="password" id="lg-pass" placeholder="Contrase&ntilde;a" style="display:none" onkeydown="if(event.key==='Enter')entrar()">
     <div id="login-err"></div>
     <button onclick="entrar()">Ingresar</button>
   </div>
@@ -594,6 +594,22 @@ function poblarLogin(){
     s.innerHTML += '<option value="'+esc(USUARIOS[i].id)+'">'+esc(USUARIOS[i].nombre)+'</option>';
   }
 }
+/* PORTAL-DBS-AUTOENTRAR
+   Esta app ya no pide contrasena: la unica clave del sistema es la de
+   index.html. Aqui solo se decide con que nombre se entra.
+     1. Si vienes del portal, entra con tu mismo usuario.
+     2. Si abres el archivo directo, entra con 'admin' (o el primero de la lista).
+   Si algo falla, queda visible el selector de usuario, sin contrasena. */
+function autoEntrarPortal(){
+  if(usuarioActual) return true;
+  if(intentarSSO()) return true;
+  var u = null;
+  for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id==='admin') u = USUARIOS[i];
+  if(!u && USUARIOS.length) u = USUARIOS[0];
+  if(!u) return false;
+  iniciarSesion(u);
+  return true;
+}
 function intentarSSO(){
   var d = null;
   try{ d = JSON.parse(localStorage.getItem(SSO_KEY)||'null'); }catch(e){}
@@ -617,12 +633,12 @@ function iniciarSesion(u){
 }
 function entrar(){
   var id = document.getElementById('lg-user').value;
-  var pw = document.getElementById('lg-pass').value;
   var e  = document.getElementById('login-err');
   if(!id){ e.textContent='Seleccione un usuario.'; return; }
   var u = null;
   for(var i=0;i<USUARIOS.length;i++) if(USUARIOS[i].id===id) u = USUARIOS[i];
-  if(!u || u.pass!==pw){ e.textContent='Contrase&ntilde;a incorrecta.'; return; }
+  /* PORTAL-DBS: la unica contrasena del sistema es la de index.html */
+  if(!u){ e.textContent='Ese usuario ya no existe.'; return; }
   iniciarSesion(u);
 }
 function salir(){
@@ -1476,8 +1492,8 @@ function exportar(){
 document.getElementById('corte').value = hoyYm();
 poblarCuotas();
 poblarLogin();
-cargarUsuarios(function(){ if(!usuarioActual) intentarSSO(); });
-intentarSSO();
+cargarUsuarios(function(){ autoEntrarPortal(); });
+autoEntrarPortal();
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape'){ cerrar('modal-doc'); cerrar('modal-plan'); cerrar('modal-usu'); }
 });
