@@ -354,6 +354,22 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
 <div id="toast"></div>
 
 <script src="guard.js?v=4"></script>
+<!-- GUARD-FALTANTE: aviso claro cuando guard.js no llego a cargar -->
+<script>
+/* Si se abre este index.html suelto (sin guard.js al lado), antes el boton
+   "Ingresar" simplemente no reaccionaba y no se veia ningun mensaje. */
+if (!window.Portal) {
+  document.addEventListener('DOMContentLoaded', function () {
+    var a = document.getElementById('aviso');
+    if (a) {
+      a.className = 'aviso err';
+      a.textContent = 'No se pudo cargar guard.js. Abre el portal desde la carpeta donde estan guard.js y los demas archivos, o desde la direccion de siempre.';
+    }
+    var b = document.getElementById('btn-entrar');
+    if (b) { b.disabled = true; b.textContent = 'Falta guard.js'; }
+  });
+}
+</script>
 <script>
 (function () {
   'use strict';
@@ -1035,5 +1051,588 @@ td{padding:8px 12px;font-size:14px;border-top:1px solid var(--gris1);vertical-al
 
 })();
 </script>
+<!-- CUMPLEANOS-DBS -->
+<script>
+/* =========================================================================
+   CALENDARIO DE CUMPLEANOS  -  Portal DBS   (v4 - SINCRONIZADO)
+
+   - Visible para TODOS los usuarios que entran al portal.
+   - Solo el administrador puede capturar o borrar fechas ("Administrar").
+   - Alcance: las personas que tienen usuario en la hoja Usuarios.
+
+   BACKEND
+   Hoja "Cumpleanos" del MISMO Google Sheets, con encabezado:
+       id | dia | mes | nombre
+   Se lee con  ?accion=leer&tipo=Cumpleanos          (mismo contrato que Usuarios)
+   Se guarda con ?data={accion:'reescribir',tipo:'Cumpleanos',filas:[...]}
+
+   Si el Apps Script todavia no reconoce esa hoja, el modulo NO se rompe:
+   sigue funcionando con la copia local de cada PC y avisa al administrador.
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  var HOJA   = 'Cumpleanos';
+  var CACHE  = 'dbs_cumples_v2';
+  var MESES  = ['enero','febrero','marzo','abril','mayo','junio',
+                'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var DIASEM = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
+
+  var DATOS  = {};          /* { id: {d:8, m:9} }                     */
+  var ORIGEN = 'cargando';  /* 'sheet' | 'local' | 'sin' | 'cargando' */
+  var LEYENDO = false;
+
+  /* ---------------- utilidades ---------------- */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+  function ini(nombre) {
+    var p = String(nombre || '?').trim().split(/\s+/);
+    return ((p[0] || '?')[0] + (p[1] ? p[1][0] : '')).toUpperCase();
+  }
+  function sesion()  { try { return window.Portal && Portal.sesion(); } catch (e) { return null; } }
+  function esAdmin() { var s = sesion(); return !!(s && s.rol === 'admin'); }
+  function usuarios(){ try { return (window.Portal && Portal.usuarios()) || []; } catch (e) { return []; } }
+  function hoy()     { return new Date(); }
+  function urlScript() {
+    try { if (window.Portal && Portal.CONFIG && Portal.CONFIG.scriptUrl) return Portal.CONFIG.scriptUrl; }
+    catch (e) {}
+    return '';
+  }
+
+  /* ---------------- JSONP (mismo patron del portal) ---------------- */
+  function jsonp(url, cb, ms) {
+    if (!url || url.indexOf('http') !== 0) { cb(new Error('Sin URL del Apps Script')); return; }
+    var nombre = '_cum_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    var s = document.createElement('script'), listo = false;
+    var t = setTimeout(function () {
+      if (!listo) { listo = true; cb(new Error('Timeout')); }
+      limpiar();
+    }, ms || 15000);
+    function limpiar() {
+      try { delete window[nombre]; } catch (e) { window[nombre] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
+    }
+    window[nombre] = function (data) {
+      if (!listo) { listo = true; clearTimeout(t); cb(null, data); }
+      limpiar();
+    };
+    s.onerror = function () {
+      if (!listo) { listo = true; clearTimeout(t); cb(new Error('Sin conexion')); }
+      limpiar();
+    };
+    s.src = url + (url.indexOf('?') === -1 ? '?' : '&') + 'callback=' + nombre + '&_=' + Date.now();
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ---------------- copia local (respaldo y arranque rapido) ---------------- */
+  function leerCache() {
+    try { return JSON.parse(localStorage.getItem(CACHE) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+  function guardarCache(o) {
+    try { localStorage.setItem(CACHE, JSON.stringify(o)); } catch (e) {}
+  }
+
+  /* ---------------- nube ---------------- */
+  function filasADatos(filas) {
+    var o = {};
+    for (var i = 0; i < filas.length; i++) {
+      var r = filas[i];
+      if (!r || !r[0]) continue;
+      var id = String(r[0]).trim();
+      if (!id || id.toLowerCase() === 'id') continue;      // encabezado
+      var d = parseInt(r[1], 10), m = parseInt(r[2], 10);
+      if (!d || !m || d < 1 || d > 31 || m < 1 || m > 12) continue;
+      o[id] = { d: d, m: m, n: String(r[3] == null ? '' : r[3]).trim() };
+    }
+    return o;
+  }
+  function datosAFilas(o) {
+    var us = usuarios(), nombres = {}, filas = [['id', 'dia', 'mes', 'nombre']], k;
+    us.forEach(function (u) { nombres[u.id] = u.nombre || u.id; });
+    for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) {
+      filas.push([k, o[k].d, o[k].m, nombres[k] || o[k].n || '']);
+    }
+    return filas;
+  }
+
+  function leerNube(cb) {
+    if (LEYENDO) { if (cb) cb(new Error('Ocupado')); return; }
+    LEYENDO = true;
+    jsonp(urlScript() + '?accion=leer&tipo=' + encodeURIComponent(HOJA), function (err, filas) {
+      LEYENDO = false;
+      if (err || !Array.isArray(filas)) {
+        if (!Object.keys(DATOS).length) DATOS = leerCache();
+        ORIGEN = Object.keys(DATOS).length ? 'local' : 'sin';
+        pintarPanel();
+        if (cb) cb(err || new Error('La hoja "' + HOJA + '" no respondio'));
+        return;
+      }
+      DATOS = filasADatos(filas);
+      ORIGEN = 'sheet';
+      guardarCache(DATOS);
+      pintarPanel();
+      refrescarCalendario();
+      if (cb) cb(null);
+    });
+  }
+
+  function guardarNube(nuevos, cb) {
+    var cuerpo = { accion: 'reescribir', tipo: HOJA, filas: datosAFilas(nuevos) };
+    jsonp(urlScript() + '?data=' + encodeURIComponent(JSON.stringify(cuerpo)), function (err, res) {
+      if (err) { cb(err); return; }
+      if (res && res.ok === false) { cb(new Error(res.error || 'El servidor rechazo el guardado')); return; }
+      cb(null);
+    }, 20000);
+  }
+
+  /* ---------------- lista para pintar ---------------- */
+  /* Recorre TODO lo guardado: los que tienen usuario en el portal (el nombre
+     sale de la hoja Usuarios, asi que se actualiza solo) y los que no lo
+     tienen (el nombre viene guardado en la propia hoja Cumpleanos). */
+  function lista() {
+    var nombres = {}, out = [], k;
+    usuarios().forEach(function (u) { nombres[u.id] = u.nombre || u.id; });
+    for (k in DATOS) if (Object.prototype.hasOwnProperty.call(DATOS, k)) {
+      var f = DATOS[k];
+      if (!f || !f.m || !f.d) continue;
+      out.push({ id: k, nombre: nombres[k] || f.n || k, m: +f.m, d: +f.d, libre: !nombres[k] });
+    }
+    out.sort(function (a, b) { return (a.m - b.m) || (a.d - b.d) || a.nombre.localeCompare(b.nombre); });
+    return out;
+  }
+  function delMes(m) { return lista().filter(function (p) { return p.m === m; }); }
+  function delDia(m, d) { return lista().filter(function (p) { return p.m === m && p.d === d; }); }
+
+  function faltan(p) {
+    var h = hoy(), a = h.getFullYear();
+    var base = new Date(a, h.getMonth(), h.getDate());
+    var prox = new Date(a, p.m - 1, p.d);
+    if (prox < base) prox = new Date(a + 1, p.m - 1, p.d);
+    return Math.round((prox - base) / 86400000);
+  }
+  function proximos(n) {
+    return lista().slice().sort(function (a, b) { return faltan(a) - faltan(b); }).slice(0, n || 6);
+  }
+
+  /* ---------------- estilos ---------------- */
+  function estilos() {
+    if (document.getElementById('cum-css')) return;
+    var st = document.createElement('style');
+    st.id = 'cum-css';
+    st.textContent = [
+      '.cum-panel{background:var(--blanco,#fff);border:1px solid var(--raya,#d8e0ec);border-radius:14px;',
+        'box-shadow:var(--sombra,0 2px 12px rgba(0,30,80,.06));margin:22px 0 6px;overflow:hidden}',
+      '.cum-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 16px;',
+        'border-bottom:1px solid var(--raya,#d8e0ec);background:var(--sup2,#eef2f8)}',
+      '.cum-hd h3{margin:0;font-family:"Barlow Condensed",Barlow,sans-serif;font-size:20px;',
+        'letter-spacing:.5px;color:var(--azul-tx,#003366)}',
+      '.cum-hd .sp{flex:1}',
+      '.cum-tag{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;',
+        'padding:3px 9px;border-radius:999px}',
+      '.cum-tag.ok{background:var(--ok-bg,#dff0e8);color:var(--ok-tx,#116638)}',
+      '.cum-tag.loc{background:var(--oro-bg,#fdf1d6);color:var(--oro-tx,#8a5c00)}',
+      '.cum-tag.err{background:var(--err-bg,#fbe2e2);color:var(--err-tx,#a01824)}',
+      '.cum-b{border:1px solid var(--raya,#d8e0ec);background:var(--blanco,#fff);color:var(--azul-tx,#003366);',
+        'border-radius:8px;padding:7px 14px;font:600 13px Barlow,Segoe UI,system-ui,sans-serif;cursor:pointer}',
+      '.cum-b:hover{background:var(--azul-hover,#d2e0f0)}',
+      '.cum-b[disabled]{opacity:.55;cursor:default}',
+      '.cum-b.pri{background:var(--azul,#003366);border-color:var(--azul,#003366);color:#fff}',
+      '.cum-b.pri:hover{background:var(--azul-med,#005599)}',
+      '.cum-b.oro{background:var(--acento,#f0a500);border-color:var(--acento,#f0a500);color:#003366}',
+      '.cum-body{padding:15px 16px}',
+      '.cum-hoy{display:flex;align-items:center;gap:12px;background:var(--oro-bg,#fdf1d6);',
+        'border:1px solid var(--acento,#f0a500);border-radius:11px;padding:11px 14px;margin-bottom:13px}',
+      '.cum-hoy .em{font-size:26px;line-height:1}',
+      '.cum-hoy b{color:var(--oro-tx,#8a5c00);display:block;font-size:14px}',
+      '.cum-hoy span{font-size:13px;color:var(--texto,#1a2a3a)}',
+      '.cum-lista{display:flex;gap:10px;flex-wrap:wrap}',
+      '.cum-it{display:flex;align-items:center;gap:10px;border:1px solid var(--raya,#d8e0ec);',
+        'border-radius:10px;padding:8px 13px 8px 8px;background:var(--sup2,#eef2f8);min-width:190px}',
+      '.cum-it .av{width:34px;height:34px;border-radius:50%;background:var(--azul,#003366);color:#fff;',
+        'display:flex;align-items:center;justify-content:center;font:700 13px Barlow,sans-serif;flex:none}',
+      '.cum-it.hoy .av{background:var(--acento,#f0a500);color:#003366}',
+      '.cum-it.paso{opacity:.55}',
+      '.cum-it .n{font-size:13.5px;font-weight:600;color:var(--texto,#1a2a3a);line-height:1.25}',
+      '.cum-it .f{font-size:12px;color:var(--gris2,#75849a)}',
+      '.cum-vacio{font-size:13.5px;color:var(--gris2,#75849a)}',
+      '.cum-modal{position:fixed;inset:0;background:rgba(6,16,30,.55);z-index:99990;display:none;',
+        'align-items:flex-start;justify-content:center;padding:26px 14px;overflow:auto}',
+      '.cum-modal.on{display:flex}',
+      '.cum-caja{background:var(--blanco,#fff);border-radius:15px;width:min(920px,100%);',
+        'box-shadow:0 18px 50px rgba(0,15,40,.4);font-family:Barlow,Segoe UI,system-ui,sans-serif;',
+        'color:var(--texto,#1a2a3a)}',
+      '.cum-caja .hd{display:flex;align-items:center;gap:10px;padding:14px 18px;',
+        'border-bottom:1px solid var(--raya,#d8e0ec)}',
+      '.cum-caja .hd h3{margin:0;font-family:"Barlow Condensed",Barlow,sans-serif;font-size:22px;',
+        'letter-spacing:.5px;color:var(--azul-tx,#003366)}',
+      '.cum-caja .hd .sp{flex:1}',
+      '.cum-caja .hd .x{border:0;background:transparent;font-size:26px;line-height:1;cursor:pointer;',
+        'color:var(--gris2,#75849a)}',
+      '.cum-caja .bd{padding:16px 18px}',
+      '.cum-caja .ft{display:flex;align-items:center;gap:10px;padding:12px 18px;',
+        'border-top:1px solid var(--raya,#d8e0ec);background:var(--sup2,#eef2f8);border-radius:0 0 15px 15px}',
+      '.cum-caja .ft .sp{flex:1}',
+      '.cum-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}',
+      '.cum-nav .mes{font-family:"Barlow Condensed",Barlow,sans-serif;font-size:21px;letter-spacing:.5px;',
+        'color:var(--azul-tx,#003366);min-width:190px;text-align:center;text-transform:capitalize}',
+      '.cum-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}',
+      '.cum-dow{text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.6px;',
+        'text-transform:uppercase;color:var(--gris2,#75849a);padding-bottom:2px}',
+      '.cum-cel{min-height:78px;border:1px solid var(--raya,#d8e0ec);border-radius:9px;padding:5px 6px;',
+        'background:var(--sup2,#eef2f8)}',
+      '.cum-cel.off{background:transparent;border-color:transparent}',
+      '.cum-cel .nd{font-size:12px;font-weight:700;color:var(--gris2,#75849a)}',
+      '.cum-cel.hoy{border-color:var(--azul-med,#005599);box-shadow:inset 0 0 0 1px var(--azul-med,#005599)}',
+      '.cum-cel.hoy .nd{color:var(--azul-tx,#003366)}',
+      '.cum-cel.tiene{background:var(--oro-bg,#fdf1d6);border-color:var(--acento,#f0a500)}',
+      '.cum-cel .p{font-size:11.5px;line-height:1.3;margin-top:3px;color:var(--oro-tx,#8a5c00);',
+        'font-weight:600;overflow-wrap:anywhere}',
+      '.cum-tabla{width:100%;border-collapse:collapse;font-size:13.5px}',
+      '.cum-tabla th{text-align:left;font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;',
+        'color:var(--gris2,#75849a);padding:7px 8px;border-bottom:1px solid var(--raya,#d8e0ec)}',
+      '.cum-tabla td{padding:6px 8px;border-bottom:1px solid var(--raya,#d8e0ec)}',
+      '.cum-tabla select{font:inherit;padding:5px 7px;border:1px solid var(--raya,#d8e0ec);border-radius:7px;',
+        'background:var(--blanco,#fff);color:var(--texto,#1a2a3a)}',
+      '.cum-nota{font-size:12.5px;color:var(--gris2,#75849a);margin:0 0 12px}',
+      '.cum-sub{margin:18px 0 8px;font-family:"Barlow Condensed",Barlow,sans-serif;font-size:17px;',
+        'letter-spacing:.5px;color:var(--azul-tx,#003366);text-transform:uppercase}',
+      '.cum-in{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--raya,#d8e0ec);',
+        'border-radius:7px;background:var(--blanco,#fff);color:var(--texto,#1a2a3a)}',
+      '.cum-x{padding:4px 10px;line-height:1;font-size:16px;color:var(--rojo,#cc2233)}',
+      '@media(max-width:640px){.cum-cel{min-height:62px}.cum-cel .p{display:none}}',
+      '@media print{.cum-modal{display:none!important}}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  /* ---------------- panel del tablero ---------------- */
+  function montarPanel() {
+    var main = document.querySelector('#dash main');
+    if (!main) return false;
+    estilos();
+    var s = document.createElement('section');
+    s.id = 'cum-panel';
+    s.className = 'cum-panel';
+    main.appendChild(s);
+    return true;
+  }
+
+  function etiquetaOrigen() {
+    if (ORIGEN === 'sheet')    return '<span class="cum-tag ok">sincronizado</span>';
+    if (ORIGEN === 'local')    return '<span class="cum-tag loc">copia local</span>';
+    if (ORIGEN === 'cargando') return '<span class="cum-tag loc">cargando&hellip;</span>';
+    return '<span class="cum-tag err">sin conexi&oacute;n</span>';
+  }
+
+  function pintarPanel() {
+    var cont = document.getElementById('cum-panel');
+    if (!cont) return;
+    var h = hoy(), m = h.getMonth() + 1, d = h.getDate();
+    var hoyes = delDia(m, d), delM = delMes(m), total = lista().length;
+
+    var html =
+      '<div class="cum-hd"><h3>&#127874; Cumplea&ntilde;os de ' + MESES[m - 1] + '</h3>' +
+      etiquetaOrigen() + '<div class="sp"></div>' +
+      '<button type="button" class="cum-b" data-cum="recargar" title="Volver a leer la hoja">&#8635;</button>' +
+      '<button type="button" class="cum-b pri" data-cum="ver">Ver calendario</button>' +
+      (esAdmin() ? '<button type="button" class="cum-b oro" data-cum="adm">Administrar</button>' : '') +
+      '</div><div class="cum-body">';
+
+    if (hoyes.length) {
+      html += '<div class="cum-hoy"><div class="em">&#127881;</div><div><b>' +
+        (hoyes.length === 1 ? 'Hoy cumple a&ntilde;os' : 'Hoy cumplen a&ntilde;os') + '</b><span>' +
+        hoyes.map(function (p) { return esc(p.nombre); }).join(' &middot; ') + '</span></div></div>';
+    }
+
+    if (!total) {
+      html += '<p class="cum-vacio">' +
+        (ORIGEN === 'cargando' ? 'Leyendo las fechas&hellip;'
+         : ORIGEN === 'sin'    ? 'No se pudo leer la hoja <b>' + HOJA + '</b>. Revisa tu conexi&oacute;n o avisa al administrador.'
+         : 'Todav&iacute;a no hay fechas registradas.' +
+           (esAdmin() ? ' Usa <b>Administrar</b> para capturarlas.' : ' El administrador es quien las registra.')) +
+        '</p>';
+    } else if (!delM.length) {
+      /* Mes sin cumpleanos: se avisa y se apunta al siguiente. */
+      var sig = proximos(1)[0];
+      html += '<p class="cum-vacio">Nadie cumple a&ntilde;os en ' + MESES[m - 1] + '.' +
+        (sig ? ' El pr&oacute;ximo es <b>' + esc(sig.nombre) + '</b>, el ' + sig.d + ' de ' +
+               MESES[sig.m - 1] + '.' : '') + '</p>';
+    } else {
+      html += '<div class="cum-lista">' + delM.map(function (p) {
+        var cuando, clase = '';
+        if (p.d === d)      { cuando = '&iexcl;Hoy!';            clase = ' hoy'; }
+        else if (p.d < d)   { cuando = 'ya pas&oacute;';         clase = ' paso'; }
+        else if (p.d === d + 1) cuando = 'ma&ntilde;ana';
+        else                cuando = 'en ' + (p.d - d) + ' d&iacute;as';
+        return '<div class="cum-it' + clase + '">' +
+          '<div class="av">' + esc(ini(p.nombre)) + '</div><div><div class="n">' + esc(p.nombre) + '</div>' +
+          '<div class="f">' + p.d + ' de ' + MESES[p.m - 1] + ' &middot; ' + cuando + '</div></div></div>';
+      }).join('') + '</div>';
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+
+    cont.querySelector('[data-cum="ver"]').onclick = function () { abrirCalendario(); };
+    cont.querySelector('[data-cum="recargar"]').onclick = function () {
+      ORIGEN = 'cargando'; pintarPanel(); leerNube();
+    };
+    var ba = cont.querySelector('[data-cum="adm"]');
+    if (ba) ba.onclick = function () { abrirAdmin(); };
+  }
+
+  /* ---------------- modal generico ---------------- */
+  function modal(id, titulo, cuerpo, pie) {
+    estilos();
+    var m = document.getElementById(id);
+    if (!m) {
+      m = document.createElement('div');
+      m.id = id; m.className = 'cum-modal';
+      m.innerHTML = '<div class="cum-caja"><div class="hd"><h3></h3><div class="sp"></div>' +
+        '<button type="button" class="x">&times;</button></div>' +
+        '<div class="bd"></div><div class="ft"></div></div>';
+      document.body.appendChild(m);
+      m.querySelector('.x').onclick = function () { m.classList.remove('on'); };
+      m.addEventListener('click', function (e) { if (e.target === m) m.classList.remove('on'); });
+    }
+    m.querySelector('.hd h3').innerHTML = titulo;
+    m.querySelector('.bd').innerHTML = cuerpo;
+    m.querySelector('.ft').innerHTML = pie || '';
+    m.classList.add('on');
+    return m;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    ['cum-m-cal', 'cum-m-adm'].forEach(function (id) {
+      var m = document.getElementById(id); if (m) m.classList.remove('on');
+    });
+  });
+
+  /* ---------------- calendario ---------------- */
+  var vistaMes = hoy().getMonth() + 1, vistaAnio = hoy().getFullYear();
+
+  function gridMes(m, a) {
+    var primero = new Date(a, m - 1, 1).getDay();
+    var dias = new Date(a, m, 0).getDate();
+    var h = hoy(), esMesHoy = (h.getMonth() + 1 === m && h.getFullYear() === a);
+    var out = DIASEM.map(function (d) { return '<div class="cum-dow">' + d + '</div>'; }).join('');
+    var i;
+    for (i = 0; i < primero; i++) out += '<div class="cum-cel off"></div>';
+    for (i = 1; i <= dias; i++) {
+      var gente = delDia(m, i);
+      out += '<div class="cum-cel' + (gente.length ? ' tiene' : '') +
+        (esMesHoy && h.getDate() === i ? ' hoy' : '') + '">' +
+        '<div class="nd">' + i + '</div>' +
+        gente.map(function (p) { return '<div class="p">&#127874; ' + esc(p.nombre) + '</div>'; }).join('') +
+        '</div>';
+    }
+    return out;
+  }
+
+  function cuerpoCalendario() {
+    var delM = delMes(vistaMes);
+    return '<div class="cum-nav"><button type="button" class="cum-b" data-cum="ant">&lsaquo;</button>' +
+      '<div style="flex:1"></div><div class="mes">' + MESES[vistaMes - 1] + ' ' + vistaAnio + '</div>' +
+      '<div style="flex:1"></div>' +
+      '<button type="button" class="cum-b" data-cum="sig">&rsaquo;</button></div>' +
+      '<div class="cum-grid">' + gridMes(vistaMes, vistaAnio) + '</div>' +
+      '<p class="cum-nota" style="margin-top:14px">' +
+      (delM.length
+        ? '<b>' + delM.length + '</b> cumplea&ntilde;os en ' + MESES[vistaMes - 1] + ': ' +
+          delM.map(function (p) { return esc(p.nombre) + ' (' + p.d + ')'; }).join(' &middot; ')
+        : 'Sin cumplea&ntilde;os registrados en ' + MESES[vistaMes - 1] + '.') + '</p>';
+  }
+
+  function abrirCalendario() {
+    var m = modal('cum-m-cal', '&#128197; Calendario de cumplea&ntilde;os', cuerpoCalendario(),
+      '<span class="cum-nota" style="margin:0">Visible para todo el personal del portal.</span>' +
+      '<div class="sp"></div><button type="button" class="cum-b" data-cum="hoy">Mes actual</button>');
+    enlazarCal(m);
+  }
+  function enlazarCal(m) {
+    function refrescar() { m.querySelector('.bd').innerHTML = cuerpoCalendario(); enlazarCal(m); }
+    var a = m.querySelector('[data-cum="ant"]'), s = m.querySelector('[data-cum="sig"]'),
+        t = m.querySelector('[data-cum="hoy"]');
+    if (a) a.onclick = function () { vistaMes--; if (vistaMes < 1) { vistaMes = 12; vistaAnio--; } refrescar(); };
+    if (s) s.onclick = function () { vistaMes++; if (vistaMes > 12) { vistaMes = 1; vistaAnio++; } refrescar(); };
+    if (t) t.onclick = function () { vistaMes = hoy().getMonth() + 1; vistaAnio = hoy().getFullYear(); refrescar(); };
+  }
+  function refrescarCalendario() {
+    var cal = document.getElementById('cum-m-cal');
+    if (cal && cal.classList.contains('on')) { cal.querySelector('.bd').innerHTML = cuerpoCalendario(); enlazarCal(cal); }
+  }
+
+  /* ---------------- administrar (solo admin) ---------------- */
+  function nuevaClave() {
+    return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  }
+  function selDia(attr, k, val) {
+    var s = '<select ' + attr + '="' + esc(k) + '"><option value="">--</option>';
+    for (var i = 1; i <= 31; i++)
+      s += '<option value="' + i + '"' + (+val === i ? ' selected' : '') + '>' + i + '</option>';
+    return s + '</select>';
+  }
+  function selMes(attr, k, val) {
+    var s = '<select ' + attr + '="' + esc(k) + '"><option value="">--</option>';
+    for (var j = 1; j <= 12; j++)
+      s += '<option value="' + j + '"' + (+val === j ? ' selected' : '') + '>' + MESES[j - 1] + '</option>';
+    return s + '</select>';
+  }
+  function filaLibre(k, f) {
+    f = f || {};
+    return '<tr data-libre="' + esc(k) + '">' +
+      '<td><input type="text" class="cum-in" data-ln="' + esc(k) + '" value="' + esc(f.n || '') +
+        '" placeholder="Nombre y apellido"></td>' +
+      '<td>' + selDia('data-ld', k, f.d) + '</td>' +
+      '<td>' + selMes('data-lm', k, f.m) + '</td>' +
+      '<td style="text-align:right"><button type="button" class="cum-b cum-x" title="Quitar">&times;</button></td></tr>';
+  }
+
+  function abrirAdmin() {
+    if (!esAdmin()) return;
+    var us = usuarios(), conUsuario = {};
+    us.forEach(function (u) { conUsuario[u.id] = true; });
+
+    /* Tabla 1: quienes tienen usuario en el portal */
+    var filasUs = us.map(function (u) {
+      var f = DATOS[u.id] || {};
+      return '<tr><td><b>' + esc(u.nombre || u.id) + '</b><br>' +
+        '<span style="font-size:12px;color:var(--gris2,#75849a)">' + esc(u.id) + '</span></td>' +
+        '<td>' + selDia('data-d', u.id, f.d) + '</td>' +
+        '<td>' + selMes('data-m', u.id, f.m) + '</td><td></td></tr>';
+    }).join('');
+
+    /* Tabla 2: personas sin usuario (todo lo que hay en DATOS y no es usuario) */
+    var filasLibres = '', k;
+    for (k in DATOS) if (Object.prototype.hasOwnProperty.call(DATOS, k) && !conUsuario[k]) {
+      filasLibres += filaLibre(k, DATOS[k]);
+    }
+
+    var cuerpo =
+      '<p class="cum-nota">Deja el d&iacute;a o el mes en <b>--</b> para quitar la fecha de esa persona. ' +
+      'Al guardar se reescribe la hoja <b>' + HOJA + '</b> y todos ven el cambio.</p>' +
+
+      '<h4 class="cum-sub">Con usuario en el portal</h4>' +
+      '<table class="cum-tabla"><thead><tr><th>Persona</th><th style="width:90px">D&iacute;a</th>' +
+      '<th style="width:150px">Mes</th><th style="width:46px"></th></tr></thead>' +
+      '<tbody>' + (filasUs || '<tr><td colspan="4">No hay usuarios cargados.</td></tr>') + '</tbody></table>' +
+
+      '<h4 class="cum-sub">Otras personas del departamento</h4>' +
+      '<p class="cum-nota">Para quienes no tienen usuario en el portal. Solo nombre, d&iacute;a y mes.</p>' +
+      '<table class="cum-tabla"><thead><tr><th>Nombre</th><th style="width:90px">D&iacute;a</th>' +
+      '<th style="width:150px">Mes</th><th style="width:46px"></th></tr></thead>' +
+      '<tbody id="cum-libres">' + filasLibres + '</tbody></table>' +
+      '<button type="button" class="cum-b" style="margin-top:10px" data-cum="agregar">+ Agregar persona</button>';
+
+    var m = modal('cum-m-adm', '&#9881; Administrar cumplea&ntilde;os', cuerpo,
+      '<span class="cum-nota" id="cum-est" style="margin:0"></span><div class="sp"></div>' +
+      '<button type="button" class="cum-b" data-cum="cerrar">Cancelar</button>' +
+      '<button type="button" class="cum-b pri" data-cum="guardar">Guardar</button>');
+
+    var est = m.querySelector('#cum-est');
+    var btn = m.querySelector('[data-cum="guardar"]');
+    var cuerpoLibres = m.querySelector('#cum-libres');
+
+    m.querySelector('[data-cum="cerrar"]').onclick = function () { m.classList.remove('on'); };
+
+    m.querySelector('[data-cum="agregar"]').onclick = function () {
+      var tmp = document.createElement('tbody');
+      tmp.innerHTML = filaLibre(nuevaClave(), {});
+      var tr = tmp.firstChild;
+      cuerpoLibres.appendChild(tr);
+      var campo = tr.querySelector('input');
+      if (campo) campo.focus();
+    };
+
+    /* Quitar una fila de "otras personas" */
+    cuerpoLibres.addEventListener('click', function (e) {
+      var b = e.target;
+      if (!b || b.className.indexOf('cum-x') === -1) return;
+      var tr = b.parentNode.parentNode;
+      if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+    });
+
+    btn.onclick = function () {
+      var nuevos = {}, malo = '';
+      var diasDe = function (mm) { return new Date(2024, mm, 0).getDate(); };   // 2024 = bisiesto
+
+      us.forEach(function (u) {
+        var sd = m.querySelector('[data-d="' + String(u.id).replace(/"/g, '\\"') + '"]');
+        var sm = m.querySelector('[data-m="' + String(u.id).replace(/"/g, '\\"') + '"]');
+        if (!sd || !sm) return;
+        var dd = parseInt(sd.value, 10), mm = parseInt(sm.value, 10);
+        if (!dd || !mm) return;
+        if (dd > diasDe(mm)) { malo = 'El d&iacute;a ' + dd + ' no existe en ' + MESES[mm - 1] + ' (' + esc(u.nombre || u.id) + ').'; return; }
+        nuevos[u.id] = { d: dd, m: mm, n: u.nombre || u.id };
+      });
+
+      Array.prototype.forEach.call(cuerpoLibres.querySelectorAll('[data-libre]'), function (tr) {
+        var clave = tr.getAttribute('data-libre');
+        var nom = (tr.querySelector('input').value || '').trim();
+        var dd = parseInt(tr.querySelector('select[data-ld]').value, 10);
+        var mm = parseInt(tr.querySelector('select[data-lm]').value, 10);
+        if (!nom && !dd && !mm) return;                      // fila en blanco: se ignora
+        if (!nom) { malo = 'Hay una fila sin nombre en "Otras personas".'; return; }
+        if (!dd || !mm) { malo = 'A ' + esc(nom) + ' le falta el d&iacute;a o el mes.'; return; }
+        if (dd > diasDe(mm)) { malo = 'El d&iacute;a ' + dd + ' no existe en ' + MESES[mm - 1] + ' (' + esc(nom) + ').'; return; }
+        nuevos[clave] = { d: dd, m: mm, n: nom };
+      });
+
+      if (malo) { est.innerHTML = '<span style="color:var(--rojo,#cc2233)">' + malo + '</span>'; return; }
+
+      btn.disabled = true; btn.textContent = 'Guardando...';
+      est.innerHTML = '';
+      guardarNube(nuevos, function (err) {
+        btn.disabled = false; btn.textContent = 'Guardar';
+        DATOS = nuevos;
+        guardarCache(DATOS);
+        if (err) {
+          ORIGEN = 'local';
+          est.innerHTML = '<span style="color:var(--rojo,#cc2233)">No se guard&oacute; en la hoja (' +
+            esc(err.message) + '). Qued&oacute; solo en esta PC.</span>';
+        } else {
+          ORIGEN = 'sheet';
+          m.classList.remove('on');
+        }
+        pintarPanel();
+        refrescarCalendario();
+      });
+    };
+  }
+
+  /* ---------------- arranque ---------------- */
+  var cargadoUnaVez = false;
+  function revisar() {
+    var dash = document.getElementById('dash');
+    var visible = dash && dash.style.display !== 'none' && !!sesion();
+    var panel  = document.getElementById('cum-panel');
+    if (!visible) {                       // sin sesion no se muestra nada
+      if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+      cargadoUnaVez = false;
+      return;
+    }
+    if (!panel) {
+      if (!montarPanel()) return;
+      if (!cargadoUnaVez) {
+        DATOS = leerCache();
+        ORIGEN = 'cargando';
+        cargadoUnaVez = true;
+        pintarPanel();
+        leerNube();
+      } else {
+        pintarPanel();
+      }
+    }
+  }
+  function arrancar() { setTimeout(revisar, 400); setInterval(revisar, 1500); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar);
+  else arrancar();
+
+})();
+</script>
+
 </body>
 </html>
