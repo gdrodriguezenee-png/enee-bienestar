@@ -1054,10 +1054,10 @@ if (!window.Portal) {
 <!-- CUMPLEANOS-DBS -->
 <script>
 /* =========================================================================
-   CALENDARIO DE CUMPLEANOS  -  Portal DBS   (v4 - SINCRONIZADO)
+   CALENDARIO DE CUMPLEANOS  -  Portal DBS   (v5 - SINCRONIZADO)
 
-   - Visible para TODOS los usuarios que entran al portal.
-   - Solo el administrador puede capturar o borrar fechas ("Administrar").
+   - El administrador decide quien lo ve (fila "__ver__" de la hoja) y es
+     el unico que captura o borra fechas ("Administrar").
    - Alcance: las personas que tienen usuario en la hoja Usuarios.
 
    BACKEND
@@ -1073,12 +1073,13 @@ if (!window.Portal) {
   'use strict';
 
   var HOJA   = 'Cumpleanos';
-  var CACHE  = 'dbs_cumples_v2';
+  var CACHE  = 'dbs_cumples_v3';
   var MESES  = ['enero','febrero','marzo','abril','mayo','junio',
                 'julio','agosto','septiembre','octubre','noviembre','diciembre'];
   var DIASEM = ['Dom','Lun','Mar','Mie','Jue','Vie','Sab'];
 
-  var DATOS  = {};          /* { id: {d:8, m:9} }                     */
+  var DATOS  = {};          /* { id: {d:8, m:9, n:'...'} }             */
+  var VER    = '*';         /* '*' = todos, o ['gustavo','rosa', ...]  */
   var ORIGEN = 'cargando';  /* 'sheet' | 'local' | 'sin' | 'cargando' */
   var LEYENDO = false;
 
@@ -1129,21 +1130,46 @@ if (!window.Portal) {
 
   /* ---------------- copia local (respaldo y arranque rapido) ---------------- */
   function leerCache() {
-    try { return JSON.parse(localStorage.getItem(CACHE) || '{}') || {}; }
-    catch (e) { return {}; }
+    try {
+      var o = JSON.parse(localStorage.getItem(CACHE) || '{}');
+      if (o && o.d) { VER = o.v || '*'; return o.d; }
+    } catch (e) {}
+    return {};
   }
-  function guardarCache(o) {
-    try { localStorage.setItem(CACHE, JSON.stringify(o)); } catch (e) {}
+  function guardarCache() {
+    try { localStorage.setItem(CACHE, JSON.stringify({ d: DATOS, v: VER })); } catch (e) {}
+  }
+
+  /* Quien puede ver el calendario. Los administradores siempre pueden. */
+  function puedeVer() {
+    var s = sesion();
+    if (!s) return false;
+    if (s.rol === 'admin') return true;
+    if (VER === '*' || !VER.length) return true;
+    for (var i = 0; i < VER.length; i++) {
+      if (String(VER[i]).toLowerCase() === String(s.id).toLowerCase()) return true;
+    }
+    return false;
   }
 
   /* ---------------- nube ---------------- */
   function filasADatos(filas) {
     var o = {};
+    VER = '*';                                             // por defecto, lo ve todo el portal
     for (var i = 0; i < filas.length; i++) {
       var r = filas[i];
       if (!r || !r[0]) continue;
       var id = String(r[0]).trim();
       if (!id || id.toLowerCase() === 'id') continue;      // encabezado
+      if (id === '__ver__') {                              // fila de configuracion
+        var t = String(r[3] == null ? '' : r[3]).trim();
+        if (!t || t === '*' || t.toLowerCase() === 'todos') { VER = '*'; }
+        else {
+          VER = [];
+          t.split('|').forEach(function (x) { x = x.trim(); if (x) VER.push(x); });
+        }
+        continue;
+      }
       var d = parseInt(r[1], 10), m = parseInt(r[2], 10);
       if (!d || !m || d < 1 || d > 31 || m < 1 || m > 12) continue;
       o[id] = { d: d, m: m, n: String(r[3] == null ? '' : r[3]).trim() };
@@ -1152,6 +1178,7 @@ if (!window.Portal) {
   }
   function datosAFilas(o) {
     var us = usuarios(), nombres = {}, filas = [['id', 'dia', 'mes', 'nombre']], k;
+    filas.push(['__ver__', '', '', VER === '*' ? '*' : VER.join('|')]);   // quien puede verlo
     us.forEach(function (u) { nombres[u.id] = u.nombre || u.id; });
     for (k in o) if (Object.prototype.hasOwnProperty.call(o, k)) {
       filas.push([k, o[k].d, o[k].m, nombres[k] || o[k].n || '']);
@@ -1167,13 +1194,15 @@ if (!window.Portal) {
       if (err || !Array.isArray(filas)) {
         if (!Object.keys(DATOS).length) DATOS = leerCache();
         ORIGEN = Object.keys(DATOS).length ? 'local' : 'sin';
+        revisar();
         pintarPanel();
         if (cb) cb(err || new Error('La hoja "' + HOJA + '" no respondio'));
         return;
       }
       DATOS = filasADatos(filas);
       ORIGEN = 'sheet';
-      guardarCache(DATOS);
+      guardarCache();
+      revisar();               // por si la visibilidad cambio
       pintarPanel();
       refrescarCalendario();
       if (cb) cb(null);
@@ -1303,6 +1332,15 @@ if (!window.Portal) {
       '.cum-in{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--raya,#d8e0ec);',
         'border-radius:7px;background:var(--blanco,#fff);color:var(--texto,#1a2a3a)}',
       '.cum-x{padding:4px 10px;line-height:1;font-size:16px;color:var(--rojo,#cc2233)}',
+      '.cum-op{display:block;font-size:13.5px;margin:0 0 6px;cursor:pointer}',
+      '.cum-op input{margin-right:7px}',
+      '.cum-perm{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}',
+      '.cum-perm.off{opacity:.45}',
+      '.cum-chk{display:flex;align-items:center;gap:7px;border:1px solid var(--raya,#d8e0ec);',
+        'border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer;background:var(--sup2,#eef2f8)}',
+      '.cum-chk.on{border-color:var(--azul-med,#005599);background:var(--azul-claro,#e3ebf4);',
+        'color:var(--azul-tx,#003366);font-weight:600}',
+      '.cum-perm.off .cum-chk{cursor:default}',
       '@media(max-width:640px){.cum-cel{min-height:62px}.cum-cel .p{display:none}}',
       '@media print{.cum-modal{display:none!important}}'
     ].join('');
@@ -1525,7 +1563,22 @@ if (!window.Portal) {
       '<table class="cum-tabla"><thead><tr><th>Nombre</th><th style="width:90px">D&iacute;a</th>' +
       '<th style="width:150px">Mes</th><th style="width:46px"></th></tr></thead>' +
       '<tbody id="cum-libres">' + filasLibres + '</tbody></table>' +
-      '<button type="button" class="cum-b" style="margin-top:10px" data-cum="agregar">+ Agregar persona</button>';
+      '<button type="button" class="cum-b" style="margin-top:10px" data-cum="agregar">+ Agregar persona</button>' +
+
+      '<h4 class="cum-sub">Qui&eacute;n puede verlo</h4>' +
+      '<label class="cum-op"><input type="radio" name="cum-ver" value="todos"' +
+        (VER === '*' ? ' checked' : '') + '> Todos los que entran al portal</label>' +
+      '<label class="cum-op"><input type="radio" name="cum-ver" value="algunos"' +
+        (VER === '*' ? '' : ' checked') + '> Solo las personas que yo elija</label>' +
+      '<div class="cum-perm" id="cum-ver-lista">' +
+      us.map(function (u) {
+        var marcado = (VER !== '*' && VER.indexOf(u.id) !== -1);
+        return '<label class="cum-chk' + (marcado ? ' on' : '') + '">' +
+          '<input type="checkbox" data-ver="' + esc(u.id) + '"' + (marcado ? ' checked' : '') + '> ' +
+          esc(u.nombre || u.id) + '</label>';
+      }).join('') + '</div>' +
+      '<p class="cum-nota" style="margin-top:8px">Los administradores siempre lo ven, est&eacute;n o no en la lista. ' +
+      'Esto decide qui&eacute;n ve el panel en el portal, no es una clave: quien entra al Google Sheets sigue viendo la hoja.</p>';
 
     var m = modal('cum-m-adm', '&#9881; Administrar cumplea&ntilde;os', cuerpo,
       '<span class="cum-nota" id="cum-est" style="margin:0"></span><div class="sp"></div>' +
@@ -1537,6 +1590,21 @@ if (!window.Portal) {
     var cuerpoLibres = m.querySelector('#cum-libres');
 
     m.querySelector('[data-cum="cerrar"]').onclick = function () { m.classList.remove('on'); };
+
+    /* Lista de visibilidad: se activa solo cuando se elige "los que yo elija" */
+    var listaVer = m.querySelector('#cum-ver-lista');
+    function pintarVer() {
+      var algunos = m.querySelector('input[name="cum-ver"][value="algunos"]').checked;
+      listaVer.className = 'cum-perm' + (algunos ? '' : ' off');
+      Array.prototype.forEach.call(listaVer.querySelectorAll('input'), function (c) { c.disabled = !algunos; });
+    }
+    Array.prototype.forEach.call(m.querySelectorAll('input[name="cum-ver"]'), function (r) {
+      r.addEventListener('change', pintarVer);
+    });
+    Array.prototype.forEach.call(listaVer.querySelectorAll('input'), function (c) {
+      c.addEventListener('change', function () { c.parentNode.classList.toggle('on', c.checked); });
+    });
+    pintarVer();
 
     m.querySelector('[data-cum="agregar"]').onclick = function () {
       var tmp = document.createElement('tbody');
@@ -1583,16 +1651,32 @@ if (!window.Portal) {
 
       if (malo) { est.innerHTML = '<span style="color:var(--rojo,#cc2233)">' + malo + '</span>'; return; }
 
+      /* Quien puede verlo */
+      var verAntes = VER, verNuevo = '*';
+      if (m.querySelector('input[name="cum-ver"][value="algunos"]').checked) {
+        verNuevo = [];
+        Array.prototype.forEach.call(listaVer.querySelectorAll('input[data-ver]'), function (c) {
+          if (c.checked) verNuevo.push(c.getAttribute('data-ver'));
+        });
+        if (!verNuevo.length) {
+          est.innerHTML = '<span style="color:var(--rojo,#cc2233)">Elige al menos una persona, ' +
+            'o marca "Todos los que entran al portal".</span>';
+          return;
+        }
+      }
+      VER = verNuevo;
+
       btn.disabled = true; btn.textContent = 'Guardando...';
       est.innerHTML = '';
       guardarNube(nuevos, function (err) {
         btn.disabled = false; btn.textContent = 'Guardar';
         DATOS = nuevos;
-        guardarCache(DATOS);
+        guardarCache();
         if (err) {
           ORIGEN = 'local';
           est.innerHTML = '<span style="color:var(--rojo,#cc2233)">No se guard&oacute; en la hoja (' +
-            esc(err.message) + '). Qued&oacute; solo en esta PC.</span>';
+            esc(err.message) + '). Qued&oacute; solo en esta PC' +
+            (verAntes !== VER ? ', incluida la lista de qui&eacute;n lo ve' : '') + '.</span>';
         } else {
           ORIGEN = 'sheet';
           m.classList.remove('on');
@@ -1604,28 +1688,26 @@ if (!window.Portal) {
   }
 
   /* ---------------- arranque ---------------- */
-  var cargadoUnaVez = false;
+  var arrancado = false;
+  function quitarPanel() {
+    var p = document.getElementById('cum-panel');
+    if (p && p.parentNode) p.parentNode.removeChild(p);
+  }
   function revisar() {
     var dash = document.getElementById('dash');
     var visible = dash && dash.style.display !== 'none' && !!sesion();
-    var panel  = document.getElementById('cum-panel');
-    if (!visible) {                       // sin sesion no se muestra nada
-      if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
-      cargadoUnaVez = false;
-      return;
+    if (!visible) { quitarPanel(); arrancado = false; return; }
+
+    if (!arrancado) {                       // primera vez tras entrar
+      arrancado = true;
+      DATOS = leerCache();                  // tambien deja VER como quedo la ultima vez
+      ORIGEN = 'cargando';
+      leerNube();
     }
-    if (!panel) {
-      if (!montarPanel()) return;
-      if (!cargadoUnaVez) {
-        DATOS = leerCache();
-        ORIGEN = 'cargando';
-        cargadoUnaVez = true;
-        pintarPanel();
-        leerNube();
-      } else {
-        pintarPanel();
-      }
-    }
+    if (ORIGEN === 'cargando') return;      // todavia no sabemos quien puede verlo
+    if (!puedeVer()) { quitarPanel(); return; }
+
+    if (!document.getElementById('cum-panel') && montarPanel()) pintarPanel();
   }
   function arrancar() { setTimeout(revisar, 400); setInterval(revisar, 1500); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar);
