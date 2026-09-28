@@ -886,8 +886,12 @@ function setSyncStatus(state, msg) {
     offline: ['#f3f4f6','#6b7280','📴']
   };
   const [bg,fg,ic] = map[state] || map.ok;
+  // Si hay error/offline, mostrar botón de reintento
+  const retry = (state==='err'||state==='offline')
+    ? ' <button onclick="cloudLoad(false)" style="margin-left:6px;background:#fff;border:1px solid currentColor;border-radius:5px;padding:1px 7px;font-size:11px;cursor:pointer;font-weight:700;">↺ Reintentar</button>'
+    : '';
   el.style.background = bg; el.style.color = fg;
-  el.innerHTML = ic + ' ' + msg;
+  el.innerHTML = ic + ' ' + msg + retry;
 }
 
 
@@ -920,12 +924,16 @@ async function cloudLoad(silent) {
     const res = await jsonp({action:'get'});
     if (res && res.ok) {
       // Registros creados sin conexión (todavía sin _id): NO se descartan.
+      // Registros locales pendientes de subir (sin _id del servidor)
       const pendientes = DATA.filter(r => r._pend && !r._id);
       DATA = res.data.map(r => normalizarPeriodo(r));
       if (pendientes.length) {
-        pendientes.forEach(r => DATA.push(r));
+        // Deduplicar: no reinsertar pendientes cuyo memo+fecha ya llegó de la nube
+        const yaEnNube = new Set(DATA.map(r => r.memo+'|'+r.fecha_ingreso+'|'+(r.year||'')+'|'+(r.month||'')));
+        const nuevos = pendientes.filter(r => !yaEnNube.has(r.memo+'|'+r.fecha_ingreso+'|'+(r.year||'')+'|'+(r.month||'')));
+        nuevos.forEach(r => DATA.push(r));
         saveLocal();
-        cloudUploadAll(pendientes).then(() => { pendientes.forEach(r=>{ if(r._id) delete r._pend; }); saveLocal(); });
+        if(nuevos.length) cloudUploadAll(nuevos).then(() => { nuevos.forEach(r=>{ if(r._id) delete r._pend; }); saveLocal(); });
       }
       saveLocal();
       buildTabs(); renderTable();
@@ -1164,6 +1172,7 @@ document.getElementById('f_recibido').addEventListener('change',function(){
 async function saveRecord(){
   if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
   if(guardando)return;                       // evita doble clic = doble registro
+  try {
   const memo=document.getElementById('f_memo').value.trim();
   const asunto=document.getElementById('f_asunto').value.trim();
   const fi=document.getElementById('f_fecha_ingreso').value;
@@ -1179,14 +1188,50 @@ async function saveRecord(){
   if(editIdx===null&&vNum===sugeridos.num&&vIns===sugeridos.instruc){
     guardando=true;
     const btn=document.getElementById('btnSave');
-    const txt=btn.textContent; btn.textContent='⏳ Asignando N°...'; btn.disabled=true;
+    const fnumEl=document.getElementById('f_num');
+    const finsEl=document.getElementById('f_instruc');
+    const txt=btn.textContent;
+    btn.textContent='⏳ Asignando N°...'; btn.disabled=true;
+    fnumEl.disabled=true; finsEl.disabled=true;
     const asignado=await reservarCorrelativos(year,month);
-    btn.textContent=txt; btn.disabled=false; guardando=false;
+    btn.textContent=txt; btn.disabled=false;
+    fnumEl.disabled=false; finsEl.disabled=false;
+    guardando=false;
     if(asignado){
+      // El servidor asignó un número único: usarlo siempre
       if(asignado.num!==vNum)showToast('N° asignado por el servidor: '+asignado.num);
       vNum=asignado.num; vIns=asignado.instruc;
       document.getElementById('f_num').value=vNum;
       document.getElementById('f_instruc').value=vIns;
+    } else if(syncEnabled){
+      // Sin conexión Y los números son solo sugeridos (podrían repetirse):
+      // recalcular desde los datos locales para reducir el riesgo de duplicado.
+      const localMax=maxNumMes(year,month);
+      const localIns=maxInstruc();
+      const recalcNum=String(localMax+1);
+      const recalcIns=String(localIns+1);
+      // Verificar que no existan ya en DATA
+      const dupNum=DATA.some(r=>r.year===year&&r.month===month&&String(r.num)===recalcNum);
+      const dupIns=DATA.some(r=>String(r.instruc)===recalcIns);
+      if(dupNum||dupIns){
+        showToast('⚠️ Sin conexión y el N° podría repetirse. Ingresa el número manualmente.','',true);
+        return; // Detener: exigir número manual
+      }
+      vNum=recalcNum; vIns=recalcIns;
+      document.getElementById('f_num').value=vNum;
+      document.getElementById('f_instruc').value=vIns;
+      showToast('⚠️ Sin conexión con el servidor. N° calculado localmente: '+vNum,'',true);
+    }
+  } else if(editIdx===null){
+    // El usuario escribió el número a mano: verificar duplicado local antes de guardar
+    const dupNum=DATA.some((r,i)=>r.year===year&&r.month===month&&String(r.num)===String(vNum));
+    const dupIns=DATA.some((r,i)=>String(r.instruc)===String(vIns)&&!(editIdx!==null&&i===editIdx));
+    if(dupNum){
+      showToast('⚠️ El N° correlativo '+vNum+' ya existe en este mes. Verifica antes de guardar.','',true);
+      if(!confirm('El N° correlativo '+vNum+' ya existe en '+MONTHS[month]+' '+year+'.\n\n¿Guardar de todas formas?'))return;
+    }
+    if(dupIns&&!dupNum){
+      showToast('⚠️ El N° de instrucción '+vIns+' ya existe. Verifica.','',true);
     }
   }
   const rec={num:vNum,instruc:vIns,
@@ -1212,6 +1257,11 @@ async function saveRecord(){
     else{rec._pend=true;showToast('⚠️ Guardado local: se subirá a la nube al reconectar','',true);}
     saveLocal();
   });
+  } catch(e) {
+    showToast('Error inesperado al guardar: '+e.message,'',true);
+  } finally {
+    guardando=false;
+  }
 }
 
 function confirmDelete(idx){if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}deleteIdx=idx;document.getElementById('confirmMsg').textContent=`Se eliminará: "${DATA[idx].memo||DATA[idx].asunto.slice(0,50)}..."`;document.getElementById('confirmOverlay').classList.add('open');}
