@@ -95,6 +95,15 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
 .btn-del,.btn-edit{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;}
 .btn-del{color:#c44;}.btn-del:hover{background:#fde;}
 .btn-edit{color:#448;}.btn-edit:hover{background:#e8eef8;}
+tbody tr.anul-row td{color:#9aa !important;background:#f4f4f4 !important;}
+tbody tr.anul-row td.col-asunto,tbody tr.anul-row td.col-memo{text-decoration:line-through;}
+tbody tr.pend-row td.col-num,tbody tr.pend-row td.col-inst{color:#b45309 !important;}
+.num-lock{background:#eef2f8 !important;color:#334 !important;cursor:not-allowed;}
+.cor-box{padding:18px 22px;font-size:13px;color:#223;line-height:1.5;}
+.cor-sec{border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;background:#fafbff;}
+.cor-sec h4{margin:0 0 4px;font-size:13px;color:var(--blue2);}
+.cor-ok{color:#166534;font-weight:700;}.cor-bad{color:#b91c1c;font-weight:700;}.cor-warn{color:#b45309;font-weight:700;}
+.cor-btn{background:var(--blue2);color:#fff;border:none;border-radius:5px;padding:2px 9px;font-size:11px;font-weight:700;cursor:pointer;margin:2px 4px 2px 0;}
 
 /* MODAL BASE */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,20,60,.5);backdrop-filter:blur(3px);z-index:1000;align-items:center;justify-content:center;}
@@ -248,6 +257,7 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
   <button class="btn-tool" style="background:#0369a1;color:#fff" onclick="cloudLoad(false)">🔄 Actualizar</button>
   <button class="btn-tool btn-imp" id="btnImportar" onclick="openImportModal()">📂 Importar CSV</button>
   <button class="btn-tool btn-exp" onclick="exportCSV()">⬇ Exportar CSV</button>
+  <button class="btn-tool" style="background:#6d28d9;color:#fff" onclick="abrirRevisionCorrel()" title="Buscar números faltantes o fuera de lugar">🔢 Revisar N°</button>
 </div>
 
 <div class="table-area">
@@ -271,8 +281,16 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
     <div class="mbody">
       <div class="fgrid">
         <div class="flabel">Datos de Registro</div>
+        <div class="fg full" id="g_modo"><label>Número de registro</label>
+          <select id="f_modo" onchange="cambiarModoNum()">
+            <option value="nuevo">Número nuevo — lo asigna el sistema al guardar</option>
+            <option value="grupo">Mismo N° que otro documento (varios memos en un solo registro)</option>
+            <option value="hueco">Llenar un número faltante (solo administrador)</option>
+          </select></div>
+        <div class="fg full" id="g_grupo" style="display:none"><label>Agregar al registro</label><select id="f_grupo" onchange="elegirGrupo()"></select></div>
+        <div class="fg full" id="g_hueco" style="display:none"><label>Número faltante</label><select id="f_hueco" onchange="elegirHueco()"></select></div>
         <div class="fg"><label>N° Correlativo</label><input type="number" id="f_num" min="1"><span class="fhint" id="hint_num">Número de orden</span></div>
-        <div class="fg"><label>N° Instrucción</label><input type="number" id="f_instruc" min="1"><span class="fhint">Número interno</span></div>
+        <div class="fg"><label>N° Instrucción</label><input type="number" id="f_instruc" min="1"><span class="fhint" id="hint_ins">Número interno</span></div>
         <div class="fg"><label>Fecha de Ingreso *</label><input type="date" id="f_fecha_ingreso" required></div>
         <div class="fg"><label>Fecha del Documento</label><input type="date" id="f_fecha_doc"></div>
         <hr class="fdiv"><div class="flabel">Documento</div>
@@ -440,11 +458,12 @@ td:first-child{font-weight:700;color:var(--blue2);text-align:center;white-space:
 <!-- CONFIRM -->
 <div class="overlay" id="confirmOverlay">
   <div class="cbox">
-    <h3>¿Eliminar registro?</h3>
-    <p id="confirmMsg"></p>
+    <h3>¿Qué hacer con este registro?</h3>
+    <p id="confirmMsg" style="white-space:pre-line"></p>
     <div class="cbtns">
       <button class="btn-cn" onclick="closeConfirm()">Cancelar</button>
-      <button class="btn-cy" onclick="doDelete()">Eliminar</button>
+      <button class="btn-cy" id="btnAnular" style="background:#d97706" onclick="doAnular()">🚫 Anular (conserva el N°)</button>
+      <button class="btn-cy" id="btnEliminarDef" onclick="doDelete()">Eliminar</button>
     </div>
   </div>
 </div>
@@ -933,11 +952,14 @@ async function cloudLoad(silent) {
         const nuevos = pendientes.filter(r => !yaEnNube.has(r.memo+'|'+r.fecha_ingreso+'|'+(r.year||'')+'|'+(r.month||'')));
         nuevos.forEach(r => DATA.push(r));
         saveLocal();
-        if(nuevos.length) cloudUploadAll(nuevos).then(() => { nuevos.forEach(r=>{ if(r._id) delete r._pend; }); saveLocal(); });
+        const viejos = nuevos.filter(r => !r._op);
+        if(viejos.length) cloudUploadAll(viejos).then(() => { viejos.forEach(r=>{ if(r._id) delete r._pend; }); saveLocal(); });
+        if(nuevos.some(r => r._op)) setTimeout(reintentarPendientes, 400);
       }
       saveLocal();
       buildTabs(); renderTable();
       setSyncStatus('ok','Sincronizado (' + DATA.length + ')');
+      if (correlServidor !== true) verificarServidorCorrel();
       if (!silent) showToast('☁️ ' + DATA.length + ' registros cargados de la nube' +
         (pendientes.length ? ' · ' + pendientes.length + ' pendiente(s) subiendo' : ''));
     } else {
@@ -1069,9 +1091,9 @@ function renderTable(){
   if(q)rows=rows.filter(r=>(r.memo+r.asunto+r.entregado+r.recibido+r.num+r.instruc+r.dirigido+r.fecha_ingreso+r.fecha_doc).toLowerCase().includes(q));
   const tb=document.getElementById('tableBody');
   if(!rows.length){tb.innerHTML='<tr><td colspan="11" class="no-data">No se encontraron registros.</td></tr>';document.getElementById('countBadge').textContent='0 registros';return;}
-  tb.innerHTML=rows.map(r=>'<tr class="'+(r._new?'new-row':r.num?'main-row':'sub-row')+'" onclick="openDetail('+r._i+')" title="Clic para ver el detalle">'+
-    '<td class="col-num">'+esc(r.num)+(r._new?' 🆕':'')+'</td>'+
-    '<td class="col-inst" style="text-align:center;color:#778;font-size:12px">'+esc(r.instruc)+'</td>'+
+  tb.innerHTML=rows.map(r=>'<tr class="'+(r._new?'new-row':(r.num||r._sinNum)?'main-row':'sub-row')+(r._pend?' pend-row':'')+(esAnulado(r)?' anul-row':'')+'" onclick="openDetail('+r._i+')" title="'+(r._err?esc('No se pudo registrar: '+r._err):r._sinNum?'Esperando que el servidor asigne el número':'Clic para ver el detalle')+'">'+
+    '<td class="col-num">'+(r._sinNum?(r._err?'⚠️':'⏳'):esc(r.num))+(r._new?' 🆕':'')+'</td>'+
+    '<td class="col-inst" style="text-align:center;color:#778;font-size:12px">'+(r._sinNum?(r._err?'⚠️':'⏳'):esc(r.instruc))+'</td>'+
     '<td class="col-fi" style="white-space:nowrap;font-size:12px;color:#445">'+esc(r.fecha_ingreso)+'</td>'+
     '<td class="col-memo" style="font-weight:700;color:#1a2e6e;font-size:12px">'+esc(r.memo)+'</td>'+
     '<td class="col-asunto">'+esc(r.asunto)+'</td>'+
@@ -1112,7 +1134,342 @@ async function reservarCorrelativos(y,m){
   return null;
 }
 
-function today(){return new Date().toISOString().split('T')[0];}
+// ============================================================
+// CORRELATIVOS SIN SALTOS
+// - El N° y la instrucción los asigna el servidor en el MISMO paso en que
+//   guarda (acción 'registrar' del Apps Script). Se calculan con
+//   los registros que realmente existen: si algo falla, no se gasta número.
+// - Sin conexión el registro queda "⏳ por asignar" y recibe su número al
+//   volver la conexión, en el orden en que se capturó.
+// - Los usuarios no escriben números a mano. Para varios memos bajo un mismo
+//   N° se elige "Mismo N° que otro documento". Solo el administrador puede
+//   llenar un hueco.
+// - En vez de borrar se ANULA: el número se conserva.
+// ============================================================
+let correlServidor=null;   // null: sin verificar · true: servidor listo · false: servidor sin Correlativos.gs
+let avisoCorrelMostrado=false, reintentando=false;
+const MARCA_ANUL='*** ANULADO ***';
+
+function esAdminCorr(){return !!currentUser&&currentUser.access==='admin';}
+function esAnulado(r){return String(r&&r.asunto||'').indexOf(MARCA_ANUL)===0;}
+function nuevoOp(){return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+((currentUser&&currentUser.username)||'x');}
+
+async function verificarServidorCorrel(){
+  if(!syncEnabled)return correlServidor;
+  try{
+    const n=new Date();
+    const r=await jsonp({action:'siguiente',token:USERS_TOKEN,periodo:n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')},15000);
+    correlServidor=!!(r&&r.ok&&r.version>=1);
+    if(!correlServidor&&esAdminCorr()&&!avisoCorrelMostrado){
+      avisoCorrelMostrado=true;
+      showToast('⚠️ Falta actualizar el Apps Script (Codigo_Completo.gs): se usa el método anterior','',true);
+    }
+  }catch(e){/* sin red: se decide al registrar */}
+  return correlServidor;
+}
+
+// ---------- Modo de número en el formulario ----------
+function bloquearNums(b){
+  ['f_num','f_instruc'].forEach(id=>{const el=document.getElementById(id);el.readOnly=b;el.classList.toggle('num-lock',b);});
+}
+function periodoForm(){
+  const fi=document.getElementById('f_fecha_ingreso').value;
+  if(!fi)return [activeYear,activeMonth];
+  const d=new Date(fi+'T12:00:00');return [d.getFullYear(),d.getMonth()+1];
+}
+function prepararModoNum(){
+  const nuevo=editIdx===null, sinSaltos=correlServidor!==false, adm=esAdminCorr();
+  const opH=document.querySelector('#f_modo option[value="hueco"]');
+  opH.hidden=!adm;opH.disabled=!adm;
+  document.getElementById('g_modo').style.display=(nuevo&&sinSaltos)?'':'none';
+  document.getElementById('g_grupo').style.display='none';
+  document.getElementById('g_hueco').style.display='none';
+  const hn=document.getElementById('hint_num'),hi=document.getElementById('hint_ins');
+  if(nuevo&&sinSaltos){document.getElementById('f_modo').value='nuevo';cambiarModoNum();}
+  else if(!nuevo){
+    bloquearNums(!adm);
+    hn.textContent=adm?'Cambiarlo puede dejar huecos':'Solo el administrador puede cambiarlo';
+    hi.textContent=hn.textContent;
+  }else{bloquearNums(false);hn.textContent='Número de orden';hi.textContent='Número interno';}
+}
+function gruposMes(y,m){
+  const vistos={},out=[];
+  DATA.forEach(r=>{
+    if(r.year!==y||r.month!==m||!r.num||!r.instruc||r._sinNum||esAnulado(r))return;
+    const k=r.num+'|'+r.instruc;
+    if(!vistos[k]){vistos[k]=1;out.push({num:+r.num,instruc:+r.instruc,memo:r.memo||r.asunto||'',fecha:r.fecha_ingreso||''});}
+  });
+  return out.sort((a,b)=>b.num-a.num).slice(0,60);
+}
+function faltantesMes(y,m){
+  const us={};let max=0;
+  DATA.forEach(r=>{if(r.year===y&&r.month===m){const n=parseInt(r.num);if(n>0){us[n]=1;if(n>max)max=n;}}});
+  const f=[];for(let i=1;i<max;i++)if(!us[i])f.push(i);
+  return f;
+}
+function cambiarModoNum(){
+  const modo=document.getElementById('f_modo').value,[y,m]=periodoForm();
+  const hn=document.getElementById('hint_num'),hi=document.getElementById('hint_ins');
+  document.getElementById('g_grupo').style.display=modo==='grupo'?'':'none';
+  document.getElementById('g_hueco').style.display=modo==='hueco'?'':'none';
+  bloquearNums(true);
+  if(modo==='nuevo'){
+    document.getElementById('f_num').value=maxNumMes(y,m)+1;
+    document.getElementById('f_instruc').value=maxInstruc()+1;
+    hn.textContent='Próximo estimado — se confirma al guardar';hi.textContent=hn.textContent;
+  }else if(modo==='grupo'){
+    const g=gruposMes(y,m),sel=document.getElementById('f_grupo');
+    sel.innerHTML=g.length?g.map(x=>'<option value="'+x.num+'|'+x.instruc+'">N° '+x.num+' · Instr. '+x.instruc+' — '+esc(String(x.memo).slice(0,55))+'</option>').join('')
+                         :'<option value="">No hay registros en '+MONTHS[m]+' '+y+'</option>';
+    elegirGrupo();
+    hn.textContent='No consume número nuevo';hi.textContent='Mismo número del registro elegido';
+  }else{
+    const f=faltantesMes(y,m),sel=document.getElementById('f_hueco');
+    sel.innerHTML=f.length?f.map(n=>'<option value="'+n+'">N° '+n+'</option>').join('')
+                         :'<option value="">No hay números faltantes en '+MONTHS[m]+' '+y+'</option>';
+    elegirHueco();
+    hn.textContent='Número faltante del mes';hi.textContent='Debe ser una instrucción no usada';
+  }
+}
+function elegirGrupo(){
+  const v=document.getElementById('f_grupo').value.split('|');
+  document.getElementById('f_num').value=v[0]||'';document.getElementById('f_instruc').value=v[1]||'';
+}
+function elegirHueco(){
+  const n=parseInt(document.getElementById('f_hueco').value)||0,[y,m]=periodoForm();
+  document.getElementById('f_num').value=n||'';
+  // Sugerir una instrucción faltante que quede entre la del N° anterior y la del siguiente
+  let ant=0,sig=Infinity;
+  DATA.forEach(r=>{if(r.year===y&&r.month===m){const k=parseInt(r.num),i=parseInt(r.instruc);if(!(i>0))return;
+    if(k<n&&i>ant)ant=i;if(k>n&&i<sig)sig=i;}});
+  const usadas=new Set(DATA.map(r=>parseInt(r.instruc)).filter(x=>x>0));
+  let sug='';for(let i=ant+1;i<sig&&i<ant+500;i++){if(!usadas.has(i)){sug=i;break;}}
+  document.getElementById('f_instruc').value=sug;
+  const el=document.getElementById('f_instruc');el.readOnly=false;el.classList.remove('num-lock');
+}
+document.getElementById('f_fecha_ingreso').addEventListener('change',function(){
+  if(editIdx===null&&document.getElementById('g_modo').style.display!=='none')cambiarModoNum();
+});
+
+// ---------- Guardar un registro nuevo ----------
+async function guardarNuevoSinSaltos(b){
+  const modo=document.getElementById('f_modo').value;
+  let num='',ins='';
+  if(modo==='grupo'){
+    const v=document.getElementById('f_grupo').value;
+    if(!v){showToast('Elige el registro al que se agrega este documento','',true);return;}
+    [num,ins]=v.split('|');
+    if(!DATA.some(r=>r.year===b.year&&r.month===b.month&&String(r.num)===num&&String(r.instruc)===ins)){
+      showToast('⚠️ Ese N° no existe en '+MONTHS[b.month]+' '+b.year+' (revisa la fecha de ingreso)','',true);return;}
+  }else if(modo==='hueco'){
+    if(!esAdminCorr()){showToast('Solo el administrador puede llenar huecos','',true);return;}
+    num=document.getElementById('f_hueco').value;ins=document.getElementById('f_instruc').value.trim();
+    if(!num){showToast('No hay número faltante seleccionado','',true);return;}
+    if(!ins){showToast('Indica el N° de instrucción para este hueco','',true);return;}
+    if(DATA.some(r=>r.year===b.year&&r.month===b.month&&String(r.num)===num)){showToast('⚠️ El N° '+num+' ya existe en ese mes','',true);return;}
+    if(DATA.some(r=>String(r.instruc)===ins)){showToast('⚠️ La instrucción '+ins+' ya existe','',true);return;}
+  }
+  const rec={num,instruc:ins,fecha_ingreso:fmtD(b.fi),memo:b.memo,asunto:b.asunto,
+    dirigido:document.getElementById('f_dirigido').value.trim(),
+    fecha_doc:fmtD(document.getElementById('f_fecha_doc').value),recibido:b.recibido,
+    entregado:document.getElementById('f_entregado').value.trim(),
+    fecha_entregado:fmtD(document.getElementById('f_fecha_entregado').value),
+    year:b.year,month:b.month,month_name:MONTHS[b.month]||String(b.month),
+    _new:true,_pend:true,_op:nuevoOp(),_modo:modo,_user:currentUser?currentUser.name:''};
+  if(modo==='nuevo')rec._sinNum=true;
+  DATA.push(rec);saveLocal();
+  activeYear=b.year;activeMonth=b.month;closeModal();buildTabs();renderTable();
+  showToast('⏳ Registrando... el sistema asigna el número');
+  const ok=await subirRegistro(rec);
+  renderTable();
+  if(ok){showToast('✅ Registrada: N° '+rec.num+' · Instrucción '+rec.instruc);return;}
+  if(rec._err){
+    // Error de validación (p. ej. el hueco ya lo llenó otra PC): no se guarda y se reabre el formulario
+    const i=DATA.indexOf(rec);if(i>=0)DATA.splice(i,1);saveLocal();renderTable();
+    alert('No se pudo registrar:\n\n'+rec._err+'\n\nSe volverá a abrir el formulario con los datos.');
+    reabrirConDatos(rec);return;
+  }
+  showToast('📴 Guardada sin conexión: el N° se asignará al reconectar','',true);
+}
+function reabrirConDatos(r){
+  openModal();
+  document.getElementById('f_fecha_ingreso').value=parseDI(r.fecha_ingreso);
+  document.getElementById('f_fecha_doc').value=parseDI(r.fecha_doc);
+  document.getElementById('f_memo').value=r.memo||'';
+  document.getElementById('f_asunto').value=r.asunto||'';
+  document.getElementById('f_dirigido').value=r.dirigido||'';
+  document.getElementById('f_entregado').value=r.entregado||'';
+  document.getElementById('f_fecha_entregado').value=parseDI(r.fecha_entregado||'');
+  cambiarModoNum();
+}
+
+// ---------- Envío al servidor (idempotente gracias a _op) ----------
+async function subirRegistro(rec){
+  if(rec._subiendo)return false;
+  rec._subiendo=true;
+  try{
+    if(correlServidor===false)return await subirLegacy(rec);
+    const payload={};
+    Object.keys(rec).forEach(k=>{if(['_pend','_sinNum','_new','_subiendo','_err','_id'].indexOf(k)<0)payload[k]=rec[k];});
+    if(payload._modo==='nuevo'){payload.num='';payload.instruc='';}
+    let res;
+    setSyncStatus('sync','Registrando...');
+    try{res=await jsonp({action:'registrar',token:USERS_TOKEN,data:JSON.stringify(payload)},30000);}
+    catch(e){setSyncStatus('err','Sin conexión');return false;}
+    if(res&&res.ok&&res.num){
+      rec.num=String(res.num);rec.instruc=String(res.instruc);rec._id=res.id;
+      delete rec._pend;delete rec._sinNum;delete rec._err;
+      correlServidor=true;setSyncStatus('ok','Guardado');return true;
+    }
+    if(!res||res.version===undefined){correlServidor=false;return await subirLegacy(rec);}   // Apps Script sin Correlativos.gs
+    setSyncStatus('err','Error');
+    if(res.ocupado)return false;
+    rec._err=res.error||'Error desconocido';return false;
+  }finally{delete rec._subiendo;saveLocal();}
+}
+// Respaldo si el Apps Script todavía no tiene Correlativos.gs (método anterior)
+async function subirLegacy(rec){
+  if(rec._sinNum){
+    const a=await reservarCorrelativos(rec.year,rec.month);
+    if(!a)return false;
+    rec.num=a.num;rec.instruc=a.instruc;delete rec._sinNum;
+  }
+  const copia={};Object.keys(rec).forEach(k=>{if(['_op','_modo','_subiendo','_err','_pend','_new'].indexOf(k)<0)copia[k]=rec[k];});
+  const res=await cloudSave(copia);
+  if(res&&res.ok){rec._id=copia._id;delete rec._pend;delete rec._op;delete rec._modo;return true;}
+  return false;
+}
+async function reintentarPendientes(){
+  if(reintentando||!syncEnabled||!currentUser)return;
+  const pend=DATA.filter(r=>r._pend&&r._op&&!r._id&&!r._err&&!r._subiendo);
+  if(!pend.length)return;
+  reintentando=true;
+  let n=0;
+  try{for(const r of pend){const ok=await subirRegistro(r);if(ok)n++;else if(!r._err)break;}}
+  finally{reintentando=false;saveLocal();renderTable();}
+  if(n)showToast('✅ '+n+' registro(s) pendiente(s) recibieron su número');
+}
+setInterval(reintentarPendientes,30000);
+window.addEventListener('online',()=>setTimeout(reintentarPendientes,1500));
+
+// ---------- Anular / eliminar ----------
+function dejaHueco(r,idx){
+  const partes=[];
+  const n=parseInt(r.num),i=parseInt(r.instruc);
+  if(n>0&&n<maxNumMes(r.year,r.month)&&!DATA.some((x,j)=>j!==idx&&x.year===r.year&&x.month===r.month&&String(x.num)===String(r.num)))
+    partes.push('el N° '+n+' de '+MONTHS[r.month]);
+  if(i>0&&i<maxInstruc()&&!DATA.some((x,j)=>j!==idx&&String(x.instruc)===String(r.instruc)))
+    partes.push('la instrucción '+i);
+  return partes.join(' y ');
+}
+function doAnular(){
+  if(deleteIdx===null)return;
+  const r=DATA[deleteIdx];
+  if(esAnulado(r)){closeConfirm();return;}
+  r.asunto=MARCA_ANUL+' '+(r.asunto||'');
+  r.entregado='ANULADO'+(r.entregado?' — '+r.entregado:'');
+  r._user=currentUser?currentUser.name:'';
+  saveLocal();closeConfirm();renderTable();
+  showToast('🚫 Registro anulado: el N° '+(r.num||'')+' se conserva');
+  if(r._id)cloudSave(r).then(res=>{if(!(res&&res.ok))showToast('⚠️ La anulación quedó solo en esta PC; vuelve a intentarlo','',true);});
+}
+function efectoMoverPeriodo(o,idx,y,m,vNum,vIns){
+  const compartido=DATA.some((r,i)=>i!==idx&&r.year===o.year&&r.month===o.month&&String(r.num)===String(o.num));
+  const huecoOrig=!compartido&&parseInt(o.num)<maxNumMes(o.year,o.month);
+  const choca=DATA.some((r,i)=>i!==idx&&r.year===y&&r.month===m&&String(r.num)===String(vNum)&&String(r.instruc)!==String(vIns));
+  if(!huecoOrig&&!choca)return {msg:''};
+  let t='La nueva fecha de ingreso pasa este registro de '+MONTHS[o.month]+' '+o.year+' a '+MONTHS[m]+' '+y+'.\n';
+  if(huecoOrig)t+='\n• El N° '+o.num+' quedaría vacío en '+MONTHS[o.month]+'.';
+  if(choca)t+='\n• En '+MONTHS[m]+' ya existe otro registro con el N° '+vNum+' (quedaría repetido).';
+  return {msg:t+'\n\n¿Continuar?'};
+}
+
+// ---------- Revisión de la serie (🔢 Revisar N°) ----------
+function analizarCorrel(y){
+  const filas=DATA.map((r,i)=>({r,i})).filter(o=>o.r.year===y);
+  const meses={};
+  filas.forEach(o=>{const m=o.r.month;(meses[m]=meses[m]||[]).push(o);});
+  const res={meses:[],insFalt:[],insRango:null,sospechosos:[],pendientes:filas.filter(o=>o.r._pend&&o.r._op).length};
+  const rangos={};
+  Object.keys(meses).forEach(m=>{const v=meses[m].map(o=>parseInt(o.r.instruc)).filter(x=>x>0);
+    if(v.length)rangos[m]={min:Math.min(...v),max:Math.max(...v)};});
+  Object.keys(meses).map(Number).sort((a,b)=>a-b).forEach(m=>{
+    const lista=meses[m],us={},pares={};let max=0;
+    lista.forEach(o=>{const n=parseInt(o.r.num);if(n>0){us[n]=1;if(n>max)max=n;
+      const i=parseInt(o.r.instruc);if(i>0){(pares[n]=pares[n]||new Set()).add(i);}}});
+    const falt=[];for(let k=1;k<max;k++)if(!us[k])falt.push(k);
+    const conflictos=Object.keys(pares).filter(n=>pares[n].size>1).map(n=>({num:n,ins:[...pares[n]]}));
+    res.meses.push({m,max,falt,conflictos,total:lista.length});
+  });
+  // Registros cuya instrucción cae dentro del rango de OTRO mes (típico de una fecha mal escrita)
+  filas.forEach(o=>{
+    const i=parseInt(o.r.instruc);if(!(i>0))return;
+    const propios=meses[o.r.month].filter(x=>x!==o).map(x=>parseInt(x.r.instruc)).filter(x=>x>0);
+    const dentro=propios.length&&i>=Math.min(...propios)&&i<=Math.max(...propios);
+    if(dentro)return;
+    const otro=Object.keys(rangos).map(Number).find(m=>m!==o.r.month&&i>=rangos[m].min&&i<=rangos[m].max);
+    if(otro)res.sospechosos.push({idx:o.i,r:o.r,otro});
+  });
+  const insVals=[...new Set(filas.map(o=>parseInt(o.r.instruc)).filter(x=>x>0))].sort((a,b)=>a-b);
+  if(insVals.length){
+    res.insRango=[insVals[0],insVals[insVals.length-1]];
+    const st=new Set(insVals);for(let k=insVals[0];k<=insVals[insVals.length-1];k++)if(!st.has(k))res.insFalt.push(k);
+  }
+  return res;
+}
+function abrirRevisionCorrel(){
+  let ov=document.getElementById('correlOverlay');
+  if(!ov){
+    ov=document.createElement('div');ov.className='overlay';ov.id='correlOverlay';
+    ov.innerHTML='<div class="modal" style="width:720px"><div class="mhead"><span style="font-size:19px">🔢</span><h2>Revisión de correlativos</h2>'+
+      '<button class="mclose" onclick="cerrarRevisionCorrel()">✕</button></div><div class="mbody cor-box" id="correlBody"></div>'+
+      '<div class="mfoot"><button class="btn-c" onclick="cerrarRevisionCorrel()">Cerrar</button></div></div>';
+    ov.addEventListener('click',e=>{if(e.target===ov)cerrarRevisionCorrel();});
+    document.body.appendChild(ov);
+  }
+  const y=activeYear,a=analizarCorrel(y),adm=esAdminCorr();
+  const lista=v=>v.length>25?v.slice(0,25).join(', ')+' … (+'+(v.length-25)+')':v.join(', ');
+  let h='<div style="margin-bottom:10px;color:#556">Año <b>'+y+'</b>. Los N° se revisan por mes; la instrucción, en todo el año.</div>';
+  if(a.pendientes)h+='<div class="cor-sec"><span class="cor-warn">⏳ '+a.pendientes+' registro(s) esperando número del servidor.</span> '+
+    '<button class="cor-btn" onclick="reintentarPendientes();cerrarRevisionCorrel()">Reintentar ahora</button></div>';
+  a.meses.forEach(x=>{
+    h+='<div class="cor-sec"><h4>'+MONTHS[x.m]+' '+y+' — N° 1 a '+x.max+' ('+x.total+' documentos)</h4>';
+    if(!x.falt.length&&!x.conflictos.length)h+='<span class="cor-ok">✅ Sin huecos</span>';
+    if(x.falt.length){
+      h+='<div><span class="cor-bad">Faltan:</span> '+lista(x.falt)+'</div>';
+      if(adm)h+='<div>'+x.falt.slice(0,25).map(n=>'<button class="cor-btn" onclick="llenarHueco('+y+','+x.m+','+n+')">Llenar N° '+n+'</button>').join('')+'</div>';
+    }
+    x.conflictos.forEach(c=>{h+='<div><span class="cor-warn">N° '+c.num+' tiene varias instrucciones:</span> '+c.ins.join(', ')+'</div>';});
+    h+='</div>';
+  });
+  h+='<div class="cor-sec"><h4>N° de instrucción '+y+(a.insRango?' — '+a.insRango[0]+' a '+a.insRango[1]:'')+'</h4>'+
+     (a.insFalt.length?'<span class="cor-bad">Faltan:</span> '+lista(a.insFalt):'<span class="cor-ok">✅ Sin huecos</span>')+'</div>';
+  if(a.sospechosos.length){
+    h+='<div class="cor-sec"><h4>Posible fecha de ingreso equivocada</h4>';
+    a.sospechosos.forEach(s=>{
+      h+='<div>N° <b>'+esc(s.r.num)+'</b> (instr. '+esc(s.r.instruc)+', ingreso '+esc(s.r.fecha_ingreso)+') está en <b>'+MONTHS[s.r.month]+
+         '</b>, pero su instrucción corresponde a <b>'+MONTHS[s.otro]+'</b>. '+
+         '<button class="cor-btn" onclick="cerrarRevisionCorrel();'+(adm?'openEdit(':'openDetail(')+s.idx+')">'+(adm?'Corregir':'Ver')+'</button></div>';
+    });
+    h+='</div>';
+  }
+  document.getElementById('correlBody').innerHTML=h;
+  ov.classList.add('open');
+}
+function cerrarRevisionCorrel(){const ov=document.getElementById('correlOverlay');if(ov)ov.classList.remove('open');}
+function llenarHueco(y,m,n){
+  cerrarRevisionCorrel();
+  activeYear=y;activeMonth=m;buildTabs();renderTable();
+  openModal();
+  // Fecha del registro vecino, para que quede dentro del mismo mes
+  const vec=DATA.filter(r=>r.year===y&&r.month===m&&parseInt(r.num)>0)
+    .sort((a,b)=>Math.abs(parseInt(a.num)-n)-Math.abs(parseInt(b.num)-n))[0];
+  document.getElementById('f_fecha_ingreso').value=vec?parseDI(vec.fecha_ingreso):y+'-'+String(m).padStart(2,'0')+'-01';
+  document.getElementById('f_modo').value='hueco';cambiarModoNum();
+  document.getElementById('f_hueco').value=String(n);elegirHueco();
+}
+
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}  // fecha LOCAL (toISOString daba la de mañana después de las 6 p. m.)
 function parseDI(s){if(!s)return '';const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return`${m[3]}-${m[2]}-${m[1]}`;return s.slice(0,10);}
 function fmtD(s){if(!s)return '';const m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return`${m[3]}/${m[2]}/${m[1]}`;return s;}
 
@@ -1138,6 +1495,7 @@ function openModal(){
   else sel.value='';
   document.getElementById('f_recibido_otro').value='';
   document.getElementById('rec_otro_g').style.display='none';
+  prepararModoNum();
   document.getElementById('modalOverlay').classList.add('open');
   setTimeout(()=>document.getElementById('f_memo').focus(),80);
 }
@@ -1160,6 +1518,7 @@ function openEdit(idx){
   else{sel.value='otro';document.getElementById('rec_otro_g').style.display='flex';document.getElementById('f_recibido_otro').value=r.recibido||'';}
   document.getElementById('f_entregado').value=r.entregado||'';
   document.getElementById('f_fecha_entregado').value=parseDI(r.fecha_entregado||'');
+  prepararModoNum();
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -1181,10 +1540,38 @@ async function saveRecord(){
   const recibido=rs==='otro'?document.getElementById('f_recibido_otro').value.trim():rs;
   const dt=new Date(fi+'T12:00:00'),year=dt.getFullYear(),month=dt.getMonth()+1;
 
+  // ---- Fecha de ingreso: una fecha equivocada cambia el mes y deja huecos ----
+  if(editIdx===null){
+    const fin=new Date();fin.setHours(23,59,59,999);
+    if(dt>fin){showToast('⚠️ La fecha de ingreso no puede ser futura','',true);return;}
+    const hoy=new Date(),modoSel=document.getElementById('f_modo').value;
+    if(modoSel!=='hueco'&&(year!==hoy.getFullYear()||month!==hoy.getMonth()+1)){
+      if(!confirm('La fecha de ingreso ('+fmtD(fi)+') es de '+MONTHS[month]+' '+year+', no del mes actual.\n\n'+
+        'El registro tomará un número de la serie de '+MONTHS[month]+' '+year+'.\n\n¿La fecha es correcta?'))return;
+    }
+  }
+
+  // ---- Registro nuevo: el servidor asigna el N° al guardar (sin saltos) ----
+  if(editIdx===null&&correlServidor!==false){
+    await guardarNuevoSinSaltos({fi,memo,asunto,recibido,year,month});
+    return;
+  }
+
   // Registro nuevo con los números que sugirió la app (no tocados a mano):
   // se pide el correlativo al servidor para que no choque con otra PC.
   let vNum=document.getElementById('f_num').value.trim();
   let vIns=document.getElementById('f_instruc').value.trim();
+  if(editIdx!==null){
+    const o=DATA[editIdx];
+    if(!esAdminCorr()){vNum=String(o.num||'');vIns=String(o.instruc||'');}
+    else if((String(o.num||'')!==vNum||String(o.instruc||'')!==vIns)&&
+      !confirm('Vas a cambiar N° '+(o.num||'—')+' / instrucción '+(o.instruc||'—')+' por N° '+(vNum||'—')+' / instrucción '+(vIns||'—')+'.\n\n'+
+               'Esto puede dejar un hueco o un número repetido en la serie. ¿Continuar?'))return;
+    if(o.num&&(o.year!==year||o.month!==month)){
+      const ef=efectoMoverPeriodo(o,editIdx,year,month,vNum,vIns);
+      if(ef.msg&&!confirm(ef.msg))return;
+    }
+  }
   if(editIdx===null&&vNum===sugeridos.num&&vIns===sugeridos.instruc){
     guardando=true;
     const btn=document.getElementById('btnSave');
@@ -1264,7 +1651,30 @@ async function saveRecord(){
   }
 }
 
-function confirmDelete(idx){if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}deleteIdx=idx;document.getElementById('confirmMsg').textContent=`Se eliminará: "${DATA[idx].memo||DATA[idx].asunto.slice(0,50)}..."`;document.getElementById('confirmOverlay').classList.add('open');}
+function confirmDelete(idx){
+  if(!puedeEditar()){showToast('Tu usuario es de solo lectura','',true);return;}
+  const r=DATA[idx];
+  if(r._subiendo){showToast('⏳ Espera: este registro se está enviando al servidor','',true);return;}
+  deleteIdx=idx;
+  const adm=esAdminCorr(), bA=document.getElementById('btnAnular'), bE=document.getElementById('btnEliminarDef');
+  let msg='"'+String(r.memo||r.asunto||'').slice(0,70)+'"\n\n';
+  if(r._sinNum||(!r._id&&r._op)){
+    msg+='Este registro todavía no está en el servidor. Se puede eliminar sin afectar la numeración.';
+    bA.style.display='none';bE.style.display='';
+  }else if(esAnulado(r)){
+    msg+='Este registro ya está anulado.'+(adm?'':' Solo un administrador puede eliminarlo.');
+    bA.style.display='none';bE.style.display=adm?'':'none';
+  }else{
+    const h=dejaHueco(r,idx);
+    msg+='Anular lo marca como ANULADO y conserva el N° '+(r.num||'—')+' / instrucción '+(r.instruc||'—')+
+         ', así la serie no queda con saltos (recomendado).';
+    if(h)msg+='\n\nEliminarlo dejaría un hueco en '+h+'.'+(adm?'':' Solo un administrador puede hacerlo.');
+    else msg+='\n\nEliminarlo no deja hueco: el número se volverá a usar en el próximo registro.';
+    bA.style.display='';bE.style.display=(adm||!h)?'':'none';
+  }
+  document.getElementById('confirmMsg').textContent=msg;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
 function closeConfirm(){document.getElementById('confirmOverlay').classList.remove('open');deleteIdx=null;}
 function doDelete(){if(deleteIdx===null)return;const rid=DATA[deleteIdx]._id;DATA.splice(deleteIdx,1);saveLocal();closeConfirm();buildTabs();renderTable();showToast('🗑️ Eliminado');if(rid)cloudDelete(rid);}
 
@@ -1670,7 +2080,7 @@ function closeDetail() {
     else closeAdmin();
   });
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeConfirm();closeImport();closeAdmin();closeDetail();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeConfirm();closeImport();closeAdmin();closeDetail();cerrarRevisionCorrel();}});
 
 // INIT
 initActive();buildTabs();renderTable();populateRecibido();
