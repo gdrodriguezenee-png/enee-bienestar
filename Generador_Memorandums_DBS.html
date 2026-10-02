@@ -3314,7 +3314,7 @@ function infPintarMatriz(){
     h += '<tr'+(auto?' class="auto-row"':'')+'><td class="it">'+(i+1)+'</td>' +
          '<td><input class="desc ro" readonly value="'+esc(it.desc)+'"></td>' +
          INF.personas.map(function(p,j){
-           return '<td><input type="number" min="0" class="'+(auto?'auto':'')+'" value="'+infEnt(it.per[j])+
+           return '<td><input type="number" min="0" id="i_per'+i+'_'+j+'" class="'+(auto?'auto':'')+'" value="'+infEnt(it.per[j])+
                   '" oninput="infCeldaPersona('+i+','+j+',this.value)"></td>';
          }).join('') +
          '<td><input class="ro" readonly id="i_mt'+i+'"></td></tr>';
@@ -3332,7 +3332,7 @@ function infPintarGeneral(){
          '<td><input class="desc" value="'+esc(it.desc)+'" oninput="infDesc('+i+',this.value)"></td>' +
          [0,1,2].map(function(z){
            if(z===INF.zp) return '<td><input class="ro" readonly id="i_gz'+i+'"></td>';
-           return '<td><input type="number" min="0" value="'+infEnt(it.z[z])+
+           return '<td><input type="number" min="0" id="i_zon'+i+'_'+z+'" value="'+infEnt(it.z[z])+
                   '" oninput="infCeldaZona('+i+','+z+',this.value)"></td>';
          }).join('') +
          '<td><input class="ro" readonly id="i_gt'+i+'"></td>' +
@@ -3551,6 +3551,13 @@ function infTextosAuto(forzar, soloK){
    personas pueden llenar sus columnas a la vez sin borrarse.
    ================================================================== */
 var INF_BASE = null;          /* copia de lo ultimo leido de la nube */
+var INF_SYNC_SUCIO = false;   /* hay cambios sin confirmar en la nube */
+/* ¿El usuario tiene el cursor dentro de una casilla del informe? */
+function infEscribiendo(){
+  var a = document.activeElement;
+  if(!a || !a.id) return false;
+  return /^i_(per|zon)\d+_\d+$/.test(a.id);
+}
 var INF_SYNC_T = null;        /* temporizador del guardado automatico */
 var INF_SYNC_OCUPADO = false;
 var INF_POLL = null;
@@ -3632,11 +3639,15 @@ async function infSincronizar(silencioso){
     if(!silencioso) infMsg('err','Esta copia está en modo LOCAL: no hay nube configurada.');
     return false;
   }
-  if(!INF || !INF_INICIADO || INF_SYNC_OCUPADO) return false;
+  if(!INF || !INF_INICIADO) return false;
+  if(INF_SYNC_OCUPADO){ infProgramarSync(); return false; }   /* reintentar, no descartar */
   INF_SYNC_OCUPADO = true;
   clearTimeout(INF_SYNC_T);
   var clave = INF.zonas[INF.zp] + '|' + INF.anio + '|' + INF.mes;
-  var foco = document.activeElement ? document.activeElement.id : '';
+  var act = document.activeElement;
+  var foco = act ? act.id : '';
+  var caret = null;
+  try{ if(act && act.selectionStart != null) caret = act.selectionStart; }catch(e){}
   var base = INF_BASE;              /* NO se actualiza hasta confirmar que subio */
   try{
     if(!silencioso) infMsg('info','Sincronizando con la nube...');
@@ -3653,7 +3664,13 @@ async function infSincronizar(silencioso){
       INF = infMezclar(base, INF, remoto);
       if(infEmpacar(INF) !== antes){          /* llego algo de otra PC: repintar */
         infPintarTodo();
-        if(foco){ var el = document.getElementById(foco); if(el && el.focus) el.focus(); }
+        if(foco){
+          var el = document.getElementById(foco);
+          if(el && el.focus){
+            el.focus();
+            try{ if(caret != null && el.setSelectionRange) el.setSelectionRange(caret, caret); }catch(e){}
+          }
+        }
       }
       var mezclado = infEmpacar(INF);
       try{ localStorage.setItem(infClave(), JSON.stringify(INF)); }catch(e){}
@@ -3672,10 +3689,18 @@ async function infSincronizar(silencioso){
     }
 
     if(verificado){
-      INF_BASE = infClon(INF);
+      /* La base es EXACTAMENTE lo que quedó en la nube */
+      INF_BASE = infDesempacar(mezclado);
       infGuardarBase();
-      infEstado('Sincronizado ' + new Date().toLocaleTimeString('es-HN'));
+      /* ¿Se escribió algo mientras subía? Entonces falta una vuelta más. */
+      if(infEmpacar(INF) !== mezclado){
+        infEstado('Guardando lo último...');
+        infProgramarSync();
+      } else {
+        infEstado('Sincronizado ' + new Date().toLocaleTimeString('es-HN'));
+      }
       if(!silencioso) infMsg('ok','✓ Informe sincronizado. Lo que llenen las demás computadoras se junta con lo suyo.');
+      INF_SYNC_SUCIO = false;
     }else{
       infEstado('⚠ Reintentando sincronizar...');
       infProgramarSync();
@@ -3696,6 +3721,15 @@ async function infSincronizar(silencioso){
     INF_SYNC_OCUPADO = false;
   }
 }
+
+/* Si queda algo sin subir y el usuario cierra o cambia de pestaña,
+   se avisa en vez de perderlo sin decir nada. */
+window.addEventListener('beforeunload', function(ev){
+  if(CLOUD && INF_SYNC_SUCIO && INF_INICIADO){
+    ev.preventDefault(); ev.returnValue = '';
+    return '';
+  }
+});
 
 /* revisa cada 45 s si otra PC escribio algo, mientras la pestana este abierta */
 function infArrancarPoll(){
@@ -3734,6 +3768,7 @@ function infGuardarLocal(avisar){
   try{
     localStorage.setItem(infClave(), JSON.stringify(INF));
     if(avisar) infMsg('ok','✓ Borrador guardado en esta PC.');
+    if(CLOUD){ INF_SYNC_SUCIO = true; infEstado('Sin guardar en la nube...'); }
     infProgramarSync();
   }catch(e){ if(avisar) infMsg('err','No se pudo guardar el borrador: '+e.message); }
 }
