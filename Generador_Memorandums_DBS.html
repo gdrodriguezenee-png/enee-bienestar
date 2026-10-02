@@ -176,6 +176,11 @@
   .infbox .cab button{background:#fff;border:1px solid var(--borde);border-radius:6px;
     padding:3px 9px;font-size:11.5px;font-weight:600;color:var(--azul2)}
   .infbox .cab button:hover{background:#eef4fb}
+  th.colper{position:relative;padding-right:22px}
+  .quitarcol{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+    background:rgba(255,255,255,.22);color:#fff;border:0;border-radius:4px;
+    width:16px;height:16px;line-height:1;font-size:12px;cursor:pointer;padding:0}
+  .quitarcol:hover{background:var(--rojo)}
   .avisoinf{background:#fff4e6;border:1px solid #f0c987;color:var(--naranja);
     padding:8px 12px;border-radius:8px;font-size:12.5px;margin-top:10px}
 
@@ -762,6 +767,8 @@
       <div class="toolbar">
         <input class="search" id="i_personas" placeholder="ROSA, ADRIANA, GUSTAVO, AURA">
         <button class="btn-sec" onclick="infAplicarPersonas()">Aplicar columnas</button>
+        <button class="btn-sec" onclick="infAgregarPersona()">+ Agregar persona</button>
+        <button class="btn-sec" onclick="infEquipoPorDefecto()" title="Los meses nuevos se crearán con estas columnas">Dejar este equipo por defecto</button>
         <select id="i_impPersona" class="btn-sec" style="padding:9px 10px"></select>
         <button class="btn-sec" onclick="infImprimir('matriz')">&#128424; Imprimir cuadro</button>
       </div>
@@ -3307,7 +3314,11 @@ function infPintarCuadro(){
 function infPintarMatriz(){
   var t = document.getElementById('i_matriz');
   var h = '<thead><tr><th>ITEMS</th><th>DESCRIPCION</th>' +
-          INF.personas.map(function(p){ return '<th>'+esc(p)+'</th>'; }).join('') +
+          INF.personas.map(function(p,j){
+            return '<th class="colper">'+esc(p)+
+                   '<button class="quitarcol" title="Quitar a '+esc(p)+' de este mes" '+
+                   'onclick="infQuitarPersona('+j+')">&times;</button></th>';
+          }).join('') +
           '<th>TOTAL</th></tr></thead><tbody>';
   INF.items.forEach(function(it,i){
     var auto = (i===INF_I_PAGOS);
@@ -3382,14 +3393,59 @@ function infCuadroCambio(){
   };
   infTotales(); infGuardarLocal(false);
 }
+
+/* ---- columnas de este mes ----
+   Quitar o agregar una persona afecta SOLO al informe del mes y la zona
+   que estan abiertos. El equipo que se usa al crear meses nuevos se
+   cambia aparte, con el boton "Dejar este equipo por defecto". */
+function infQuitarPersona(j){
+  if(!INF || !INF.personas[j]) return;
+  if(INF.personas.length <= 1){ infMsg('err','Debe quedar al menos una persona en el cuadro.'); return; }
+  var nombre = INF.personas[j];
+  var tiene = INF.items.some(function(it){ return infEnt(it.per[j]) > 0; });
+  var aviso = 'Quitar la columna de ' + nombre + ' en ' + infMesNombre(INF.mes) + ' ' + INF.anio +
+              ' (' + INF.zonas[INF.zp] + ').';
+  if(tiene) aviso += '\n\nOJO: esa columna tiene numeros escritos y se perderan.';
+  aviso += '\n\nLos demas meses no se tocan. Continuar?';
+  if(!confirm(aviso)) return;
+  INF.personas.splice(j, 1);
+  INF.items.forEach(function(it){ it.per.splice(j, 1); });
+  infAjustarPersonas(INF);
+  setVal('i_personas', INF.personas.join(', '));
+  infPintarMatriz(); infTotales(); infGuardarLocal(false);
+  infMsg('ok','\u2713 Se quito a ' + nombre + ' de este mes. Para los proximos meses sigue igual.');
+}
+function infAgregarPersona(){
+  var nombre = prompt('Nombre de la persona que se agrega a este mes:', '');
+  if(nombre === null) return;
+  nombre = String(nombre).trim().toUpperCase();
+  if(!nombre){ infMsg('err','Escriba un nombre.'); return; }
+  var repetido = INF.personas.some(function(p){ return infNorm(p) === infNorm(nombre); });
+  if(repetido){ infMsg('err','Esa persona ya tiene columna.'); return; }
+  INF.personas.push(nombre);
+  infAjustarPersonas(INF);
+  setVal('i_personas', INF.personas.join(', '));
+  infPintarMatriz(); infTotales(); infGuardarLocal(false);
+  infRecalcular();
+  infMsg('ok','\u2713 Se agrego a ' + nombre + ' en este mes.');
+}
+/* El equipo por defecto se cambia solo si se pide a proposito */
+function infEquipoPorDefecto(){
+  if(!INF || !INF.personas.length) return;
+  if(!confirm('Los meses NUEVOS se crearan con estas columnas:\n\n' + INF.personas.join(', ') +
+              '\n\nLos informes ya hechos no se tocan. Continuar?')) return;
+  infEquipoGuardar(INF.personas.slice());
+  infMsg('ok','\u2713 Guardado. Los meses nuevos saldran con: ' + INF.personas.join(', ') + '.');
+}
 function infAplicarPersonas(){
   var lista = String(val('i_personas')||'').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
-  infEquipoGuardar(lista);   // queda para los demás meses y zonas
   if(!lista.length){ infMsg('err','Escriba al menos una persona.'); return; }
-  INF.personas = lista;
+  INF.personas = lista;              /* solo este mes y esta zona */
   infAjustarPersonas(INF);
   infPintarMatriz(); infTotales(); infGuardarLocal(false);
   infRecalcular();
+  infMsg('ok','\u2713 Columnas de ' + infMesNombre(INF.mes) + ' ' + INF.anio + ': ' + lista.join(', ') +
+             '. Los demás meses no cambian \u2014 use «Dejar este equipo por defecto» si quiere que valga para los próximos.');
 }
 function infAplicarZonas(){
   INF.zonas = [val('i_z1')||'ZONA 1', val('i_z2')||'ZONA 2', val('i_z3')||'ZONA 3'];
