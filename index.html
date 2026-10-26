@@ -370,6 +370,129 @@ if (!window.Portal) {
   });
 }
 </script>
+<!-- MODULOS-EXTRA v2: modulos agregados despues de guard.js ----------------
+     Se registran aca para no tener que editar guard.js ni subirle el ?v=.
+     No alcanza con empujarlos a Portal.ARCHIVOS: segun como este escrito
+     guard.js, esa lista puede ser una copia. Por eso tambien se envuelven
+     permitidos(), puede() y metaArchivo(), que es lo que de verdad dibuja
+     las tarjetas y decide los permisos. Todo esta deduplicado: si algun dia
+     el modulo ya viene dentro de guard.js, este bloque no lo repite. -->
+<script>
+(function () {
+  var EXTRA = [
+    { clave: 'c44', archivo: 'Generador_Clausula44_DBS.html',
+      titulo: 'Generador Clausula 44',
+      desc:   'Memorandos de transporte de trabajadores (Clausula 44).',
+      icon: '🚌', color: '#00557a', colorOsc: '#5fc0e0',
+      grupo: 'Generadores', app: 'c44' }
+  ];
+
+  // Los de EXTRA que todavia no estan en esa lista.
+  function faltan(lista) {
+    var out = [], i, j;
+    for (i = 0; i < EXTRA.length; i++) {
+      var hay = false;
+      for (j = 0; lista && j < lista.length; j++)
+        if (lista[j] && lista[j].clave === EXTRA[i].clave) { hay = true; break; }
+      if (!hay) out.push(EXTRA[i]);
+    }
+    return out;
+  }
+
+  /* La lista completa de modulos. El resto del portal la pide por aca para no
+     depender de si Portal.ARCHIVOS se pudo modificar o no. Funciona incluso
+     si guard.js no cargo (devuelve solo los extras). */
+  window.MODULOS = function () {
+    var l = ((window.Portal && Portal.ARCHIVOS) || []).slice();
+    return l.concat(faltan(l));
+  };
+
+  if (!window.Portal) return;
+
+  // Deja en Portal[prop] una lista que si contenga los extras, sea el arreglo
+  // mutable, una copia reasignada o una propiedad redefinida.
+  function completarLista(prop, nuevos) {
+    if (!nuevos.length) return;
+    var base = Portal[prop] || [];
+    try { Array.prototype.push.apply(base, nuevos); } catch (e) {}
+    if (!pendientes(prop)) return;
+    try { Portal[prop] = base.concat(nuevos); } catch (e) {}
+    if (!pendientes(prop)) return;
+    try {
+      Object.defineProperty(Portal, prop,
+        { value: base.concat(nuevos), writable: true, configurable: true });
+    } catch (e) {}
+  }
+  function pendientes(prop) {
+    var l = Portal[prop] || [];
+    if (prop === 'TODAS_CLAVES') {
+      for (var i = 0; i < EXTRA.length; i++)
+        if (l.indexOf(EXTRA[i].clave) === -1) return true;
+      return false;
+    }
+    return faltan(l).length > 0;
+  }
+
+  // 1. La lista: la usan el editor de permisos y el respaldo mensual.
+  try { completarLista('ARCHIVOS', faltan(Portal.ARCHIVOS || [])); } catch (e) {}
+
+  // 2. Las claves: TODAS_CLAVES se arma una sola vez al cargar guard.js.
+  try {
+    var tc = Portal.TODAS_CLAVES || [], nuevas = [];
+    for (var k = 0; k < EXTRA.length; k++)
+      if (tc.indexOf(EXTRA[k].clave) === -1) nuevas.push(EXTRA[k].clave);
+    if (nuevas.length) {
+      try { Array.prototype.push.apply(tc, nuevas); } catch (e) {}
+      if (pendientes('TODAS_CLAVES')) {
+        try { Portal.TODAS_CLAVES = tc.concat(nuevas); } catch (e) {}
+        if (pendientes('TODAS_CLAVES')) {
+          try {
+            Object.defineProperty(Portal, 'TODAS_CLAVES',
+              { value: tc.concat(nuevas), writable: true, configurable: true });
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 3. Las tarjetas del tablero. Si el paso 1 ya funciono, faltan() devuelve
+  //    vacio y esto no agrega nada: nunca sale duplicado.
+  var _permitidos = Portal.permitidos;
+  if (typeof _permitidos === 'function') {
+    Portal.permitidos = function (ses) {
+      var l = _permitidos.apply(Portal, arguments) || [];
+      var f = faltan(l), out = l, i;
+      for (i = 0; i < f.length; i++) if (Portal.puede(ses, f[i].clave)) out = out.concat([f[i]]);
+      return out;
+    };
+  }
+
+  // 4. El permiso, tanto por clave como por nombre de archivo (URL directa).
+  var _puede = Portal.puede;
+  if (typeof _puede === 'function') {
+    Portal.puede = function (ses, clave) {
+      for (var i = 0; i < EXTRA.length; i++) {
+        var m = EXTRA[i];
+        if (clave === m.clave || clave === m.archivo) {
+          if (!ses) return false;
+          if (ses.rol === 'admin' || ses.permisos === '*') return true;
+          return (ses.permisos || []).indexOf(m.clave) !== -1;
+        }
+      }
+      return _puede.apply(Portal, arguments);
+    };
+  }
+
+  // 5. El nombre que se muestra en la tabla de usuarios.
+  var _meta = Portal.metaArchivo;
+  if (typeof _meta === 'function') {
+    Portal.metaArchivo = function (c) {
+      for (var i = 0; i < EXTRA.length; i++) if (EXTRA[i].clave === c) return EXTRA[i];
+      return _meta.apply(Portal, arguments);
+    };
+  }
+})();
+</script>
 <script>
 (function () {
   'use strict';
@@ -651,7 +774,7 @@ if (!window.Portal) {
     var marcados = u ? (u.permisos === '*' ? Portal.TODAS_CLAVES : (u.permisos || [])) : [];
     var claves = (u && u.claves) || {};
 
-    $('e-permisos').innerHTML = Portal.ARCHIVOS.map(function (a) {
+    $('e-permisos').innerHTML = MODULOS().map(function (a) {
       var on = marcados.indexOf(a.clave) !== -1;
       /* Las apps ya no piden contrasena: entran solas con la sesion del
          portal. La unica que todavia valida contra el servidor de Google
@@ -813,7 +936,7 @@ if (!window.Portal) {
       var h = [ obj('Usuarios', us, ['id','nombre','rol','protegido','permisos','tabs'],
         {id:'Usuario', nombre:'Nombre', rol:'Rol', protegido:'Protegido',
          permisos:'Modulos permitidos', tabs:'Pestanas'}, true) ];
-      var a = Portal.ARCHIVOS || [], mods = [];
+      var a = MODULOS(), mods = [];
       for(i = 0; i < a.length; i++)
         mods.push({clave:a[i].clave, titulo:a[i].titulo, archivo:a[i].archivo, grupo:a[i].grupo});
       h.push(obj('Modulos', mods, ['clave','titulo','archivo','grupo'],
