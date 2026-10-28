@@ -282,6 +282,7 @@ td.marca .mal{color:var(--err-tx)}
     <div class="pill"><div class="av" id="u-av">?</div>
       <div><div class="nm" id="u-nom">—</div><div class="rl" id="u-rol">—</div></div></div>
     <button class="b-ghost" id="btn-tema" title="Claro / oscuro">&#9789;</button>
+    <button class="b-ghost" id="btn-portal" title="Volver al Portal DBS" style="display:none">Portal</button>
     <button id="btn-salir">Salir</button>
   </header>
 
@@ -391,6 +392,10 @@ td.marca .mal{color:var(--err-tx)}
               Borrar también la hoja <b id="e-borrar-hoja">Empleados44</b> del Google Sheets
               (la hoja de planilla general nunca se toca)</label></div>
         </div>
+        <div class="acciones" style="margin-bottom:12px">
+          <button class="b-sec" id="e-releer">Releer empleados del Sheet</button>
+          <span id="e-sheet-estado" style="font-size:13px;color:var(--gris2)"></span>
+        </div>
         <p class="nota" id="e-nota-modo"></p>
         <div class="buscador">
           <input id="e-buscar" placeholder="Escribí la clave del empleado…" autocomplete="off">
@@ -470,13 +475,16 @@ td.marca .mal{color:var(--err-tx)}
           <div><label class="lb">Hoja de empleados</label><input id="cf-h-emp" value="Empleados44"></div>
           <div><label class="lb">Hoja de usuarios</label><input id="cf-h-usr" value="Usuarios44"></div>
           <div><label class="lb">Hoja de planilla (lista general, solo lectura)</label>
-            <input id="cf-h-plan" placeholder="Empleados"></div>
-          <div><label class="lb">Buscar en la planilla</label>
-            <select id="cf-plan-on"><option value="si">Sí, cuando la clave no esté en el catálogo</option>
-              <option value="no">No</option></select></div>
+            <input id="cf-h-plan" placeholder="EMPLEADOS"></div>
+          <div><label class="lb">Buscar también en la planilla</label>
+            <select id="cf-plan-on"><option value="si">Sí, cuando la clave no esté en la hoja de empleados</option>
+              <option value="no">No, solo la hoja de empleados</option></select></div>
         </div>
+        <p class="nota" style="margin-top:12px">Los datos de los empleados se jalan de estas hojas:
+          primero <b id="cf-orden-1">Empleados44</b> y, si la clave no está ahí, <b id="cf-orden-2">la planilla</b>.
+          Ninguna de las dos se modifica al generar memorandos.</p>
         <div class="acciones" style="margin-top:12px">
-          <button class="b-sec" id="cf-plan-probar">Probar la hoja de planilla</button>
+          <button class="b-sec" id="cf-plan-probar">Probar las hojas de empleados</button>
           <span id="cf-plan-estado" style="font-size:13px;color:var(--gris2)"></span>
         </div>
         <div class="acciones" style="margin-top:14px">
@@ -638,7 +646,7 @@ var LS = { cfg:'c44_cfg', borr:'c44_borrador', emp:'c44_empleados',
 var CFG_DEF = {
   url: 'https://script.google.com/macros/s/AKfycbwMTxIe4c53mrNg2EAKiQ3ohY3I_9nfoneuB5BSlNXh8RxJMWBEhe1Rfnc-x7lYRlQ9JA/exec',
   hMemos:'Clausula44', hEmp:'Empleados44', hUsr:'Usuarios44',
-  hPlanilla:'Empleados', planillaOn:true,   // lista general del depto, solo lectura
+  hPlanilla:'EMPLEADOS', planillaOn:true,   // lista general del depto, solo lectura
   guardarEmp:false,   // por defecto NO se guardan empleados en esta computadora
   para:'Lic. Ana Lourdes Aguilar', paraCargo:'Gerencia Financiera',
   de:'Departamento de Bienestar Social',
@@ -804,18 +812,33 @@ function entrar(u){
   $('u-nom').textContent = u.nombre;
   $('u-rol').textContent = u.rol;
   $('tab-usuarios').style.display = u.rol==='admin' ? '' : 'none';
+  $('btn-portal').style.display = vinoDelPortal ? '' : 'none';
+  $('btn-salir').textContent = vinoDelPortal ? 'Cerrar' : 'Salir';
   arrancarApp();
 }
+
+/* ---------- Entrada desde el Portal DBS ----------
+   El portal deja la sesion en localStorage bajo 'enee_sso_v1'. Si esta ahi y
+   todavia es valida, se entra sin pedir usuario ni contrasena. */
+var vinoDelPortal = false;
 
 function intentarSSO(){
   var d=null;
   try{ d=JSON.parse(localStorage.getItem('enee_sso_v1')||'null'); }catch(e){}
   if(!d || !d.id) return false;
   if(Date.now()-(d.ts||0) > 12*60*60*1000) return false;
+  vinoDelPortal = true;
   entrar({ id:String(d.id).toLowerCase(), nombre:d.nombre||d.id,
            rol:(d.rol==='admin'?'admin':'usuario'), pass:'' });
   return true;
 }
+
+// Boton "Portal": vuelve al tablero. Si esta pestana la abrio el portal, se
+// cierra para no dejar pestanas repetidas; si no, navega al index.
+$('btn-portal').addEventListener('click', function(){
+  try{ if(window.opener && !window.opener.closed){ window.opener.focus(); window.close(); return; } }catch(e){}
+  location.href = 'index.html';
+});
 
 $('form-login').addEventListener('submit', function(ev){
   ev.preventDefault();
@@ -837,6 +860,13 @@ $('form-login').addEventListener('submit', function(ev){
 });
 
 $('btn-salir').addEventListener('click', function(){
+  // Si vino del portal, "Cerrar" solo cierra el modulo: la sesion del portal sigue.
+  if(vinoDelPortal){
+    try{ localStorage.removeItem(LS.ses); }catch(e){}
+    try{ window.close(); }catch(e){}
+    setTimeout(function(){ location.href='index.html'; }, 150);
+    return;
+  }
   try{ localStorage.removeItem(LS.ses); }catch(e){}
   usuarioActual=null;
   $('app').style.display='none'; $('login').style.display='flex';
@@ -859,27 +889,99 @@ $('btn-tema').addEventListener('click', function(){ fijarTema(tema()==='oscuro'?
 /* ==========================================================================
    7. CUADRO DE PAGO
    ========================================================================== */
-/* ---------- Planilla: la lista general del departamento ----------
-   Se lee una sola vez por sesion y queda en memoria, asi escribir una clave
-   no dispara una peticion por tecla. Nunca se escribe en esa hoja. */
-var PLANILLA = null, planillaCargando = false, planillaError = '';
+/* ---------- Empleados leidos del Google Sheets ----------
+   Se leen una sola vez por sesion (primero la hoja de empleados del sistema
+   y despues, si esta activada, la planilla general) y quedan en memoria, asi
+   escribir una clave no dispara una peticion por tecla. Solo se leen: estas
+   hojas nunca se escriben desde aca. */
+var PLANILLA = null, planillaCargando = false, planillaError = '', planillaHojas = [];
+
+/* Hojas de donde se jalan los empleados, en orden de prioridad. Cada entrada
+   trae nombres alternativos porque Google distingue mayusculas: si "Empleados"
+   no existe se prueba con "EMPLEADOS" antes de darla por perdida. */
+function hojasEmpleados(){
+  var grupos = [], vis = {};
+  function add(n){
+    n = String(n || '').trim(); if(!n) return;
+    var k = n.toLowerCase(); if(vis[k]) return;
+    vis[k] = 1;
+    var alt = [n];
+    if(n.toUpperCase() !== n) alt.push(n.toUpperCase());
+    grupos.push(alt);
+  }
+  add(CFG.hEmp);                            // la hoja del sistema (Empleados44)
+  if(CFG.planillaOn) add(CFG.hPlanilla);    // la planilla general del depto
+  return grupos;
+}
 
 function cargarPlanilla(cb){
   if(PLANILLA){ if(cb) cb(null, PLANILLA); return; }
-  if(!CFG.planillaOn || !CFG.hPlanilla){ if(cb) cb(new Error('desactivada')); return; }
+  var grupos = hojasEmpleados();
+  if(!grupos.length){ if(cb) cb(new Error('No hay ninguna hoja de empleados configurada')); return; }
   if(planillaCargando){ setTimeout(function(){ cargarPlanilla(cb); }, 400); return; }
   planillaCargando = true;
-  apiLeer(CFG.hPlanilla, function(err, filas){
+
+  var lista = [], vistas = {}, usadas = [], fallos = [], g = 0;
+
+  function sumar(hoja, filas){
+    var res = aEmpleados(filas);   // reconoce las columnas por su titulo
+    var antes = lista.length;
+    res.lista.forEach(function(e){
+      var k = String(e.clave || '').trim().toLowerCase();
+      if(!k || vistas[k]) return;  // si la clave ya vino, manda la primera hoja
+      vistas[k] = 1; e._hoja = hoja; lista.push(e);
+    });
+    return lista.length - antes;
+  }
+
+  function terminar(){
     planillaCargando = false;
-    if(err || !Array.isArray(filas)){
-      planillaError = err ? err.message : 'respuesta inválida';
-      if(cb) cb(err || new Error(planillaError)); return;
+    if(!lista.length && fallos.length){
+      planillaError = fallos.join('; ');
+      if(cb) cb(new Error(planillaError)); return;
     }
-    var res = aEmpleados(filas);      // reconoce las columnas por su titulo
-    PLANILLA = res.lista;
-    planillaError = '';
+    PLANILLA = lista; planillaHojas = usadas; planillaError = '';
     if(cb) cb(null, PLANILLA);
-  });
+  }
+
+  (function grupo(){
+    if(g >= grupos.length) return terminar();
+    var alt = grupos[g++], a = 0, motivo = '';
+    (function probar(){
+      if(a >= alt.length){
+        fallos.push(alt[0] + ': ' + (motivo || 'la hoja no tiene empleados'));
+        return grupo();
+      }
+      var hoja = alt[a++];
+      apiLeer(hoja, function(err, filas){
+        if(err || !Array.isArray(filas)){
+          motivo = err ? err.message : 'respuesta inválida';
+          return probar();          // probamos el nombre alternativo
+        }
+        var cuantos = sumar(hoja, filas);
+        if(cuantos){ usadas.push(hoja + ': ' + cuantos); return grupo(); }
+        return probar();            // la hoja existe pero vino vacia
+      });
+    })();
+  })();
+}
+
+// Busca en lo leido del Sheet por clave, nombre o DNI. Devuelve hasta 30.
+function buscarEnSheet(q){
+  var out = []; out.corto = false;
+  if(!PLANILLA) return out;
+  q = String(q||'').trim().toLowerCase();
+  if(!q) return out;
+  for(var i=0;i<PLANILLA.length;i++){
+    var e = PLANILLA[i];
+    var cl = String(e.clave||'').trim().toLowerCase();
+    var hay = cl === q || cl.indexOf(q) === 0 ||
+      (e.nombre+' '+e.dni+' '+(e.operacion||'')).toLowerCase().indexOf(q) !== -1;
+    if(!hay) continue;
+    if(out.length >= 30){ out.corto = true; break; }
+    out.push(e);
+  }
+  return out;
 }
 
 function enPlanilla(clave){
@@ -980,16 +1082,18 @@ function pintarTabla(){
       function clsCod(c){ return marcasCod[i+'|'+c] ? ' class="distinto"' : ''; }
       var cl = String(f.clave||'').trim();
       var enCat = cl ? !!porClave(cl) : null;
-      var enPlan = (!enCat && cl) ? !!enPlanilla(cl) : false;
+      var dePlan = (!enCat && cl) ? enPlanilla(cl) : null;
+      var enPlan = !!dePlan;
       var repe = cl && FILAS.some(function(o,j){
         return j!==i && String(o.clave||'').trim().toLowerCase()===cl.toLowerCase(); });
       var clase = repe ? ' class="repetida"' : (cl && !enCat ? ' class="sin-cat"' : '');
       var marca = repe ? '<span class="mal">clave repetida</span>'
                 : (!cl ? ''
                 : (enCat ? '<span class="ok">&#10003; del catálogo</span>'
-                : (enPlan ? '<span class="ok">&#10003; de la planilla</span>' +
+                : (enPlan ? '<span class="ok">&#10003; de ' + esc(dePlan._hoja || 'la hoja') + '</span>' +
                             (CFG.guardarEmp ? ' <button class="mini" data-guardar="'+i+'" title="Guardarlo en el catálogo">+ cat.</button>' : '')
-                          : '<span class="aviso">no está en el catálogo</span>')));
+                : (!PLANILLA ? '<span class="aviso">consultando el Sheet…</span>'
+                             : '<span class="aviso">esa clave no está en el Sheet</span>'))));
       return '<tr>' +
         '<td class="n">'+(i+1)+'</td>' +
         '<td><input'+clase+' data-i="'+i+'" data-c="clave" value="'+esc(f.clave)+'"></td>' +
@@ -1032,8 +1136,36 @@ function pintarTablaConFoco(){
     if (el){
       el.focus();
       if (info.ini != null) { try { el.setSelectionRange(info.ini, info.fin); } catch(e){} }
+      else {
+        /* En un <input type="number"> el navegador no deja leer ni mover la
+           posicion del cursor, y al reenfocarlo queda al principio: lo que se
+           escribe despues entra al reves (380 salia 083). Reasignar el valor
+           lo deja al final, que es donde el usuario espera seguir. */
+        try { var v = el.value; el.value = ''; el.value = v; } catch(e){}
+      }
     }
   }
+}
+
+/* Actualiza los totales sin volver a dibujar el cuadro. Mientras se escribe en
+   Turnos o Valor no hace falta redibujar nada mas, y asi el cursor se queda
+   donde esta. */
+function refrescarTotales(i){
+  var f = FILAS[+i];
+  if (f){
+    var inp = document.querySelector('#tbody [data-i="'+i+'"][data-c="valor"]');
+    var tr  = inp && inp.closest ? inp.closest('tr') : null;
+    var cel = tr && tr.querySelector('td.n b');     // la celda del pago de la fila
+    if (cel) cel.textContent = lps(num(f.tn) * num(f.valor));
+  }
+  var totT = 0, totP = 0;
+  FILAS.forEach(function(x){ totT += num(x.tn); totP += num(x.tn) * num(x.valor); });
+  $('t-turnos').textContent = totT;
+  $('t-total').textContent  = lps(totP);
+  $('f-conteo').value  = FILAS.length;
+  $('f-letras').value  = montoEnLetras(totP);
+  pintarMemo();
+  guardarBorrador();
 }
 
 $('tbody').addEventListener('input', function(ev){
@@ -1046,16 +1178,20 @@ $('tbody').addEventListener('input', function(ev){
     pintarTablaConFoco();
     // Si no estaba ni en el catalogo ni en la planilla ya cargada, se consulta
     // la planilla una sola vez y despues se reintenta.
-    if(!trajo && CFG.planillaOn && !PLANILLA && String(FILAS[+i].clave||'').trim()){
+    if(!trajo && !PLANILLA && String(FILAS[+i].clave||'').trim()){
       var fila = +i;
       cargarPlanilla(function(err){
-        if(err) return;
-        if(autollenar(fila)){ pintarTablaConFoco(); toast('Datos traídos de la planilla','ok'); }
+        if(err){ pintarTablaConFoco(); return; }
+        if(autollenar(fila)){ pintarTablaConFoco(); toast('Datos traídos del Google Sheets','ok'); }
+        else pintarTablaConFoco();
       });
     }
     return;
   }
-  if(c==='tn'||c==='valor'||c==='ga'||c==='ue'||c==='ua'){ pintarTablaConFoco(); }
+  // Turnos y Valor solo cambian numeros: se actualizan los totales y listo.
+  if(c==='tn'||c==='valor'){ refrescarTotales(+i); }
+  // GA/UE/UA si necesitan redibujar, porque marcan los codigos distintos.
+  else if(c==='ga'||c==='ue'||c==='ua'){ pintarTablaConFoco(); }
   else { pintarMemo(); guardarBorrador(); }
 });
 $('tbody').addEventListener('change', function(ev){
@@ -1092,12 +1228,20 @@ $('g-aplicar').addEventListener('click', function(){
 $('f-valor').addEventListener('input', function(){ CFG.valor=num(this.value); });
 
 $('g-add-cat').addEventListener('click', function(){
-  if(!EMPLEADOS.length){ toast('El catálogo está vacío. Agregá empleados en la pestaña Empleados.','err'); return; }
   $('bq-txt').value=''; $('bq-res').innerHTML=''; $('bq-nota').textContent='';
-  $('bq-conteo').textContent = EMPLEADOS.length + ' empleado(s) guardados';
+  pintarConteoBusqueda();
   $('m-buscar').classList.add('on');
   setTimeout(function(){ $('bq-txt').focus(); }, 80);
+  // Si todavía no se leyó el Sheet, se lee ahora para poder buscar ahí.
+  if(!PLANILLA) cargarPlanilla(function(){ pintarConteoBusqueda(); pintarBusqueda(); });
 });
+
+function pintarConteoBusqueda(){
+  $('bq-conteo').textContent = planillaCargando
+    ? 'leyendo el Google Sheets…'
+    : (EMPLEADOS.length ? EMPLEADOS.length + ' guardados · ' : '') +
+      (PLANILLA ? PLANILLA.length + ' en el Sheet' : 'Sheet sin consultar');
+}
 
 // Los datos no se listan solos: hay que buscar por clave.
 function pintarBusqueda(){
@@ -1105,28 +1249,36 @@ function pintarBusqueda(){
   var cont = $('bq-res');
   if(!q){
     cont.innerHTML = '<div class="oculto-aviso"><div class="em">&#128269;</div>' +
-      '<h4>Buscá por clave</h4><p>Escribí la clave del empleado y presioná Buscar.<br>' +
-      'Solo aparecerá quien coincida.</p></div>';
+      '<h4>Buscá por clave</h4><p>Escribí la clave, el nombre o el DNI del empleado.<br>' +
+      'Se busca en el Google Sheets; solo aparecerá quien coincida.</p></div>';
     return;
   }
   var lista = filtrarEmpleados(q);
   if(!lista.length){
-    var dePlan = enPlanilla(q);
-    if(dePlan){
+    var delSheet = buscarEnSheet(q);
+    if(delSheet.length){
       cont.innerHTML = '<div class="tabla-wrap"><table class="datos"><thead><tr>' +
         '<th class="w-cl">Clave</th><th>Empleado</th><th>Estatus</th><th class="w-dni">DNI</th>' +
-        '<th>Origen</th><th style="width:110px"></th></tr></thead><tbody>' +
-        '<tr><td><b>'+esc(dePlan.clave)+'</b></td><td>'+esc(dePlan.nombre)+'</td>' +
-        '<td>'+esc(dePlan.estatus)+'</td><td>'+esc(dePlan.dni)+'</td>' +
-        '<td><span class="chip c-azul">planilla</span></td>' +
-        '<td><button class="b-ok" data-bqplan="'+esc(dePlan.clave)+'">Agregar</button></td></tr>' +
-        '</tbody></table></div>';
+        '<th>Hoja</th><th style="width:110px"></th></tr></thead><tbody>' +
+        delSheet.map(function(e){
+          var ya = FILAS.some(function(f){ return e.clave && String(f.clave)===String(e.clave); });
+          return '<tr><td><b>'+esc(e.clave)+'</b></td><td>'+esc(e.nombre)+'</td>' +
+            '<td>'+esc(e.estatus)+'</td><td>'+esc(e.dni)+'</td>' +
+            '<td><span class="chip c-azul">'+esc(e._hoja||'Sheet')+'</span></td>' +
+            '<td>' + (ya ? '<span class="chip c-ok">ya está</span>'
+                         : '<button class="b-ok" data-bqplan="'+esc(e.clave)+'">Agregar</button>') +
+            '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        (delSheet.corto ? '<p class="nota" style="margin-top:10px">Se muestran los primeros 30. ' +
+          'Escribí más letras o la clave exacta para afinar la búsqueda.</p>' : '');
       return;
     }
     cont.innerHTML = '<div class="oculto-aviso"><div class="em">&#129300;</div>' +
       '<h4>Sin coincidencias</h4><p>Ningún empleado coincide con «'+esc(q)+'».' +
-      (CFG.planillaOn && !PLANILLA ? '<br>Todavía no se ha consultado la planilla.' : '') + '</p></div>';
-    if(CFG.planillaOn && !PLANILLA) cargarPlanilla(function(err){ if(!err) pintarBusqueda(); });
+      (!PLANILLA ? '<br>Consultando el Google Sheets…'
+                 : (planillaError ? '<br>No se pudo leer el Sheet: '+esc(planillaError) : '')) +
+      '</p></div>';
+    if(!PLANILLA) cargarPlanilla(function(){ pintarBusqueda(); });
     return;
   }
   cont.innerHTML = '<div class="tabla-wrap"><table class="datos"><thead><tr>' +
@@ -1149,8 +1301,9 @@ $('bq-res').addEventListener('click', function(ev){
   if(cp){
     var ep = enPlanilla(cp);
     if(ep){ FILAS.push(filaNueva(ep)); pintarTabla(); pintarBusqueda();
-      $('bq-nota').textContent = ep.nombre + ' agregado desde la planilla';
-      toast(ep.nombre+' agregado desde la planilla','ok'); }
+      var orig = ' agregado desde ' + (ep._hoja || 'el Sheet');
+      $('bq-nota').textContent = ep.nombre + orig;
+      toast(ep.nombre + orig,'ok'); }
     return;
   }
   var i = ev.target.getAttribute && ev.target.getAttribute('data-bqadd');
@@ -1327,7 +1480,7 @@ function pintarEmpleados(){
   var q=$('e-buscar').value.trim().toLowerCase();
   $('e-conteo').textContent = EMPLEADOS.length
     ? EMPLEADOS.length + ' empleado(s) guardados en esta PC'
-    : (CFG.guardarEmp ? 'Catálogo vacío' : 'Sin copias locales — se usa la planilla');
+    : (CFG.guardarEmp ? 'Catálogo vacío' : 'Sin copias locales — se leen del Sheet');
 
   var lista = mostrarTodos ? EMPLEADOS.slice() : filtrarEmpleados(q);
   var tb=$('e-tbody');
@@ -1340,7 +1493,7 @@ function pintarEmpleados(){
       : (CFG.guardarEmp
           ? 'El catálogo está vacío. Usá <b>+ Nuevo</b>, <b>Importar de Excel</b> o <b>Traer del Sheet</b>.'
           : 'No hay ningún empleado guardado en esta computadora.<br>' +
-            'Escribí la <b>clave</b> en el memorando y los datos se traen solos de la planilla.');
+            'Escribí la <b>clave</b> en el memorando y los datos se jalan solos del Google Sheets.');
     return;
   }
   $('e-vacio').style.display='none'; $('e-tabla').style.display='';
@@ -1396,17 +1549,30 @@ function pintarModoEmp(){
   $('e-nota-modo').innerHTML = CFG.guardarEmp
     ? 'Los empleados quedan guardados en esta computadora para no volver a escribirlos. ' +
       'Si preferís no dejar copias, cambiá el selector a <b>No</b>.'
-    : 'No se guarda ningún empleado en esta computadora: los datos se leen de la hoja de planilla ' +
+    : 'No se guarda ningún empleado en esta computadora: los datos se jalan del Google Sheets ' +
       'cada vez que hace falta. Es la opción más limpia si varias personas usan esta PC.';
   ['e-excel','e-pegar','e-traer','e-subir','e-nuevo'].forEach(function(id){
     if($(id)) $(id).style.display = CFG.guardarEmp ? '' : 'none';
   });
   $('e-borrar-hoja').textContent = CFG.hEmp || 'Empleados44';
+  pintarEstadoSheet();
   $('e-borrar-todo').textContent = ($('e-borrar-sheet') && $('e-borrar-sheet').checked)
     ? 'Borrar empleados (aquí y en el Sheet)' : 'Borrar los empleados guardados';
 }
 
 $('e-borrar-sheet').addEventListener('change', pintarModoEmp);
+
+$('e-releer').addEventListener('click', function(){
+  var b=this; b.disabled=true; b.textContent='Leyendo...';
+  PLANILLA=null; planillaError=''; planillaHojas=[]; pintarEstadoSheet();
+  cargarPlanilla(function(err){
+    b.disabled=false; b.textContent='Releer empleados del Sheet';
+    pintarEstadoSheet(); pintarTabla(); pintarBusqueda();
+    if(err){ toast('No se pudo leer el Sheet: '+err.message,'err'); sync('err','Sin conexión'); return; }
+    sync('ok','Sincronizado');
+    toast(PLANILLA.length+' empleado(s) leídos del Google Sheets','ok');
+  });
+});
 
 $('e-guardar-on').addEventListener('change', function(){
   var antes = CFG.guardarEmp;
@@ -1934,13 +2100,21 @@ function pintarConfig(){
   $('cf-f1n').value=CFG.f1n; $('cf-f1c').value=CFG.f1c;
   $('cf-f2n').value=CFG.f2n; $('cf-f2c').value=CFG.f2c;
   $('cf-adjuntos').value=CFG.adjuntos;
+  pintarOrdenHojas();
+}
+function pintarOrdenHojas(){
+  $('cf-orden-1').textContent = CFG.hEmp || 'Empleados44';
+  $('cf-orden-2').textContent = CFG.planillaOn && CFG.hPlanilla
+    ? CFG.hPlanilla : '(sin planilla: solo esa hoja)';
 }
 $('cf-guardar').addEventListener('click', function(){
   CFG.url=$('cf-url').value.trim(); CFG.hMemos=$('cf-h-memos').value.trim()||'Clausula44';
   CFG.hEmp=$('cf-h-emp').value.trim()||'Empleados44'; CFG.hUsr=$('cf-h-usr').value.trim()||'Usuarios44';
   CFG.hPlanilla=$('cf-h-plan').value.trim(); CFG.planillaOn = $('cf-plan-on').value==='si';
-  PLANILLA=null;   // que se vuelva a leer con la hoja nueva
-  guardarLS(LS.cfg,CFG); toast('Configuración guardada','ok');
+  PLANILLA=null; planillaError=''; planillaHojas=[];   // que se vuelvan a leer las hojas nuevas
+  guardarLS(LS.cfg,CFG); pintarOrdenHojas(); pintarModoEmp(); pintarEstadoSheet();
+  toast('Configuración guardada','ok');
+  cargarPlanilla(function(){ pintarEstadoSheet(); pintarTabla(); });
 });
 $('cf-guardar2').addEventListener('click', function(){
   CFG.para=$('cf-para').value; CFG.paraCargo=$('cf-paracargo').value; CFG.de=$('cf-de').value;
@@ -1970,25 +2144,26 @@ $('cf-valor').addEventListener('input', function(){
 
 $('cf-plan-probar').addEventListener('click', function(){
   var b=this, e=$('cf-plan-estado');
-  CFG.hPlanilla=$('cf-h-plan').value.trim(); CFG.planillaOn=true; PLANILLA=null;
-  if(!CFG.hPlanilla){ e.innerHTML='<span class="chip c-mal">escribí el nombre de la hoja</span>'; return; }
-  b.disabled=true; b.textContent='Probando...'; e.textContent='';
+  CFG.hEmp=$('cf-h-emp').value.trim()||'Empleados44';
+  CFG.hPlanilla=$('cf-h-plan').value.trim();
+  CFG.planillaOn = $('cf-plan-on').value==='si';
+  PLANILLA=null; planillaError=''; planillaHojas=[];
+  b.disabled=true; b.textContent='Probando...';
+  e.innerHTML='<span class="chip">leyendo…</span>';
   var t0=Date.now();
-  apiLeer(CFG.hPlanilla, function(err, filas){
-    b.disabled=false; b.textContent='Probar la hoja de planilla';
+  cargarPlanilla(function(err){
+    b.disabled=false; b.textContent='Probar las hojas de empleados';
     var ms=((Date.now()-t0)/1000).toFixed(1);
-    if(err || !Array.isArray(filas)){
-      e.innerHTML='<span class="chip c-mal">no se pudo leer en '+ms+' s</span> ' +
-        esc(err?err.message:'respuesta inesperada'); return;
+    pintarEstadoSheet();
+    if(err){
+      e.innerHTML='<span class="chip c-mal">no se pudo leer en '+ms+' s</span> '+esc(err.message);
+      return;
     }
-    var res = aEmpleados(filas);
-    PLANILLA = res.lista;
-    var cols = Object.keys(res.mapa).filter(function(k){ return res.mapa[k]!=null; });
-    e.innerHTML = '<span class="chip c-ok">leída en '+ms+' s</span> ' +
-      '<b>'+res.lista.length+'</b> empleado(s). Columnas reconocidas: ' +
-      (cols.length ? cols.join(', ') : 'ninguna') +
-      (res.conEncabezado ? '' : ' <i>(sin títulos: se tomaron por orden)</i>') +
-      (res.lista.length ? '<br>Ejemplo: <b>'+esc(res.lista[0].clave)+'</b> — '+esc(res.lista[0].nombre) : '');
+    var ej = PLANILLA[0];
+    e.innerHTML = '<span class="chip c-ok">leídas en '+ms+' s</span> ' +
+      '<b>'+PLANILLA.length+'</b> empleado(s) de ' + esc(planillaHojas.join(' · ')) +
+      (ej ? '<br>Ejemplo: <b>'+esc(ej.clave)+'</b> — '+esc(ej.nombre)+
+            ' (GA '+esc(ej.ga)+', UE '+esc(ej.ue)+', UA '+esc(ej.ua)+')' : '');
   });
 });
 
@@ -2167,7 +2342,29 @@ function arrancarApp(){
   pintarMembreteUI(); pintarPrevFondo(); aplicarFondo();
   sync('', CFG.url ? 'Listo' : 'Sin configurar');
   // Trae lo que haya en el Sheet, sin bloquear la pantalla
-  traerUsuarios(function(){ pintarUsuarios(); });
+  traerUsuarios(function(){
+    pintarUsuarios();
+    // Y detras, los empleados: asi la primera clave que escriban ya responde sola.
+    cargarPlanilla(function(err){
+      if(err){ pintarEstadoSheet(); return; }
+      pintarEstadoSheet(); pintarTabla();
+      if($('bq-txt') && $('bq-txt').value.trim()) pintarBusqueda();
+    });
+  });
+}
+
+// Deja a la vista de donde salieron los empleados.
+function pintarEstadoSheet(){
+  var e = $('e-sheet-estado'); if(!e) return;
+  if(planillaCargando){ e.innerHTML = '<span class="chip">leyendo el Google Sheets…</span>'; return; }
+  if(!PLANILLA){
+    e.innerHTML = planillaError
+      ? '<span class="chip c-mal">no se pudo leer</span> ' + esc(planillaError)
+      : '<span class="chip">todavía sin consultar</span>';
+    return;
+  }
+  e.innerHTML = '<span class="chip c-ok">' + PLANILLA.length + ' empleado(s) leídos</span> ' +
+    'de ' + esc(planillaHojas.join(' · '));
 }
 
 fijarTema(tema());
