@@ -709,7 +709,7 @@ function actualizarHoja(hoja){
       <td class="num">${L(r.valor)}</td>
       <td style="font-size:10.5px">${esc(r.escaneado)}</td>
       <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
-      <td class="num" style="width:1%;white-space:nowrap">${esc(r.ndoc)}</td>
+      <td class="num" style="width:1%;white-space:nowrap">${est==='PAGADO'?'':esc(r.ndoc)}</td>
       ${CHECKS.map(c=>`<td><span class="check ${esSI(r[c])?'si':'no'}">${esSI(r[c])?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       ${celdaDias}
