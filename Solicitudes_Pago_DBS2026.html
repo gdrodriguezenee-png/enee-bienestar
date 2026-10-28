@@ -385,7 +385,8 @@ const HOJAS = {
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
       {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
-      {k:'realizado', et:'Realizado por', tipo:'text'}
+      {k:'realizado', et:'Realizado por', tipo:'text'},
+      {k:'ndoc', et:'N° Documento', etc:'N° Doc.', tipo:'text'}
     ],
     agrupador:'clausula', agrupadorEt:'cláusula'
   },
@@ -399,7 +400,8 @@ const HOJAS = {
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
       {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
-      {k:'realizado', et:'Realizado por', tipo:'text'}
+      {k:'realizado', et:'Realizado por', tipo:'text'},
+      {k:'ndoc', et:'N° Documento', etc:'N° Doc.', tipo:'text'}
     ],
     agrupador:'tipo', agrupadorEt:'tipo de pago'
   },
@@ -413,7 +415,8 @@ const HOJAS = {
       {k:'valor', et:'Valor (L)', tipo:'number', req:true},
       {k:'nben', et:'N° Beneficiarios', etc:'Ben.', tipo:'number'},
       {k:'escaneado', et:'Escaneado', tipo:'select', ops:['ESCANEADO','PENDIENTE']},
-      {k:'realizado', et:'Realizado por', tipo:'text'}
+      {k:'realizado', et:'Realizado por', tipo:'text'},
+      {k:'ndoc', et:'N° Documento', etc:'N° Doc.', tipo:'text'}
     ],
     agrupador:'favor', agrupadorEt:'área'
   }
@@ -627,7 +630,7 @@ function filasVisibles(hoja){
 function renderHoja(hoja){
   const cfg = HOJAS[hoja], f = filtros[hoja];
   const cont = document.getElementById('v-'+hoja);
-  const otrasCols = cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado'].includes(c.k));
+  const otrasCols = cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado','ndoc'].includes(c.k));
   cont.innerHTML = `
   <div class="kpis" id="kpi-${hoja}"></div>
   <div class="panel">
@@ -661,7 +664,7 @@ function renderHoja(hoja){
         <thead><tr>
           <th>Memorándum</th><th>A favor de</th>
           ${otrasCols.map(c=>`<th>${c.etc||c.et}</th>`).join('')}
-          <th>Fecha</th><th>Valor</th><th>Escan.</th><th>Realizó</th>
+          <th>Fecha</th><th>Valor</th><th>Escan.</th><th>Realizó</th><th style="width:1%">N° Doc.</th>
           <th>Verif.</th><th>Aprob.</th><th>Firm.</th><th>Pag.</th>
           <th>Estado</th><th>Días</th><th>Acciones</th>
         </tr></thead>
@@ -701,11 +704,12 @@ function actualizarHoja(hoja){
     return `<tr>
       <td class="envuelve" style="min-width:120px;max-width:170px">${esc(r.memo)}</td>
       <td class="envuelve" style="min-width:170px">${esc(r.favor)}</td>
-      ${cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado'].includes(c.k)).map(c=>`<td>${esc(r[c.k])}</td>`).join('')}
+      ${cfg.cols.filter(c=>!['memo','favor','fecha','valor','escaneado','realizado','ndoc'].includes(c.k)).map(c=>`<td>${esc(r[c.k])}</td>`).join('')}
       <td>${esc(fechaISO(r.fecha)||r.fecha)}</td>
       <td class="num">${L(r.valor)}</td>
       <td style="font-size:10.5px">${esc(r.escaneado)}</td>
       <td class="envuelve" style="max-width:105px">${esc(r.realizado)}</td>
+      <td class="num" style="width:1%;white-space:nowrap">${esc(r.ndoc)}</td>
       ${CHECKS.map(c=>`<td><span class="check ${esSI(r[c])?'si':'no'}">${esSI(r[c])?'✔':'—'}</span></td>`).join('')}
       <td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>
       ${celdaDias}
@@ -715,7 +719,7 @@ function actualizarHoja(hoja){
         ${sesion && sesion.rol==='admin'?`<button title="Eliminar" onclick="eliminarRegistro('${hoja}',${idx})">🗑️</button>`:''}
       </td>
     </tr>`;
-  }).join('') || `<tr><td colspan="20"><div class="vacio">${cargando?'⏳ Cargando datos del servidor…':'Sin registros que coincidan con los filtros. Ajusta la búsqueda o agrega un registro nuevo.'}</div></td></tr>`;
+  }).join('') || `<tr><td colspan="21"><div class="vacio">${cargando?'⏳ Cargando datos del servidor…':'Sin registros que coincidan con los filtros. Ajusta la búsqueda o agrega un registro nuevo.'}</div></td></tr>`;
 
   document.getElementById('pie-'+hoja).textContent = cargando ? 'Cargando…' : `Mostrando ${vis.length} registro(s) · más reciente primero`;
 }
