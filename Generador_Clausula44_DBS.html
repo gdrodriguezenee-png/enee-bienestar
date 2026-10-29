@@ -223,7 +223,7 @@ td.marca .mal{color:var(--err-tx)}
   .pane.on{display:block!important}
   .caja{display:none!important}
   #caja-memo{display:block!important;box-shadow:none;background:#fff;padding:0;margin:0;border-radius:0}
-  #caja-memo h3{display:none!important}
+  #caja-memo h3,#nota-word{display:none!important}
   #memo-wrap{background:#fff;padding:0;border-radius:0;overflow:visible}
   /* El fondo va en un elemento fijo para que se repita en cada hoja;
      por eso la pagina lleva margen 0 y los margenes reales son el padding del memo.
@@ -358,8 +358,12 @@ td.marca .mal{color:var(--err-tx)}
 
       <div class="caja" id="caja-memo">
         <h3>Memorando <span class="sp"></span>
+          <button class="b-oro" id="g-word">Descargar en Word</button>
           <button class="b-pri" id="g-imprimir">Imprimir / PDF</button>
           <button class="b-ok" id="g-guardar">Guardar en historial</button></h3>
+        <p class="nota" id="nota-word">Para imprimir, descargalo en Word: el archivo sale con el membrete, los
+          márgenes, el cuadro y las firmas tal como se ven acá, y desde Word se manda a la
+          impresora o se guarda como PDF.</p>
         <div id="memo-wrap"><div id="memo"></div></div>
       </div>
     </div>
@@ -1409,6 +1413,368 @@ function pintarMemo(){
 $('g-imprimir').addEventListener('click', function(){
   if(!FILAS.length){ toast('Agregá al menos un empleado antes de imprimir.','err'); return; }
   window.print();
+});
+
+/* ==========================================================================
+   8.b DESCARGAR EN WORD (.docx)
+   --------------------------------------------------------------------------
+   Arma un .docx de verdad (OOXML dentro de un ZIP) con las mismas medidas que
+   el memorando de pantalla: papel carta, los margenes de Configuracion, el
+   membrete como imagen de fondo en el encabezado (por eso se repite y se
+   imprime en todas las hojas), el cuadro con sus anchos de columna, el espacio
+   para firmar y el pie. Sin librerias: el ZIP se escribe a mano, sin comprimir.
+   ========================================================================== */
+
+/* ---------- ZIP (metodo "store", sin compresion) ---------- */
+function crc32(buf){
+  var t = crc32.tabla;
+  if(!t){
+    t = crc32.tabla = new Int32Array(256);
+    for(var n=0;n<256;n++){ var c=n;
+      for(var k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);
+      t[n]=c; }
+  }
+  var crc = -1;
+  for(var i=0;i<buf.length;i++) crc = (crc>>>8) ^ t[(crc ^ buf[i]) & 0xFF];
+  return (crc ^ -1) >>> 0;
+}
+function utf8(s){
+  if(window.TextEncoder) return new TextEncoder().encode(s);
+  var u = unescape(encodeURIComponent(s)), a = new Uint8Array(u.length);
+  for(var i=0;i<u.length;i++) a[i]=u.charCodeAt(i);
+  return a;
+}
+function zip(archivos){
+  var partes = [], central = [], desp = 0, i;
+  function u16(n){ return [n & 255, (n>>>8) & 255]; }
+  function u32(n){ return [n & 255, (n>>>8) & 255, (n>>>16) & 255, (n>>>24) & 255]; }
+
+  for(i=0;i<archivos.length;i++){
+    var nom = utf8(archivos[i].nombre), dat = archivos[i].datos, c = crc32(dat);
+    var cab = [].concat([0x50,0x4B,0x03,0x04], u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+                        u32(c), u32(dat.length), u32(dat.length), u16(nom.length), u16(0));
+    partes.push(new Uint8Array(cab), nom, dat);
+    central.push([].concat([0x50,0x4B,0x01,0x02], u16(20), u16(20), u16(0x0800), u16(0),
+                           u16(0), u16(0), u32(c), u32(dat.length), u32(dat.length),
+                           u16(nom.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(desp)));
+    central.push(nom);
+    desp += cab.length + nom.length + dat.length;
+  }
+  var cd = [], largoCD = 0;
+  for(i=0;i<central.length;i++){
+    var p = central[i].length !== undefined && !(central[i] instanceof Uint8Array)
+          ? new Uint8Array(central[i]) : central[i];
+    cd.push(p); largoCD += p.length;
+  }
+  var fin = new Uint8Array([].concat([0x50,0x4B,0x05,0x06], u16(0), u16(0),
+            u16(archivos.length), u16(archivos.length), u32(largoCD), u32(desp), u16(0)));
+
+  var total = desp + largoCD + fin.length, out = new Uint8Array(total), pos = 0;
+  function poner(a){ out.set(a, pos); pos += a.length; }
+  partes.forEach(poner); cd.forEach(poner); poner(fin);
+  return out;
+}
+
+/* ---------- utilidades de OOXML ---------- */
+function xe(s){ return String(s==null?'':s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function tw(pulg){ return Math.round(pulg * 1440); }               // pulgadas -> twips
+function emu(pulg){ return Math.round(pulg * 914400); }            // pulgadas -> EMU
+const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+
+// Un parrafo. o = {sz(medios pt), b, al, esp{antes,despues,linea}, ind{izq,der,colgante},
+//                  borde:{lado,ancho}, texto:[{t,b,sz}] }
+function wp(o){
+  o = o || {};
+  var pr = '<w:pPr>';
+  if(o.borde) pr += '<w:pBdr><w:' + o.borde.lado + ' w:val="single" w:sz="' + o.borde.ancho +
+                    '" w:space="' + (o.borde.esp||0) + '" w:color="000000"/></w:pBdr>';
+  var e = o.esp || {};
+  pr += '<w:spacing w:before="' + (e.antes||0) + '" w:after="' + (e.despues||0) + '"' +
+        (e.linea ? ' w:line="' + e.linea + '" w:lineRule="' + (e.regla||'auto') + '"' : '') + '/>';
+  if(o.ind) pr += '<w:ind w:left="' + (o.ind.izq||0) + '" w:right="' + (o.ind.der||0) + '"' +
+                  (o.ind.colgante ? ' w:hanging="' + o.ind.colgante + '"' : '') + '/>';
+  if(o.al) pr += '<w:jc w:val="' + o.al + '"/>';
+  if(o.sz || o.b) pr += '<w:rPr>' + (o.b?'<w:b/>':'') + (o.sz?'<w:sz w:val="'+o.sz+'"/><w:szCs w:val="'+o.sz+'"/>':'') + '</w:rPr>';
+  pr += '</w:pPr>';
+
+  var runs = (o.texto||[]).map(function(r){
+    var sz = r.sz || o.sz, rpr = '<w:rPr>' + (r.b?'<w:b/>':'') +
+      (sz ? '<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/>' : '') + '</w:rPr>';
+    var partes = String(r.t==null?'':r.t).split('\n'), s = '';
+    for(var i=0;i<partes.length;i++){
+      if(i) s += '<w:br/>';
+      s += '<w:t xml:space="preserve">' + xe(partes[i]) + '</w:t>';
+    }
+    return '<w:r>' + rpr + s + '</w:r>';
+  }).join('');
+  return '<w:p>' + pr + runs + '</w:p>';
+}
+// Una celda. c = {ancho(twips), fondo, al, sz, b, span, sinBorde, texto}
+function wtc(c){
+  var pr = '<w:tcPr><w:tcW w:w="' + c.ancho + '" w:type="dxa"/>';
+  if(c.span > 1) pr += '<w:gridSpan w:val="' + c.span + '"/>';
+  if(c.sinBorde) pr += '<w:tcBorders>' + ['top','left','bottom','right'].map(function(l){
+      return '<w:' + l + ' w:val="nil"/>'; }).join('') + '</w:tcBorders>';
+  if(c.fondo) pr += '<w:shd w:val="clear" w:color="auto" w:fill="' + c.fondo + '"/>';
+  pr += '<w:vAlign w:val="center"/></w:tcPr>';
+  var cuerpo = c.p || wp({ sz:c.sz, b:c.b, al:c.al,
+      esp:{linea:240, regla:'auto'}, texto:[{t:c.texto||'', b:c.b}] });
+  return '<w:tc>' + pr + cuerpo + '</w:tc>';
+}
+
+/* ---------- el documento ---------- */
+function memoDocx(){
+  var d = datosMemo();
+  var mIzq = tw(CFG.mIzq), mDer = tw(CFG.mDer), mTop = tw(CFG.mTop), mAb = tw(CFG.mAbajo);
+  var ancho = tw(8.5) - mIzq - mDer;                 // ancho util del texto
+  var anchoTabla = Math.round(ancho * 1.046);        // la tabla sobresale como en pantalla
+  var sangriaTabla = Math.round(ancho * -0.023);
+  var ANCHOS = [3.10,6.51,31.11,11.10,14.06,3.99,7.72,10.37,3.47,3.41,5.17];
+  var cols = ANCHOS.map(function(w){ return Math.round(anchoTabla * w / 100); });
+  var S12 = 24, S16 = 32, S7 = 14, S11 = 22, S10 = 20, S9 = 18, S105 = 21;
+
+  var b = [];   // los bloques del cuerpo
+
+  // --- membrete escrito (el de texto; la imagen va en el encabezado) ---
+  [[CFG.memb1,S12,true],[CFG.memb2,S12,true],[CFG.memb3,S105,false]].forEach(function(l){
+    if(l[0]) b.push(wp({ al:'center', sz:l[1], b:l[2], esp:{linea:278},
+                         texto:[{t:l[0], b:l[2]}] }));
+  });
+  if(CFG.lineaDiv) b.push(wp({ esp:{antes:100,despues:100}, borde:{lado:'bottom',ancho:8}, texto:[] }));
+  b.push(wp({ al:'center', sz:S16, b:true, esp:{antes:200,despues:240},
+              texto:[{t:'MEMORANDO ' + (d.no || '________'), b:true}] }));
+
+  // --- campos: Para / cargo / De / Asunto / Fecha, con la raya abajo ---
+  var ROT = 1440;   // los 72pt de la etiqueta
+  function campo(et, val, opc){
+    opc = opc || {};
+    return wp({ sz:S12, esp:{despues:40, linea:240}, ind:{izq:ROT, colgante:ROT},
+      borde: opc.raya ? {lado:'bottom', ancho:12, esp:4} : null,
+      texto:[{t:et, b:true}, {t:'\t', b:true}, {t:val, b:true}] });
+  }
+  // La tabulacion se logra con una tabla invisible de 2 columnas: es lo que
+  // mejor reproduce la etiqueta de ancho fijo del memo en pantalla.
+  function filaCampo(et, val, raya){
+    var bordes = '<w:tcBorders>' + ['top','left','right'].map(function(l){
+        return '<w:' + l + ' w:val="nil"/>'; }).join('') +
+      '<w:bottom w:val="' + (raya ? 'single' : 'nil') + '" w:sz="12" w:color="000000"/></w:tcBorders>';
+    function celda(ancho, txt){
+      return '<w:tc><w:tcPr><w:tcW w:w="' + ancho + '" w:type="dxa"/>' + bordes +
+        '</w:tcPr>' + wp({ sz:S12, b:true, esp:{despues:40, linea:240},
+                           texto:[{t:txt, b:true}] }) + '</w:tc>';
+    }
+    return '<w:tr>' + celda(ROT, et) + celda(ancho - ROT, val) + '</w:tr>';
+  }
+  b.push('<w:tbl><w:tblPr><w:tblW w:w="' + ancho + '" w:type="dxa"/>' +
+    '<w:tblBorders>' + ['top','left','bottom','right','insideH','insideV'].map(function(l){
+      return '<w:' + l + ' w:val="nil"/>'; }).join('') + '</w:tblBorders>' +
+    '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>' +
+    '</w:tblPr><w:tblGrid><w:gridCol w:w="' + ROT + '"/><w:gridCol w:w="' + (ancho-ROT) + '"/></w:tblGrid>' +
+    filaCampo('Para:', d.para, false) +
+    (d.paraCargo ? filaCampo('', d.paraCargo, false) : '') +
+    filaCampo('', '', false) +
+    filaCampo('De:', d.de, false) +
+    filaCampo('Asunto:', 'REMISIÓN DE PAGO CLAUSULA #44', false) +
+    filaCampo('Fecha:', fechaLarga(d.fecha), true) +
+    '</w:tbl>');
+
+  // --- cuerpo ---
+  b.push(wp({ sz:S12, al:'both', esp:{antes:200, despues:200, linea:278},
+    texto:[
+      {t:'Por este medio se remite la documentación para que se realice el pago de Clausula 44, ' +
+          'Beneficio de Transporte a operadores de la '},
+      {t:(d.operacion || '________'), b:true},
+      {t:' por un total de '},
+      {t:d.letras + ' (' + lps(d.total) + ')', b:true},
+      {t:' a los empleados detallados en el siguiente cuadro del mes de '},
+      {t:d.mes, b:true}, {t:' del año '}, {t:String(d.anio), b:true}, {t:'.'}
+    ]}));
+
+  // --- el cuadro ---
+  var TIT = ['N°','CLAVE','EMPLEADO','ESTATUS','DNI','T.N','VALOR','PAGO','GA','UE','UA'];
+  var tabla = '<w:tbl><w:tblPr><w:tblW w:w="' + anchoTabla + '" w:type="dxa"/>' +
+    '<w:tblInd w:w="' + sangriaTabla + '" w:type="dxa"/><w:tblLayout w:type="fixed"/>' +
+    '<w:tblBorders>' + ['top','left','bottom','right','insideH','insideV'].map(function(l){
+      return '<w:' + l + ' w:val="single" w:sz="4" w:color="000000"/>'; }).join('') + '</w:tblBorders>' +
+    '<w:tblCellMar><w:top w:w="20" w:type="dxa"/><w:bottom w:w="20" w:type="dxa"/>' +
+    '<w:left w:w="30" w:type="dxa"/><w:right w:w="30" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
+    '<w:tblGrid>' + cols.map(function(w){ return '<w:gridCol w:w="' + w + '"/>'; }).join('') + '</w:tblGrid>';
+
+  tabla += '<w:tr><w:trPr><w:tblHeader/></w:trPr>' + TIT.map(function(t,i){
+    return wtc({ ancho:cols[i], texto:t, al:'center', sz:S7, b:true, fondo:'DBE5F1' });
+  }).join('') + '</w:tr>';
+
+  if(d.filas.length){
+    d.filas.forEach(function(f,i){
+      var v = [String(i+1), f.clave, f.nombre, f.estatus, f.dni, String(f.tn),
+               lps(f.valor), lps(num(f.tn)*num(f.valor)), f.ga, f.ue, f.ua];
+      var al = ['center','center','left','center','center','center','right','right','center','center','center'];
+      tabla += '<w:tr>' + v.map(function(x,j){
+        return wtc({ ancho:cols[j], texto:x, al:al[j], sz:S7 });
+      }).join('') + '</w:tr>';
+    });
+  } else {
+    tabla += '<w:tr>' + wtc({ ancho:anchoTabla, span:11, texto:'—', al:'center', sz:S7 }) + '</w:tr>';
+  }
+  var a5 = cols[0]+cols[1]+cols[2]+cols[3]+cols[4];
+  tabla += '<w:tr>' +
+    wtc({ ancho:a5, span:5, texto:'TOTAL A PAGAR', al:'center', sz:S7, b:true, fondo:'F2F2F2' }) +
+    wtc({ ancho:cols[5], texto:String(d.totalTurnos), al:'center', sz:S7, b:true, fondo:'F2F2F2' }) +
+    wtc({ ancho:cols[6], texto:'', al:'center', sz:S7, b:true, fondo:'F2F2F2' }) +
+    wtc({ ancho:cols[7], texto:lps(d.total), al:'right', sz:S7, b:true, fondo:'F2F2F2' }) +
+    wtc({ ancho:cols[8]+cols[9]+cols[10], span:3, texto:'', sz:S7, b:true, fondo:'F2F2F2' }) +
+    '</w:tr></w:tbl>';
+  b.push(tabla);
+
+  // --- adjuntos ---
+  b.push(wp({ sz:S12, b:true, esp:{antes:220, despues:60}, texto:[{t:'Se adjunta:', b:true}] }));
+  d.adjuntos.forEach(function(a){
+    b.push(wp({ sz:S11, esp:{despues:10, linea:264}, ind:{izq:560, colgante:200},
+                texto:[{t:'•\t' + a}] }));
+  });
+
+  // --- firmas ---
+  b.push(wp({ sz:S12, esp:{antes:240, despues:0}, texto:[{t:'Atentamente;'}] }));
+  b.push(wp({ esp:{antes:0, despues:0, linea:Math.round(CFG.espFirma*20), regla:'exact'}, texto:[] }));
+
+  var mitad = Math.round(ancho/2) - 120;
+  function celdaFirma(nom, cargo){
+    var p = wp({ al:'center', sz:S10, esp:{despues:0, linea:250}, borde:{lado:'top', ancho:6, esp:2},
+                 texto:[{t:nom}] }) +
+            wp({ al:'center', sz:S10, esp:{despues:0, linea:250}, texto:[{t:cargo}] });
+    return '<w:tc><w:tcPr><w:tcW w:w="' + mitad + '" w:type="dxa"/><w:tcBorders>' +
+      ['top','left','bottom','right'].map(function(l){ return '<w:' + l + ' w:val="nil"/>'; }).join('') +
+      '</w:tcBorders></w:tcPr>' + p + '</w:tc>';
+  }
+  b.push('<w:tbl><w:tblPr><w:tblW w:w="' + ancho + '" w:type="dxa"/>' +
+    '<w:tblBorders>' + ['top','left','bottom','right','insideH','insideV'].map(function(l){
+      return '<w:' + l + ' w:val="nil"/>'; }).join('') + '</w:tblBorders>' +
+    '<w:tblCellMar><w:left w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tblCellMar>' +
+    '</w:tblPr><w:tblGrid><w:gridCol w:w="' + mitad + '"/><w:gridCol w:w="' + mitad + '"/></w:tblGrid>' +
+    '<w:tr>' + celdaFirma(d.f1n, d.f1c) + celdaFirma(d.f2n, d.f2c) + '</w:tr></w:tbl>');
+
+  // --- CC y pie ---
+  String(d.cc||'').split(/\s*\/\s*/).filter(function(x){ return x.trim(); })
+    .forEach(function(l, i){
+      b.push(wp({ sz:S9, esp:{antes:(i?0:260), despues:0, linea:260}, texto:[{t:l}] }));
+    });
+  if(CFG.pie){
+    b.push(wp({ al:'center', sz:17, esp:{antes:240, despues:0, linea:260},
+                borde:{lado:'top', ancho:6, esp:4}, texto:[{t:String(CFG.pie)}] }));
+  }
+  // Word necesita un parrafo despues de la ultima tabla: si no hay CC ni pie,
+  // la tabla de firmas quedaria pegada al final de la seccion.
+  b.push(wp({ esp:{linea:20, regla:'exact'}, sz:2, texto:[] }));
+
+  // --- seccion ---
+  var conFondo = !!(CFG.fondoOn && CFG.fondo);
+  var sect = '<w:sectPr>' +
+    (conFondo ? '<w:headerReference w:type="default" r:id="rId2"/>' : '') +
+    '<w:pgSz w:w="' + tw(8.5) + '" w:h="' + tw(11) + '"/>' +
+    '<w:pgMar w:top="' + mTop + '" w:right="' + mDer + '" w:bottom="' + mAb + '" w:left="' + mIzq +
+      '" w:header="0" w:footer="0" w:gutter="0"/>' +
+    '</w:sectPr>';
+
+  var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+    'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
+    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+    'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+
+  var doc = XML + '<w:document ' + NS + '><w:body>' + b.join('') + sect + '</w:body></w:document>';
+
+  /* ---------- el membrete, como imagen de fondo del encabezado ---------- */
+  var img = null, extImg = 'jpeg';
+  if(conFondo){
+    var m = /^data:image\/([a-z]+);base64,(.*)$/i.exec(String(CFG.fondo));
+    if(m){
+      extImg = m[1].toLowerCase() === 'png' ? 'png' : 'jpeg';
+      var bin = atob(m[2]); img = new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) img[i] = bin.charCodeAt(i);
+    }
+  }
+  var cx = emu(8.5), cy = emu(11);
+  var header = XML + '<w:hdr ' + NS + '>' +
+    '<w:p><w:pPr><w:spacing w:after="0" w:line="20" w:lineRule="exact"/>' +
+    '<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr>' +
+    (img ? '<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" ' +
+      'relativeHeight="1" behindDoc="1" locked="0" layoutInCell="0" allowOverlap="1">' +
+      '<wp:simplePos x="0" y="0"/>' +
+      '<wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>' +
+      '<wp:positionV relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
+      '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+      '<wp:wrapNone/><wp:docPr id="1" name="Membrete"/>' +
+      '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="0"/></wp:cNvGraphicFramePr>' +
+      '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="membrete.' + extImg + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+      '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+      '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+      '</pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>' : '') +
+    '</w:p></w:hdr>';
+
+  var styles = XML + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:docDefaults><w:rPrDefault><w:rPr>' +
+    '<w:rFonts w:ascii="Aptos" w:hAnsi="Aptos" w:cs="Aptos" w:eastAsia="Aptos"/>' +
+    '<w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="es-HN"/></w:rPr></w:rPrDefault>' +
+    '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault>' +
+    '</w:docDefaults>' +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>' +
+    '</w:styles>';
+
+  var ct = XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Default Extension="jpeg" ContentType="image/jpeg"/>' +
+    '<Default Extension="png" ContentType="image/png"/>' +
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+    (img ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '') +
+    '</Types>';
+
+  var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
+  var rels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + R + 'officeDocument" Target="word/document.xml"/></Relationships>';
+  var drels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + R + 'styles" Target="styles.xml"/>' +
+    (img ? '<Relationship Id="rId2" Type="' + R + 'header" Target="header1.xml"/>' : '') +
+    '</Relationships>';
+  var hrels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + R + 'image" Target="media/membrete.' + extImg + '"/></Relationships>';
+
+  var partes = [
+    { nombre:'[Content_Types].xml', datos:utf8(ct) },
+    { nombre:'_rels/.rels',         datos:utf8(rels) },
+    { nombre:'word/document.xml',   datos:utf8(doc) },
+    { nombre:'word/styles.xml',     datos:utf8(styles) },
+    { nombre:'word/_rels/document.xml.rels', datos:utf8(drels) }
+  ];
+  if(img){
+    partes.push({ nombre:'word/header1.xml', datos:utf8(header) });
+    partes.push({ nombre:'word/_rels/header1.xml.rels', datos:utf8(hrels) });
+    partes.push({ nombre:'word/media/membrete.' + extImg, datos:img });
+  }
+  return { zip: zip(partes), no: d.no };
+}
+
+$('g-word').addEventListener('click', function(){
+  if(!FILAS.length){ toast('Agregá al menos un empleado antes de descargarlo.','err'); return; }
+  var b = this, txt = b.textContent;
+  b.disabled = true; b.textContent = 'Armando...';
+  try{
+    var r = memoDocx();
+    var blob = new Blob([r.zip], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var nom = ('MEMORANDO ' + (r.no || 'CLAUSULA 44')).replace(/[\\/:*?"<>|]/g,'-') + '.docx';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nom;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    toast('Descargado: ' + nom,'ok');
+  }catch(e){
+    toast('No se pudo armar el Word: ' + e.message, 'err');
+  }
+  b.disabled = false; b.textContent = txt;
 });
 
 /* ==========================================================================
