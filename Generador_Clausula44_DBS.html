@@ -102,6 +102,13 @@ table.datos td{padding:5px 6px;border-top:1px solid var(--gris1);vertical-align:
 table.datos tbody tr:nth-child(even){background:var(--sup2)}
 table.datos input,table.datos select{padding:6px 7px;font-size:13px;border-width:1px;border-radius:6px}
 table.datos td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Fila que esta esperando la confirmacion para borrarse. */
+table.datos tbody tr.confirmar,table.datos tbody tr.confirmar:nth-child(even){
+  background:var(--err-bg);outline:2px solid var(--rojo);outline-offset:-2px}
+table.datos tbody tr.confirmar td{color:var(--err-tx)}
+/* Sobre el fondo rojizo de la fila, el boton de confirmar tiene que destacarse. */
+table.datos tbody tr.confirmar .b-del{background:var(--rojo);color:#fff}
+.conf-txt{font-weight:700;font-size:12px;margin-right:6px;white-space:nowrap}
 table.datos tfoot td{background:var(--azul-claro);font-weight:600;padding:9px 7px;border-top:2px solid var(--azul-med)}
 .tabla-wrap{overflow-x:auto;border-radius:9px;border:1px solid var(--gris1)}
 .w-cl{width:78px}.w-tn{width:62px}.w-val{width:92px}.w-cod{width:64px}.w-dni{width:140px}
@@ -152,6 +159,15 @@ td.marca .mal{color:var(--err-tx)}
 .mapa-col span{background:var(--azul-claro);color:var(--azul-tx);border-radius:6px;padding:3px 9px;
   font-size:12px;font-family:'Barlow Condensed',sans-serif;font-weight:600}
 .mapa-col span.falta{background:var(--err-bg);color:var(--err-tx)}
+/* Boton flotante de respaldo: queda abajo a la izquierda, lejos del aviso
+   que sale abajo al centro. */
+#btn-respaldo{position:fixed;left:18px;bottom:18px;z-index:380;display:flex;align-items:center;gap:8px;
+  background:var(--azul);color:#fff;padding:11px 16px;border-radius:999px;
+  box-shadow:0 4px 16px rgba(0,30,80,.28);font-size:13px}
+#btn-respaldo:hover:not([disabled]){background:var(--azul-med)}
+#btn-respaldo .ic{font-size:16px;line-height:1}
+#btn-respaldo[disabled]{opacity:.6}
+@media(max-width:620px){ #btn-respaldo .tx{display:none} #btn-respaldo{padding:13px} }
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(90px);z-index:400;
   background:#003366;color:#fff;padding:11px 20px;border-radius:9px;font-size:14px;transition:transform .28s;
   box-shadow:0 10px 28px rgba(0,20,60,.35);max-width:90vw;pointer-events:none}
@@ -217,7 +233,7 @@ td.marca .mal{color:var(--err-tx)}
 @media print{
   /* Al imprimir solo sale el memorando: nada de la interfaz. */
   body{background:#fff;margin:0}
-  header,.tabs,#login,#toast{display:none!important}
+  header,.tabs,#login,#toast,#btn-respaldo{display:none!important}
   main{padding:0;max-width:none;margin:0}
   .pane{display:none!important}
   .pane.on{display:block!important}
@@ -623,6 +639,9 @@ td.marca .mal{color:var(--err-tx)}
 </div>
 
 <div id="fondo-print"></div>
+<button id="btn-respaldo" title="Descargar un respaldo de los memorandos en Excel">
+  <span class="ic">&#128190;</span><span class="tx">Respaldo</span></button>
+
 <div id="toast"></div>
 <script>
 (function () {
@@ -872,6 +891,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
     Array.prototype.forEach.call(document.querySelectorAll('.pane'), function(x){ x.classList.remove('on'); });
     b.classList.add('on');
     $('p-'+b.getAttribute('data-p')).classList.add('on');
+    if(typeof cancelarBorrado === 'function') cancelarBorrado();
   });
 });
 $('btn-tema').addEventListener('click', function(){ fijarTema(tema()==='oscuro'?'claro':'oscuro'); });
@@ -2309,22 +2329,77 @@ document.addEventListener('keydown', function(ev){
    ========================================================================== */
 var COLS_MEMO = ['no','fecha','mes','anio','operacion','empleados','turnos','total','letras','usuario','detalle'];
 
+/* Borrar es en dos pasos: el primer clic en la × deja la fila marcada y pide
+   confirmarlo; recien el segundo la quita. Asi un clic de mas no borra nada.
+   Si pasan unos segundos sin decidir, la fila vuelve sola a la normalidad. */
+/* Se recuerda el N° del memorando, no su posicion: si mientras tanto llega
+   otro memorando o se trae la lista del Sheet, la marca sigue en el correcto
+   o desaparece, pero nunca se corre a una fila vecina. */
+var borrandoNo = null, relojBorrado = null;
+
+function pedirBorrado(no){
+  borrandoNo = no;
+  clearTimeout(relojBorrado);
+  relojBorrado = setTimeout(cancelarBorrado, 10000);
+  pintarHistorial();
+}
+function cancelarBorrado(){
+  if(borrandoNo === null) return;
+  borrandoNo = null; clearTimeout(relojBorrado); pintarHistorial();
+}
+
 function pintarHistorial(){
   var tb=$('h-tbody');
-  if(!HISTORIAL.length){ tb.innerHTML='<tr><td colspan="7" class="vacio">Todavía no hay memorandos guardados.</td></tr>'; return; }
+  if(!HISTORIAL.length){
+    borrandoNo = null;
+    tb.innerHTML='<tr><td colspan="7" class="vacio">Todavía no hay memorandos guardados.</td></tr>';
+    return;
+  }
+
   tb.innerHTML = HISTORIAL.map(function(m,i){
-    return '<tr><td><b>'+esc(m.no)+'</b></td><td>'+esc(m.mes)+' '+esc(m.anio)+'</td>' +
+    var conf = (borrandoNo !== null && m.no === borrandoNo);
+    var acciones = conf
+      ? '<span class="conf-txt">¿Borrar?</span>' +
+        '<button class="b-del" data-si="'+esc(m.no)+'">Sí, borrar</button> ' +
+        '<button class="b-sec" data-no="1">Cancelar</button>'
+      : '<button class="b-sec" data-abrir="'+i+'">Abrir</button> ' +
+        '<button class="b-del" data-borrar="'+i+'" title="Quitar del historial">&times;</button>';
+    return '<tr'+(conf?' class="confirmar"':'')+'><td><b>'+esc(m.no)+'</b></td>' +
+      '<td>'+esc(m.mes)+' '+esc(m.anio)+'</td>' +
       '<td>'+esc(m.operacion)+'</td><td class="n">'+esc(m.empleados)+'</td>' +
       '<td class="n">'+lps(m.total)+'</td><td>'+esc(m.usuario||'')+'</td>' +
-      '<td style="white-space:nowrap"><button class="b-sec" data-abrir="'+i+'">Abrir</button> ' +
-      '<button class="b-del" data-borrar="'+i+'">&times;</button></td></tr>';
+      '<td style="white-space:nowrap">'+acciones+'</td></tr>';
   }).join('');
 }
+
 $('h-tbody').addEventListener('click', function(ev){
-  var a=ev.target.getAttribute && ev.target.getAttribute('data-abrir');
-  var d=ev.target.getAttribute && ev.target.getAttribute('data-borrar');
+  var at = function(n){ return ev.target.getAttribute && ev.target.getAttribute(n); };
+  var a=at('data-abrir'), d=at('data-borrar'), si=at('data-si'), no=at('data-no');
+
+  if(no){ cancelarBorrado(); return; }
+
+  // Paso 2: confirmado, ahora si se quita.
+  if(si){
+    clearTimeout(relojBorrado); borrandoNo = null;
+    var j = HISTORIAL.findIndex(function(x){ return x.no === si; });
+    if(j === -1){ pintarHistorial(); toast('Ese memorando ya no estaba en la lista.','err'); return; }
+    var q = HISTORIAL[j];
+    HISTORIAL.splice(j,1); guardarLS(LS.hist,HISTORIAL); pintarHistorial();
+    toast('Memorando '+q.no+' quitado del historial de esta computadora','ok');
+    return;
+  }
+
+  // Paso 1: marcar la fila y pedir confirmacion.
+  if(d!==null && d!==undefined){
+    var mm = HISTORIAL[+d];
+    if(mm) pedirBorrado(mm.no);
+    return;
+  }
+
   if(a!==null && a!==undefined){
+    cancelarBorrado();
     var m=HISTORIAL[+a], det={};
+    if(!m) return;
     try{ det=JSON.parse(m.detalle||'{}'); }catch(e){}
     if(det.campos) CAMPOS.forEach(function(id){ if(det.campos[id]!=null) $(id).value=det.campos[id]; });
     componerNo();
@@ -2334,10 +2409,6 @@ $('h-tbody').addEventListener('click', function(ev){
     window.scrollTo({top:0,behavior:'smooth'});
     toast('Memorando '+m.no+' cargado','ok');
     return;
-  }
-  if(d!==null && d!==undefined){
-    if(!confirm('¿Quitar este memorando del historial?')) return;
-    HISTORIAL.splice(+d,1); guardarLS(LS.hist,HISTORIAL); pintarHistorial();
   }
 });
 
@@ -2382,6 +2453,152 @@ $('g-guardar').addEventListener('click', function(){
               : 'Memorando '+reg.no+' guardado', err?'err':'ok');
   });
   if(!arranco){ b.disabled=false; b.textContent=txt; }
+});
+
+/* ==========================================================================
+   12.b RESPALDO EN EXCEL
+   --------------------------------------------------------------------------
+   Baja un .xlsx con dos hojas: "Memorandos" (uno por fila, con los datos del
+   encabezado y los totales) y "Detalle" (una fila por cada empleado de cada
+   memorando, tal cual se cargo en el cuadro). Reusa el mismo escritor de ZIP
+   del Word: sin librerias ni internet.
+   ========================================================================== */
+function colLetra(n){                    // 1 -> A, 27 -> AA
+  var s = '';
+  while(n > 0){ var r = (n-1) % 26; s = String.fromCharCode(65+r) + s; n = (n-r-1)/26; }
+  return s;
+}
+// v: string | number | {n:numero, estilo} ; estilo 1 = encabezado, 2 = moneda
+function hojaXlsx(titulos, filas, anchos){
+  var sh = XML + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+  if(anchos && anchos.length){
+    sh += '<cols>' + anchos.map(function(a,i){
+      return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+a+'" customWidth="1"/>'; }).join('') + '</cols>';
+  }
+  sh += '<sheetData>';
+
+  function celda(ref, v, est){
+    if(v === null || v === undefined || v === '') return '';
+    if(typeof v === 'number' && isFinite(v))
+      return '<c r="'+ref+'"' + (est?' s="'+est+'"':'') + '><v>'+v+'</v></c>';
+    return '<c r="'+ref+'" t="inlineStr"' + (est?' s="'+est+'"':'') +
+           '><is><t xml:space="preserve">'+xe(v)+'</t></is></c>';
+  }
+  sh += '<row r="1">' + titulos.map(function(t,i){
+    return celda(colLetra(i+1)+'1', t, 1); }).join('') + '</row>';
+
+  filas.forEach(function(f, j){
+    var r = j + 2;
+    sh += '<row r="'+r+'">' + f.map(function(v,i){
+      var est = 0, val = v;
+      if(v && typeof v === 'object'){ val = v.n; est = v.estilo || 0; }
+      return celda(colLetra(i+1)+r, val, est);
+    }).join('') + '</row>';
+  });
+  return sh + '</sheetData></worksheet>';
+}
+
+function respaldoXlsx(){
+  var MEM_TIT = ['N° memorando','Fecha','Mes','Año','Operación','Para','Cargo','De',
+                 'Empleados','Turnos','Total','Total en letras','Generado por'];
+  var DET_TIT = ['N° memorando','N°','Clave','Empleado','Estatus','DNI','Turnos','Valor',
+                 'Pago','GA','UE','UA','Operación'];
+  var mem = [], det = [], sinDetalle = 0;
+
+  HISTORIAL.forEach(function(m){
+    var d = {};
+    try{ d = JSON.parse(m.detalle || '{}'); }catch(e){}
+    var c = d.campos || {};
+    mem.push([ m.no, m.fecha, m.mes, String(m.anio||''), m.operacion,
+               c['f-para']||'', c['f-paracargo']||'', c['f-de']||'',
+               num(m.empleados), num(m.turnos),
+               { n:num(m.total), estilo:2 }, m.letras, m.usuario||'' ]);
+
+    var fs = Array.isArray(d.filas) ? d.filas : [];
+    if(!fs.length) sinDetalle++;
+    fs.forEach(function(f, i){
+      det.push([ m.no, i+1, f.clave, f.nombre, f.estatus, f.dni,
+                 num(f.tn), { n:num(f.valor), estilo:2 },
+                 { n:num(f.tn)*num(f.valor), estilo:2 },
+                 f.ga, f.ue, f.ua, m.operacion ]);
+    });
+  });
+
+  var h1 = hojaXlsx(MEM_TIT, mem, [17,12,12,8,24,26,22,26,11,9,13,38,20]);
+  var h2 = hojaXlsx(DET_TIT, det, [17,5,9,32,13,17,8,11,12,6,6,8,24]);
+
+  var ct = XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    '</Types>';
+  var R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
+  var rels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + R + 'officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  var wb = XML + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+    '<sheet name="Memorandos" sheetId="1" r:id="rId1"/>' +
+    '<sheet name="Detalle" sheetId="2" r:id="rId2"/></sheets></workbook>';
+  var wbrels = XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="' + R + 'worksheet" Target="worksheets/sheet1.xml"/>' +
+    '<Relationship Id="rId2" Type="' + R + 'worksheet" Target="worksheets/sheet2.xml"/>' +
+    '<Relationship Id="rId3" Type="' + R + 'styles" Target="styles.xml"/></Relationships>';
+  var st = XML + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>' +
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
+    '<font><b/><sz val="11"/><color rgb="FF003366"/><name val="Calibri"/></font></fonts>' +
+    '<fills count="3"><fill><patternFill patternType="none"/></fill>' +
+    '<fill><patternFill patternType="gray125"/></fill>' +
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFDBE5F1"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="3">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+    '</cellXfs>' +
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+    '</styleSheet>';
+
+  return { zip: zip([
+      { nombre:'[Content_Types].xml',        datos:utf8(ct) },
+      { nombre:'_rels/.rels',                datos:utf8(rels) },
+      { nombre:'xl/workbook.xml',            datos:utf8(wb) },
+      { nombre:'xl/_rels/workbook.xml.rels', datos:utf8(wbrels) },
+      { nombre:'xl/styles.xml',              datos:utf8(st) },
+      { nombre:'xl/worksheets/sheet1.xml',   datos:utf8(h1) },
+      { nombre:'xl/worksheets/sheet2.xml',   datos:utf8(h2) }
+    ]), memos: mem.length, empleados: det.length, sinDetalle: sinDetalle };
+}
+
+$('btn-respaldo').addEventListener('click', function(){
+  if(!HISTORIAL.length){
+    toast('Todavía no hay memorandos guardados para respaldar.','err');
+    document.querySelector('.tab[data-p="historial"]').click();
+    return;
+  }
+  var b = this, ic = b.querySelector('.tx') ? b.querySelector('.tx').textContent : '';
+  b.disabled = true; if(b.querySelector('.tx')) b.querySelector('.tx').textContent = 'Armando...';
+  try{
+    var r = respaldoXlsx();
+    var d = new Date(), p2 = function(n){ return ('0'+n).slice(-2); };
+    var nom = 'Respaldo memorandos Clausula 44 ' +
+      d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '.xlsx';
+    var blob = new Blob([r.zip], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nom;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    toast('Respaldo bajado: ' + r.memos + ' memorando(s) y ' + r.empleados + ' empleado(s)' +
+      (r.sinDetalle ? ' — ' + r.sinDetalle + ' sin detalle (vinieron del Sheet)' : ''),
+      r.sinDetalle ? '' : 'ok');
+  }catch(e){
+    toast('No se pudo armar el respaldo: ' + e.message, 'err');
+  }
+  b.disabled = false; if(b.querySelector('.tx')) b.querySelector('.tx').textContent = ic;
 });
 
 $('h-traer').addEventListener('click', function(){
