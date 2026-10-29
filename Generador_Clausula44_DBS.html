@@ -363,7 +363,8 @@ td.marca .mal{color:var(--err-tx)}
           <button class="b-ok" id="g-guardar">Guardar en historial</button></h3>
         <p class="nota" id="nota-word">Para imprimir, descargalo en Word: el archivo sale con el membrete, los
           márgenes, el cuadro y las firmas tal como se ven acá, y desde Word se manda a la
-          impresora o se guarda como PDF.</p>
+          impresora o se guarda como PDF. Al descargarlo <b>queda guardado en el historial</b>,
+          así que no hace falta apretar también «Guardar en historial».</p>
         <div id="memo-wrap"><div id="memo"></div></div>
       </div>
     </div>
@@ -1760,21 +1761,34 @@ function memoDocx(){
 
 $('g-word').addEventListener('click', function(){
   if(!FILAS.length){ toast('Agregá al menos un empleado antes de descargarlo.','err'); return; }
-  var b = this, txt = b.textContent;
+  var d = datosMemo();
+  if(!d.no || d.no.indexOf('____')!==-1){
+    toast('Escribí el N° de memorando antes de descargarlo.','err'); $('f-num').focus(); return; }
+
+  var b = this, txt = b.textContent, nom = '';
   b.disabled = true; b.textContent = 'Armando...';
   try{
     var r = memoDocx();
     var blob = new Blob([r.zip], { type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    var nom = ('MEMORANDO ' + (r.no || 'CLAUSULA 44')).replace(/[\\/:*?"<>|]/g,'-') + '.docx';
+    nom = ('MEMORANDO ' + (r.no || 'CLAUSULA 44')).replace(/[\\/:*?"<>|]/g,'-') + '.docx';
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = nom;
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-    toast('Descargado: ' + nom,'ok');
   }catch(e){
+    b.disabled = false; b.textContent = txt;
     toast('No se pudo armar el Word: ' + e.message, 'err');
+    return;
   }
   b.disabled = false; b.textContent = txt;
+
+  // Y de paso queda registrado, sin tener que apretar "Guardar en historial".
+  toast('Descargado ' + nom + ' — guardando en el historial…');
+  var arranco = guardarEnHistorial(function(err, reg){
+    toast(err ? 'Descargado y guardado aquí, pero no en el Sheet: ' + err
+              : 'Descargado y guardado en el historial: ' + reg.no, err?'err':'ok');
+  });
+  if(!arranco) toast('Se descargó el Word, pero no quedó en el historial.','err');
 });
 
 /* ==========================================================================
@@ -2327,10 +2341,16 @@ $('h-tbody').addEventListener('click', function(ev){
   }
 });
 
-$('g-guardar').addEventListener('click', function(){
-  var d=datosMemo();
-  if(!FILAS.length){ toast('No hay empleados en el cuadro.','err'); return; }
-  if(!d.no || d.no.indexOf('____')!==-1){ toast('Escribí el N° de memorando antes de guardar.','err'); $('f-num').focus(); return; }
+/* Deja el memorando en el historial de esta computadora y en la hoja del Sheet.
+   Devuelve false si ni siquiera se pudo empezar (falta el N°, no hay empleados,
+   o el usuario no quiso reemplazar uno que ya existía). Si devuelve true, el
+   callback avisa despues como salio el guardado en el Sheet. */
+function guardarEnHistorial(cb){
+  var d = datosMemo();
+  if(!FILAS.length){ toast('No hay empleados en el cuadro.','err'); return false; }
+  if(!d.no || d.no.indexOf('____')!==-1){
+    toast('Escribí el N° de memorando antes de guardar.','err'); $('f-num').focus(); return false; }
+
   var campos={}; CAMPOS.forEach(function(id){ campos[id]=$(id).value; });
   var reg = { no:d.no, fecha:d.fecha, mes:d.mes, anio:d.anio, operacion:d.operacion,
               empleados:FILAS.length, turnos:d.totalTurnos, total:d.total, letras:d.letras,
@@ -2338,22 +2358,30 @@ $('g-guardar').addEventListener('click', function(){
               detalle: JSON.stringify({ campos:campos, filas:FILAS }) };
   var ya = HISTORIAL.findIndex(function(x){ return x.no===reg.no; });
   if(ya!==-1){
-    if(!confirm('Ya existe un memorando con el N° '+reg.no+'. ¿Reemplazarlo?')) return;
+    if(!confirm('Ya existe un memorando con el N° '+reg.no+'. ¿Reemplazarlo?')) return false;
     HISTORIAL[ya]=reg;
   } else HISTORIAL.unshift(reg);
   guardarLS(LS.hist,HISTORIAL); pintarHistorial();
 
-  var b=this; b.disabled=true; b.textContent='Guardando...';
-  var filas=[COLS_MEMO].concat(HISTORIAL.map(function(m){ return COLS_MEMO.map(function(c){ return m[c]==null?'':m[c]; }); }));
+  var filas=[COLS_MEMO].concat(HISTORIAL.map(function(m){
+    return COLS_MEMO.map(function(c){ return m[c]==null?'':m[c]; }); }));
   apiEscribir(CFG.hMemos, filas, function(err,res){
-    b.disabled=false; b.textContent='Guardar en historial';
-    if(err||(res&&res.ok===false)){
-      sync('err','Sin conexión');
-      toast('Guardado en esta PC, pero no en el Sheet: '+(err?err.message:'rechazado'),'err');
-      return;
-    }
-    sync('ok','Sincronizado'); toast('Memorando '+reg.no+' guardado','ok');
+    var fallo = err || (res && res.ok===false);
+    sync(fallo?'err':'ok', fallo?'Sin conexión':'Sincronizado');
+    if(cb) cb(fallo ? (err ? err.message : (res && res.error) || 'rechazado') : null, reg);
   });
+  return true;
+}
+
+$('g-guardar').addEventListener('click', function(){
+  var b=this, txt=b.textContent;
+  b.disabled=true; b.textContent='Guardando...';
+  var arranco = guardarEnHistorial(function(err, reg){
+    b.disabled=false; b.textContent=txt;
+    toast(err ? 'Guardado en esta PC, pero no en el Sheet: '+err
+              : 'Memorando '+reg.no+' guardado', err?'err':'ok');
+  });
+  if(!arranco){ b.disabled=false; b.textContent=txt; }
 });
 
 $('h-traer').addEventListener('click', function(){
