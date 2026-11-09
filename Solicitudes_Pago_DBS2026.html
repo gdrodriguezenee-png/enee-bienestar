@@ -244,10 +244,11 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
   <div class="vista" id="v-informes">
     <div class="panel no-imprimir">
       <div class="panel-cab">
-        <h2>Informe por hoja <span style="font-size:11px;font-weight:600;color:var(--gris)">· versión 09-nov-2026 (informes por área / mes / C.55)</span></h2>
+        <h2>Informe por hoja <span style="font-size:11px;font-weight:600;color:var(--gris)">· versión 09-nov-2026 (informes por área / mes / C.55 / consolidado)</span></h2>
         <div class="der">
           <select id="inf-hoja" onchange="renderInforme()">
             <option value="clausulas">Pago de Cláusulas</option>
+            <option value="todo-informe">⭐ Consolidado — todas las cláusulas (incluye C.40 y C.55)</option>
             <option value="cl-informe">Cláusulas — General, por cláusula o por mes (pagado / pendiente)</option>
             <option value="r55">Reembolsos C.55</option>
             <option value="r55-informe">Reembolsos C.55 — General, por beneficiario, tipo o mes (pagado / pendiente)</option>
@@ -846,6 +847,11 @@ function renderInforme(){
    - Mostrar: pagado y pendiente / solo pagado / solo pendiente.
    ============================================================ */
 const INF_AGR = {
+  'todo-informe': {hoja:'clausulas', fuentes:['clausulas','r55','r40'],
+                  titulo:'Consolidado de todas las cláusulas (incluye C.40 y C.55)', archivo:'Consolidado_Clausulas',
+                  grupos:[{k:'clausula', et:'Cláusula', pref:'Cláusula ', plural:'todas las cláusulas', numerico:true},
+                          {k:'_mes', et:'Mes', pref:'', plural:'todos los meses', mes:true}],
+                  colExtra:null},
   'cl-informe':  {hoja:'clausulas', titulo:'Pago de Cláusulas', archivo:'Clausulas',
                   grupos:[{k:'clausula', et:'Cláusula', pref:'Cláusula ', plural:'todas las cláusulas', numerico:true},
                           {k:'_mes', et:'Mes', pref:'', plural:'todos los meses', mes:true}],
@@ -896,16 +902,30 @@ function listaGrupos(id){
   const c = INF_AGR[id], g = grupoCfg(id), mapa = new Map();
   const col = HOJAS[c.hoja].cols.find(x=>x.k===g.k);
   if(col && col.ops) col.ops.forEach(o=>mapa.set(String(o).toUpperCase(), String(o)));
-  (DATOS[c.hoja]||[]).forEach(r=>{
+  datosInf(id).forEach(r=>{
     const k = grupoClave(r,g);
     if(!mapa.has(k)) mapa.set(k, grupoTxt(r,g) || '(sin dato)');
   });
   return [...mapa].map(([clave,nombre])=>({clave,nombre})).sort(ordenGrupo(g));
 }
 function fechaOrden(r){ return fechaISO(r.fecha)||'9999'; }
+/* Registros del informe. En el consolidado se juntan las tres hojas:
+   Reembolsos C.55 entra como cláusula 55 y Reembolsos C.40 como cláusula 40. */
+const CL_DE_HOJA = {r55:'55', r40:'40'};
+function datosInf(id){
+  const c = INF_AGR[id];
+  if(!c.fuentes) return DATOS[c.hoja]||[];
+  const out = [];
+  c.fuentes.forEach(h=>(DATOS[h]||[]).forEach(r=>{
+    out.push(CL_DE_HOJA[h] ? {...r, clausula:CL_DE_HOJA[h], _hoja:h,
+                              detalle: h==='r55' ? (r.tipo||'') : (r.enviado||'')}
+                           : {...r, _hoja:h});
+  }));
+  return out;
+}
 function filasInf(id){
   const c = INF_AGR[id], s = selInf(id), g = grupoCfg(id);
-  return (DATOS[c.hoja]||[])
+  return datosInf(id)
     .filter(r=>(!s.grupo || grupoClave(r,g)===s.grupo) && (!s.estado || estadoDe(r)===s.estado))
     .sort((a,b)=>fechaOrden(a).localeCompare(fechaOrden(b)));
 }
@@ -923,6 +943,7 @@ function colsDetalle(id){
   const cols = [{k:'memo', et:'Memorándum', cls:'envuelve', st:'min-width:110px'}];
   if(g.k!=='favor') cols.push({k:'favor', et:'A favor de', cls:'envuelve', st:'min-width:180px'});
   if(c.hoja==='clausulas' && g.k!=='clausula') cols.push({k:'clausula', et:'Cláusula', cls:'num', st:''});
+  if(c.fuentes) cols.push({k:'detalle', et:'Tipo / Enviado a', cls:'envuelve', st:'max-width:140px'});
   if(c.hoja==='r55' && g.k!=='tipo') cols.push({k:'tipo', et:'Tipo', cls:'', st:''});
   if(c.hoja==='r40' && g.k!=='enviado') cols.push({k:'enviado', et:'Enviado a', cls:'envuelve', st:'min-width:120px'});
   return cols;
@@ -974,7 +995,8 @@ function renderInformeAgrupado(id){
   // Resumen por grupo (solo en el general)
   let resumen = '';
   if(!s.grupo){
-    const conDatos = lista.filter(x=>(DATOS[c.hoja]||[]).some(r=>grupoClave(r,g)===x.clave));
+    const todos = datosInf(id);
+    const conDatos = lista.filter(x=>todos.some(r=>grupoClave(r,g)===x.clave));
     const filasRes = conDatos.map(x=>{
       const y = resumenFilas(filas.filter(r=>grupoClave(r,g)===x.clave));
       return `<tr><td class="envuelve" style="min-width:180px"><b>${esc(g.pref+x.nombre)}</b></td>
@@ -1065,13 +1087,17 @@ function renderInformeAgrupado(id){
 
 function exportarInfCSV(id){
   const c = INF_AGR[id], s = selInf(id), g = grupoCfg(id);
-  const cfg = HOJAS[c.hoja];
+  const cfg = c.fuentes
+    ? {cols:[{k:'_hojaEt',et:'Hoja'},{k:'clausula',et:'Cláusula'},{k:'memo',et:'N° Memorándum'},{k:'favor',et:'A favor de'},
+             {k:'detalle',et:'Tipo / Enviado a'},{k:'fecha',et:'Fecha elaboración'},{k:'valor',et:'Valor (L)'},
+             {k:'nben',et:'N° Beneficiarios'},{k:'escaneado',et:'Escaneado'},{k:'realizado',et:'Realizado por'},{k:'ndoc',et:'N° Documento'}]}
+    : HOJAS[c.hoja];
   const cab = [g.et, ...cfg.cols.filter(x=>x.k!==g.k).map(x=>x.et), 'Estado', 'Fecha de pago', 'Días'];
   const orden = ordenGrupo(g);
   const filas = filasInf(id)
     .sort((a,b)=>orden({clave:grupoClave(a,g),nombre:grupoTxt(a,g)},{clave:grupoClave(b,g),nombre:grupoTxt(b,g)}) || fechaOrden(a).localeCompare(fechaOrden(b)))
     .map(r=>[grupoTxt(r,g)||'(sin dato)',
-             ...cfg.cols.filter(x=>x.k!==g.k).map(x=>x.k==='fecha'?(fechaISO(r.fecha)||r.fecha||''):x.k==='valor'?(+r.valor||0):(r[x.k]??'')),
+             ...cfg.cols.filter(x=>x.k!==g.k).map(x=>x.k==='_hojaEt'?(HOJAS[r._hoja]||{}).titulo||'':x.k==='fecha'?(fechaISO(r.fecha)||r.fecha||''):x.k==='valor'?(+r.valor||0):(r[x.k]??'')),
              estadoDe(r), fechaISO(r.fpago)||'', diasDe(r)??'']);
   if(!filas.length){ toast('No hay registros para exportar con este filtro.'); return; }
   const csv = '﻿' + [cab,...filas].map(f=>f.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
