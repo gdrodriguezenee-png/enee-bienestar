@@ -170,6 +170,19 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
 .tabla-seg.empleados .subtotal-seg td{background:var(--verde)}
 .seg-actualizado{padding:8px 18px;font-size:12.5px;color:var(--verde);background:#f4fbf7;border-bottom:1px solid var(--borde)}
 
+/* Informe por cláusula */
+.inf-titulo{background:var(--azul);color:#fff;padding:12px 18px;border-radius:12px;margin-bottom:14px}
+.inf-titulo h2{font-size:16px}
+.inf-titulo .det{font-size:12px;opacity:.85;margin-top:3px}
+.seg-banda.cl{background:var(--azul2);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.seg-banda.cl .der{margin-left:auto;font-weight:600;font-size:12.5px;opacity:.9}
+.filtros label.et-f{font-size:12px;font-weight:700;color:var(--azul);align-self:center}
+@media print{
+  .no-imprimir{display:none!important}
+  .salto-cl{break-before:page;page-break-before:always}
+  .inf-titulo,.seg-banda,thead th,tfoot td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
 @media print{header,nav,.filtros,.panel-cab .der,.acciones-td,#login{display:none!important}main{padding:0}.panel{box-shadow:none;border:1px solid #ccc}}
 </style>
 </head>
@@ -229,14 +242,17 @@ tfoot td{background:var(--cielo);font-weight:800;color:var(--azul)}
 
   <!-- INFORMES -->
   <div class="vista" id="v-informes">
-    <div class="panel">
+    <div class="panel no-imprimir">
       <div class="panel-cab">
-        <h2>Informe por hoja</h2>
+        <h2>Informe por hoja <span style="font-size:11px;font-weight:600;color:var(--gris)">· versión 09-nov-2026 (informes por área / mes / C.55)</span></h2>
         <div class="der">
           <select id="inf-hoja" onchange="renderInforme()">
             <option value="clausulas">Pago de Cláusulas</option>
+            <option value="cl-informe">Cláusulas — General, por cláusula o por mes (pagado / pendiente)</option>
             <option value="r55">Reembolsos C.55</option>
+            <option value="r55-informe">Reembolsos C.55 — General, por beneficiario, tipo o mes (pagado / pendiente)</option>
             <option value="r40">Reembolsos C.40</option>
+            <option value="r40-informe">Reembolsos C.40 — General, por área o por mes (pagado / pendiente)</option>
             <option value="seguimiento">Seguimiento de Beneficiarios</option>
           </select>
           <button class="btn peq sec" onclick="window.print()">🖨️ Imprimir informe</button>
@@ -740,6 +756,7 @@ function statsHoja(hoja){
 function renderInforme(){
   const hoja = document.getElementById('inf-hoja').value;
   if(hoja==='seguimiento'){ renderSeguimiento(); return; }
+  if(INF_AGR[hoja]){ renderInformeAgrupado(hoja); return; }
   const cfg = HOJAS[hoja], d = DATOS[hoja];
   const s = statsHoja(hoja);
 
@@ -818,6 +835,249 @@ function renderInforme(){
         `<tr><td>${esc(g)}</td><td class="num">${x.n}</td><td class="num">${x.pend}</td><td class="num">${L(x.tot)}</td></tr>`).join('')}</tbody>
     </table></div>
   </div>`;
+}
+
+/* ============================================================
+   INFORMES AGRUPADOS — GENERAL Y POR GRUPO (pagado / pendiente)
+   - Pago de Cláusulas: por cláusula.
+   - Reembolsos C.40: por área (A favor de) o por "Enviado a".
+   - Opción General: resumen + una sección por grupo
+     (cada sección se imprime en su propia hoja).
+   - Mostrar: pagado y pendiente / solo pagado / solo pendiente.
+   ============================================================ */
+const INF_AGR = {
+  'cl-informe':  {hoja:'clausulas', titulo:'Pago de Cláusulas', archivo:'Clausulas',
+                  grupos:[{k:'clausula', et:'Cláusula', pref:'Cláusula ', plural:'todas las cláusulas', numerico:true},
+                          {k:'_mes', et:'Mes', pref:'', plural:'todos los meses', mes:true}],
+                  colExtra:null},
+  'r55-informe': {hoja:'r55', titulo:'Reembolsos C.55', archivo:'Reembolsos_C55',
+                  grupos:[{k:'favor', et:'Beneficiario / A favor de', pref:'', plural:'todos los beneficiarios'},
+                          {k:'tipo',  et:'Tipo de pago', pref:'', plural:'todos los tipos de pago'},
+                          {k:'_mes', et:'Mes', pref:'', plural:'todos los meses', mes:true}],
+                  colExtra:null},
+  'r40-informe': {hoja:'r40', titulo:'Reembolsos C.40', archivo:'Reembolsos_C40',
+                  grupos:[{k:'favor',   et:'Área / A favor de', pref:'', plural:'todas las áreas'},
+                          {k:'enviado', et:'Enviado a',         pref:'Enviado a: ', plural:'todos los destinos'},
+                          {k:'_mes', et:'Mes', pref:'', plural:'todos los meses', mes:true}],
+                  colExtra:null}
+};
+const infSel = {};   // selección por informe: {grupo, estado, agr}
+const INF_EST_ET = {'':'Pagado y pendiente', 'PAGADO':'Solo lo pagado', 'PENDIENTE':'Solo lo pendiente'};
+
+function selInf(id){ return infSel[id] = infSel[id] || {grupo:'', estado:'', agr:0}; }
+function grupoCfg(id){ const c=INF_AGR[id], s=selInf(id); return c.grupos[s.agr]||c.grupos[0]; }
+/* Valor del grupo de un registro (sin espacios dobles; mayúsculas no separan grupos) */
+function grupoTxt(r, g){
+  if(g.mes){                                  // mes de la fecha de elaboración: "Enero 2026"
+    const iso = fechaISO(r.fecha); if(!iso) return '';
+    const m = parseInt(iso.slice(5,7),10)-1;
+    return (MESES[m]||'') + ' ' + iso.slice(0,4);
+  }
+  return String(r[g.k]??'').replace(/\s+/g,' ').trim();
+}
+/* Orden cronológico de una clave "ENERO 2026" */
+function ordenMes(clave){
+  const [m,a] = clave.split(' ');
+  const i = MESES.findIndex(x=>x.toUpperCase()===m);
+  return (parseInt(a,10)||0)*12 + (i<0?99:i);
+}
+function grupoClave(r, g){ return grupoTxt(r,g).toUpperCase() || '(SIN DATO)'; }
+function ordenGrupo(g){
+  return (a,b)=>{
+    if(a.clave==='(SIN DATO)') return 1; if(b.clave==='(SIN DATO)') return -1;
+    if(g.mes) return ordenMes(a.clave)-ordenMes(b.clave);
+    if(g.numerico){ const na=parseFloat(a.clave), nb=parseFloat(b.clave);
+      if(!isNaN(na)&&!isNaN(nb)) return na-nb; if(isNaN(na)) return 1; if(isNaN(nb)) return -1; }
+    return a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'});
+  };
+}
+/* Lista de grupos: opciones configuradas (si las hay) + las que aparezcan en los datos */
+function listaGrupos(id){
+  const c = INF_AGR[id], g = grupoCfg(id), mapa = new Map();
+  const col = HOJAS[c.hoja].cols.find(x=>x.k===g.k);
+  if(col && col.ops) col.ops.forEach(o=>mapa.set(String(o).toUpperCase(), String(o)));
+  (DATOS[c.hoja]||[]).forEach(r=>{
+    const k = grupoClave(r,g);
+    if(!mapa.has(k)) mapa.set(k, grupoTxt(r,g) || '(sin dato)');
+  });
+  return [...mapa].map(([clave,nombre])=>({clave,nombre})).sort(ordenGrupo(g));
+}
+function fechaOrden(r){ return fechaISO(r.fecha)||'9999'; }
+function filasInf(id){
+  const c = INF_AGR[id], s = selInf(id), g = grupoCfg(id);
+  return (DATOS[c.hoja]||[])
+    .filter(r=>(!s.grupo || grupoClave(r,g)===s.grupo) && (!s.estado || estadoDe(r)===s.estado))
+    .sort((a,b)=>fechaOrden(a).localeCompare(fechaOrden(b)));
+}
+function resumenFilas(filas){
+  const s = {n:filas.length, tot:0, nPag:0, mPag:0, nPen:0, mPen:0, ben:0};
+  filas.forEach(r=>{
+    const v = +r.valor||0; s.tot += v; s.ben += +r.nben||0;
+    if(estadoDe(r)==='PAGADO'){ s.nPag++; s.mPag+=v; } else { s.nPen++; s.mPen+=v; }
+  });
+  return s;
+}
+/* Columnas del detalle según la hoja y la agrupación (no repite la del grupo) */
+function colsDetalle(id){
+  const c = INF_AGR[id], g = grupoCfg(id);
+  const cols = [{k:'memo', et:'Memorándum', cls:'envuelve', st:'min-width:110px'}];
+  if(g.k!=='favor') cols.push({k:'favor', et:'A favor de', cls:'envuelve', st:'min-width:180px'});
+  if(c.hoja==='clausulas' && g.k!=='clausula') cols.push({k:'clausula', et:'Cláusula', cls:'num', st:''});
+  if(c.hoja==='r55' && g.k!=='tipo') cols.push({k:'tipo', et:'Tipo', cls:'', st:''});
+  if(c.hoja==='r40' && g.k!=='enviado') cols.push({k:'enviado', et:'Enviado a', cls:'envuelve', st:'min-width:120px'});
+  return cols;
+}
+
+function renderInformeAgrupado(id){
+  const c = INF_AGR[id], s = selInf(id), g = grupoCfg(id);
+  const cont = document.getElementById('inf-contenido');
+  const lista = listaGrupos(id);
+  if(s.grupo && !lista.some(x=>x.clave===s.grupo)) s.grupo = '';
+  const verPag = s.estado!=='PENDIENTE', verPen = s.estado!=='PAGADO', ambos = !s.estado;
+  const filas = filasInf(id);
+  const t = resumenFilas(filas);
+  const hoyTxt = new Date().toLocaleDateString('es-HN',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const nomSel = s.grupo ? (lista.find(x=>x.clave===s.grupo)||{}).nombre : '';
+  const tituloG = s.grupo ? g.pref+nomSel : 'Informe general — '+g.plural;
+  const cd = colsDetalle(id);
+  const nCols = 1 + cd.length + 3 + (ambos?1:0) + (verPag?1:0) + 2;   // N°, extras, fecha/ben/valor, estado, f.pago, días, realizó
+
+  const controles = `
+  <div class="panel no-imprimir">
+    <div class="filtros">
+      ${c.grupos.length>1?`<label class="et-f">Separar por:</label>
+      <select onchange="selInf('${id}').agr=+this.value; selInf('${id}').grupo=''; renderInformeAgrupado('${id}')">
+        ${c.grupos.map((x,i)=>`<option value="${i}" ${s.agr===i?'selected':''}>${x.et}</option>`).join('')}
+      </select>`:''}
+      <label class="et-f">${g.et}:</label>
+      <select style="max-width:340px" onchange="selInf('${id}').grupo=this.value; renderInformeAgrupado('${id}')">
+        <option value="">General — una sección por ${g.et.toLowerCase()}</option>
+        ${lista.map(x=>`<option value="${esc(x.clave)}" ${s.grupo===x.clave?'selected':''}>${esc(g.pref+x.nombre)}</option>`).join('')}
+      </select>
+      <label class="et-f">Mostrar:</label>
+      <select onchange="selInf('${id}').estado=this.value; renderInformeAgrupado('${id}')">
+        ${Object.entries(INF_EST_ET).map(([v,tx])=>`<option value="${v}" ${s.estado===v?'selected':''}>${tx}</option>`).join('')}
+      </select>
+      <button class="btn peq sec" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn peq sec" onclick="exportarInfCSV('${id}')">⬇ Exportar CSV</button>
+    </div>
+  </div>`;
+
+  const kpis = `
+  <div class="kpis">
+    <div class="kpi"><div class="et">Solicitudes</div><div class="val">${t.n}</div><div class="det">${t.ben} beneficiarios</div></div>
+    ${ambos?`<div class="kpi"><div class="et">Monto total</div><div class="val">${L(t.tot)}</div><div class="det">${t.tot?Math.round(t.mPag/t.tot*100):0}% pagado</div></div>`:''}
+    ${verPag?`<div class="kpi verde"><div class="et">Pagado</div><div class="val">${L(t.mPag)}</div><div class="det">${t.nPag} solicitudes</div></div>`:''}
+    ${verPen?`<div class="kpi ambar"><div class="et">Pendiente</div><div class="val">${L(t.mPen)}</div><div class="det">${t.nPen} solicitudes</div></div>`:''}
+  </div>`;
+
+  // Resumen por grupo (solo en el general)
+  let resumen = '';
+  if(!s.grupo){
+    const conDatos = lista.filter(x=>(DATOS[c.hoja]||[]).some(r=>grupoClave(r,g)===x.clave));
+    const filasRes = conDatos.map(x=>{
+      const y = resumenFilas(filas.filter(r=>grupoClave(r,g)===x.clave));
+      return `<tr><td class="envuelve" style="min-width:180px"><b>${esc(g.pref+x.nombre)}</b></td>
+        ${ambos?`<td class="num">${y.n}</td>`:''}
+        ${verPag?`<td class="num">${y.nPag}</td><td class="num" style="color:var(--verde)">${L(y.mPag)}</td>`:''}
+        ${verPen?`<td class="num">${y.nPen}</td><td class="num" style="color:var(--ambar)">${L(y.mPen)}</td>`:''}
+        ${ambos?`<td class="num">${L(y.tot)}</td><td class="num">${y.tot?Math.round(y.mPag/y.tot*100):0}%</td>`:''}
+      </tr>`;
+    }).join('');
+    resumen = `
+    <div class="panel">
+      <div class="panel-cab"><h2>Resumen por ${g.et.toLowerCase()}</h2></div>
+      <div class="t-scroll"><table>
+        <thead><tr><th>${g.et}</th>
+          ${ambos?'<th>Solicitudes</th>':''}
+          ${verPag?'<th>N° pagadas</th><th>Monto pagado</th>':''}
+          ${verPen?'<th>N° pendientes</th><th>Monto pendiente</th>':''}
+          ${ambos?'<th>Monto total</th><th>% Avance</th>':''}
+        </tr></thead>
+        <tbody>${filasRes || `<tr><td colspan="8"><div class="vacio">Sin registros.</div></td></tr>`}</tbody>
+        <tfoot><tr><td>TOTAL GENERAL</td>
+          ${ambos?`<td class="num">${t.n}</td>`:''}
+          ${verPag?`<td class="num">${t.nPag}</td><td class="num">${L(t.mPag)}</td>`:''}
+          ${verPen?`<td class="num">${t.nPen}</td><td class="num">${L(t.mPen)}</td>`:''}
+          ${ambos?`<td class="num">${L(t.tot)}</td><td class="num">${t.tot?Math.round(t.mPag/t.tot*100):0}%</td>`:''}
+        </tr></tfoot>
+      </table></div>
+    </div>`;
+  }
+
+  // Detalle: una sección por grupo
+  const gruposVer = s.grupo ? lista.filter(x=>x.clave===s.grupo) : lista;
+  let nSec = 0;
+  const secciones = gruposVer.map(x=>{
+    const fs = filas.filter(r=>grupoClave(r,g)===x.clave);
+    if(!fs.length && !s.grupo) return '';
+    const y = resumenFilas(fs);
+    nSec++;
+    const cuerpo = fs.map((r,i)=>{
+      const est = estadoDe(r), dias = diasDe(r);
+      const critico = est==='PENDIENTE' && dias!==null && dias>30;
+      return `<tr>
+        <td class="num" style="color:var(--gris)">${i+1}</td>
+        ${cd.map(k=>`<td class="${k.cls}" style="${k.st}">${esc(r[k.k])}</td>`).join('')}
+        <td>${esc(fechaISO(r.fecha)||r.fecha)}</td>
+        <td class="num">${esc(r.nben||'')}</td>
+        <td class="num">${L(r.valor)}</td>
+        ${ambos?`<td><span class="pill ${critico?'critico':est.toLowerCase()}">${est}${critico?' ⚠':''}</span></td>`:''}
+        ${verPag?`<td>${est==='PAGADO'?esc(fechaISO(r.fpago)||'—'):''}</td>`:''}
+        <td class="num ${critico?'dias-alerta':''}">${dias===null?'—':dias}</td>
+        <td class="envuelve" style="max-width:110px">${esc(r.realizado)}</td>
+      </tr>`;
+    }).join('');
+    const antes = 1 + cd.length + 1;              // columnas antes de "Ben."
+    const despues = nCols - antes - 2;            // columnas después de "Valor"
+    return `
+    <div class="panel${s.grupo?'':' salto-cl'}">
+      <div class="seg-banda cl">
+        <span>${esc((g.pref+x.nombre).toUpperCase())}</span>
+        <span class="der">${INF_EST_ET[s.estado]} · ${y.n} solicitud${y.n===1?'':'es'}</span>
+      </div>
+      <div class="t-scroll"><table>
+        <thead><tr>
+          <th>N°</th>${cd.map(k=>`<th>${k.et}</th>`).join('')}<th>Fecha</th><th>Ben.</th><th>Valor</th>
+          ${ambos?'<th>Estado</th>':''}${verPag?'<th>Fecha pago</th>':''}<th>Días</th><th>Realizó</th>
+        </tr></thead>
+        <tbody>${cuerpo || `<tr><td colspan="${nCols}"><div class="vacio">No hay solicitudes ${s.estado==='PAGADO'?'pagadas':s.estado==='PENDIENTE'?'pendientes':''} en este grupo.</div></td></tr>`}</tbody>
+        <tfoot>
+          <tr><td colspan="${antes}">SUBTOTAL</td><td class="num">${y.ben}</td><td class="num">${L(y.tot)}</td><td colspan="${despues}"></td></tr>
+          ${ambos?`<tr><td colspan="${antes}">Pagado: ${y.nPag} · Pendiente: ${y.nPen}</td><td></td>
+            <td colspan="${despues+1}" style="text-align:left">Pagado ${L(y.mPag)} &nbsp;·&nbsp; Pendiente ${L(y.mPen)}</td></tr>`:''}
+        </tfoot>
+      </table></div>
+    </div>`;
+  }).join('');
+
+  cont.innerHTML = `
+  ${controles}
+  <div class="inf-titulo">
+    <h2>${c.titulo} — ${esc(tituloG)}</h2>
+    <div class="det">${INF_EST_ET[s.estado]} · Generado el ${hoyTxt}${sesion?' por '+esc(sesion.nombre):''}</div>
+  </div>
+  ${kpis}
+  ${resumen}
+  ${secciones || (cargando?'<div class="vacio">⏳ Cargando datos…</div>':'')}
+  ${!s.grupo && nSec===0 && !cargando ? `<div class="panel"><div class="vacio">No hay solicitudes con este filtro.</div></div>`:''}`;
+}
+
+function exportarInfCSV(id){
+  const c = INF_AGR[id], s = selInf(id), g = grupoCfg(id);
+  const cfg = HOJAS[c.hoja];
+  const cab = [g.et, ...cfg.cols.filter(x=>x.k!==g.k).map(x=>x.et), 'Estado', 'Fecha de pago', 'Días'];
+  const orden = ordenGrupo(g);
+  const filas = filasInf(id)
+    .sort((a,b)=>orden({clave:grupoClave(a,g),nombre:grupoTxt(a,g)},{clave:grupoClave(b,g),nombre:grupoTxt(b,g)}) || fechaOrden(a).localeCompare(fechaOrden(b)))
+    .map(r=>[grupoTxt(r,g)||'(sin dato)',
+             ...cfg.cols.filter(x=>x.k!==g.k).map(x=>x.k==='fecha'?(fechaISO(r.fecha)||r.fecha||''):x.k==='valor'?(+r.valor||0):(r[x.k]??'')),
+             estadoDe(r), fechaISO(r.fpago)||'', diasDe(r)??'']);
+  if(!filas.length){ toast('No hay registros para exportar con este filtro.'); return; }
+  const csv = '﻿' + [cab,...filas].map(f=>f.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const parteG = s.grupo ? (g.pref+((listaGrupos(id).find(x=>x.clave===s.grupo)||{}).nombre||s.grupo)).replace(/[^\wÁÉÍÓÚÑáéíóúñ]+/g,'_').replace(/^_|_$/g,'') : 'General';
+  const parteEst = s.estado==='PAGADO' ? '_Pagado' : s.estado==='PENDIENTE' ? '_Pendiente' : '';
+  descargar(csv, 'Informe_'+c.archivo+'_'+parteG+parteEst+'_'+hoyISO()+'.csv', 'text/csv;charset=utf-8');
 }
 
 /* ============================================================
