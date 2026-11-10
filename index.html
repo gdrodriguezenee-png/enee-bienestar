@@ -749,7 +749,12 @@ if (!window.Portal) {
     aviso('e-aviso', '');
     $('e-titulo').textContent = u ? 'Editar: ' + u.nombre : 'Nuevo usuario';
     $('e-id').value     = u ? u.id : '';
-    $('e-id').disabled  = !!u;
+    /* Se puede cambiar el usuario de otros. El propio (sesion abierta) y los
+       protegidos quedan fijos para no romper la sesion ni el respaldo interno. */
+    var idFijo = !!u && (u.protegido || u.id === sesion.id);
+    $('e-id').disabled  = idFijo;
+    $('e-id').title     = idFijo ? (u.protegido ? 'Usuario protegido: no se puede renombrar'
+                                                : 'No puedes cambiar tu propio usuario con la sesion abierta') : '';
     $('e-nombre').value = u ? u.nombre : '';
     $('e-pass').value   = '';
     $('e-pass').placeholder = u ? 'deja vacio para no cambiarla' : 'minimo 6 caracteres';
@@ -824,12 +829,19 @@ if (!window.Portal) {
     var d = leerEditor();
     var original = editando ? Portal.buscarUsuario(editando) : null;
 
+    // Sin cambio real (o campo bloqueado): se conserva el id tal como esta en la hoja.
+    if (original && ($('e-id').disabled || d.id === String(original.id).toLowerCase())) d.id = original.id;
+    var renombrado = !!original && d.id !== original.id;
+    var repetido = Portal.usuarios().some(function (u) {
+      return (!original || u.id !== original.id) && String(u.id).toLowerCase() === d.id.toLowerCase();
+    });
+
     if (!d.id) { aviso('e-aviso', 'Escribe el usuario para ingresar.'); return; }
     if (d.id.indexOf('|') !== -1) { aviso('e-aviso', 'El usuario no puede llevar el caracter "|".'); return; }
     if (!d.nombre) { aviso('e-aviso', 'Escribe el nombre visible.'); return; }
     if (!original && d.pass.length < 6) { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
     if (d.pass && d.pass.length < 6)    { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
-    if (!original && Portal.buscarUsuario(d.id)) { aviso('e-aviso', 'Ya existe un usuario con ese nombre.'); return; }
+    if (repetido || (!original && Portal.buscarUsuario(d.id))) { aviso('e-aviso', 'Ya existe un usuario con ese nombre.'); return; }
     if (original && original.id === sesion.id && d.rol !== 'admin') {
       aviso('e-aviso', 'No puedes quitarte a ti mismo el rol de administrador.'); return;
     }
@@ -841,6 +853,7 @@ if (!window.Portal) {
     if (original) {
       lista.forEach(function (u) {
         if (u.id !== original.id) return;
+        u.id = d.id;
         u.nombre = d.nombre; u.rol = d.rol; u.permisos = d.permisos; u.claves = d.claves;
         if (d.pass) u.pass = d.pass;
       });
@@ -850,6 +863,8 @@ if (!window.Portal) {
     }
     persistir(lista, this, 'Guardar cambios', function () {
       cerrar('m-editar'); pintarUsuarios();
+      // Su fecha de cumpleanos y su lugar en "quien ve el calendario" pasan al nuevo usuario.
+      if (renombrado && window.CumplesRenombrar) window.CumplesRenombrar(original.id, d.id, d.nombre);
       if (original && original.id === sesion.id) {
         sesion = Portal.sesion(); Portal.publicarSSO(Portal.buscarUsuario(sesion.id));
         mostrarDash(sesion);
@@ -1808,6 +1823,34 @@ if (!window.Portal) {
       });
     };
   }
+
+  /* ---------------- renombrar usuario (lo llama el editor de usuarios) ---------------- */
+  /* Mueve la fecha y el permiso de ver del id viejo al nuevo. Solo escribe en la
+     hoja con datos recien leidos de ella, para no pisarla con una copia local vieja. */
+  window.CumplesRenombrar = function (viejo, nuevo, nombre) {
+    function aplicar() {
+      var cambio = false, v = String(viejo).toLowerCase();
+      if (DATOS[viejo]) {
+        DATOS[nuevo] = DATOS[viejo];
+        if (nombre) DATOS[nuevo].n = nombre;
+        delete DATOS[viejo];
+        cambio = true;
+      }
+      if (VER !== '*') {
+        VER = VER.map(function (x) {
+          if (String(x).toLowerCase() === v) { cambio = true; return nuevo; }
+          return x;
+        });
+      }
+      if (!cambio) return;
+      guardarCache();
+      pintarPanel();
+      refrescarCalendario();
+      guardarNube(DATOS, function (err) { if (err) ORIGEN = 'local'; });
+    }
+    if (ORIGEN === 'sheet') aplicar();
+    else leerNube(function (err) { if (!err) aplicar(); });
+  };
 
   /* ---------------- arranque ---------------- */
   var arrancado = false;
