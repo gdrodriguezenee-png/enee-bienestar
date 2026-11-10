@@ -811,7 +811,7 @@ if (!window.Portal) {
       if (ci && ci.value.trim()) claves[ci.getAttribute('data-clave')] = ci.value.trim();
     });
     return {
-      id: $('e-id').value.trim().toLowerCase(),
+      id: $('e-id').value.trim().replace(/\s+/g, ' ').toLowerCase(),
       nombre: $('e-nombre').value.trim(),
       pass: $('e-pass').value,
       rol: $('e-rol').value,
@@ -824,9 +824,8 @@ if (!window.Portal) {
     var d = leerEditor();
     var original = editando ? Portal.buscarUsuario(editando) : null;
 
-    if (!/^[a-z0-9._-]{3,20}$/.test(d.id)) {
-      aviso('e-aviso', 'El usuario debe tener de 3 a 20 caracteres: letras, numeros, punto, guion o guion bajo.'); return;
-    }
+    if (!d.id) { aviso('e-aviso', 'Escribe el usuario para ingresar.'); return; }
+    if (d.id.indexOf('|') !== -1) { aviso('e-aviso', 'El usuario no puede llevar el caracter "|".'); return; }
     if (!d.nombre) { aviso('e-aviso', 'Escribe el nombre visible.'); return; }
     if (!original && d.pass.length < 6) { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
     if (d.pass && d.pass.length < 6)    { aviso('e-aviso', 'La contrasena debe tener al menos 6 caracteres.'); return; }
