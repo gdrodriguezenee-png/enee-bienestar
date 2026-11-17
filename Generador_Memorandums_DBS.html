@@ -1518,7 +1518,7 @@ function addRow(t, data){
       '<td><input class="ro ue" readonly></td>'+
       '<td><input class="ro ua" readonly></td>'+
       '<td><input class="fac" oninput="chkFactura(this,\'memo\')" placeholder="0"></td>'+
-      '<td><input class="money val" oninput="recalc(\'memo\')" placeholder="0.00"></td>'+
+      '<td><input class="money val" oninput="valChange(this,\'memo\')" placeholder="0.00"></td>'+
       '<td><input class="pct" oninput="pctChange(this,\'memo\')" placeholder="20"></td>'+
       '<td><input class="money pemp" oninput="pempManual(this,\'memo\')" placeholder="0.00"></td>'+
       '<td><input class="money penee" data-auto="1" oninput="peneeManual(this,\'memo\')" placeholder="0.00"></td>';
@@ -1538,7 +1538,7 @@ function addRow(t, data){
       '<td><input class="ro ue" readonly></td>'+
       '<td><input class="ro ua" readonly></td>'+
       '<td><input class="fac" oninput="chkFactura(this,\'reem\')" placeholder="0"></td>'+
-      '<td><input class="money val" oninput="recalc(\'reem\')" placeholder="0.00"></td>'+
+      '<td><input class="money val" oninput="valChange(this,\'reem\')" placeholder="0.00"></td>'+
       '<td><input class="pct" oninput="pctChange(this,\'reem\')" placeholder="20"></td>'+
       '<td><input class="money pemp" oninput="pempManual(this,\'reem\')" placeholder="0.00"></td>'+
       '<td><input class="money penee" data-auto="1" oninput="peneeManual(this,\'reem\')" placeholder="0.00"></td>';
@@ -1556,7 +1556,8 @@ function addRow(t, data){
     if(t==='memo'){ tr.querySelector('.clave').value = data.clave || ''; claveFill(tr.querySelector('.clave')); }
     // Pago ENEE guardado como valor explícito
     var pn=tr.querySelector('.penee');
-    if(data.penee!=null && data.penee!==''){ pn.value=data.penee; pn.dataset.auto='0'; pn.classList.add('manual'); }
+    // Pago ENEE siempre se deriva (Valor − Pago Empleado); un valor guardado nunca queda congelado
+    if(data.penee!=null && data.penee!==''){ pn.value=data.penee; pn.dataset.auto='1'; pn.classList.remove('manual'); }
   }
   if(t==='reem') applyReemEmp(tr);
   renumber(t); recalc(t);
@@ -1828,11 +1829,22 @@ function pctPorBeneficiario(b){
   if(s.indexOf('emplead')>=0 || s.indexOf('titular')>=0) return 0;
   return PCT_DEPENDIENTE;
 }
+/* Pago ENEE = Valor − Pago Empleado. Si cambia el Valor, el % o el Pago Empleado,
+   Pago ENEE vuelve a calcularse solo (aunque viniera "congelado" de un registro guardado). */
+function liberarPenee(tr){
+  var pn=tr.querySelector('.penee');
+  if(pn){ pn.dataset.auto='1'; pn.classList.remove('manual'); }
+}
+function valChange(inp,t){
+  liberarPenee(inp.closest('tr'));
+  recalc(t);
+}
 function benefChange(inp,t){
   var tr=inp.closest('tr');
   var pct=tr.querySelector('.pct');
   var p=pctPorBeneficiario(inp.value);
   if(p!==null && pct.dataset.auto!=='0'){ pct.value=String(p); }   // sugerir % según el parentesco
+  liberarPenee(tr);
   aplicarPct(tr); recalc(t);
 }
 function pctChange(inp,t){
@@ -1840,12 +1852,14 @@ function pctChange(inp,t){
   var tr=inp.closest('tr');
   var pe=tr.querySelector('.pemp'); pe.dataset.auto='1';            // vuelve a calcularse
   pe.classList.remove('manual');
+  liberarPenee(tr);                                                 // Pago ENEE = Valor − Pago Empleado
   aplicarPct(tr); recalc(t);
 }
 function pempManual(inp,t){
   // El usuario escribió el Pago de Empleado a mano: se respeta y se limpia el %
   if(inp.value.trim()===''){ inp.dataset.auto='1'; inp.classList.remove('manual'); }
   else { inp.dataset.auto='0'; inp.classList.add('manual'); }
+  liberarPenee(inp.closest('tr'));                                  // Pago ENEE se recalcula
   recalc(t);
 }
 function aplicarPct(tr){
